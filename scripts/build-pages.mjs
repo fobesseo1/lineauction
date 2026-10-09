@@ -38,6 +38,7 @@ async function copySource(relative){
   for(const ext of ['', '.tsx','.ts','.json','/index.ts'])try{if((await stat(join(root,candidate+ext))).isFile()){await copySource(candidate+ext);break;}}catch(error){if(error.code!=='ENOENT')throw error;}
  }
 }
+await cp('app/icon.svg',join(stage,'app/icon.svg'));
 await copySource('sharing/public-app.tsx');await copySource('sharing/link.tsx');
 await writeFile(join(stage,'sharing/public-config.json'),JSON.stringify({url,publishableKey,basePath}));
 const files=await readdir('public/media',{recursive:true,withFileTypes:true});
