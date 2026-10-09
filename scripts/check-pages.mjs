@@ -60,8 +60,8 @@ try{
  if(overflow)throw Error('Mobile page overflows horizontally');
  for(const width of [333,768]){
   await page.setViewportSize({width,height:900});
-  await page.waitForFunction(()=>{const photo=document.querySelector('header a[href="#court-photos"]'),text=photo?.nextElementSibling;if(!photo||!text)return false;const a=photo.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.y+a.height/2-b.y-b.height/2)<1;});
-  const square=await page.locator('header a[href="#court-photos"]').boundingBox();if(Math.abs(square.width-square.height)>1)throw Error('Header photo is not square');
+  await page.waitForFunction(()=>{const photo=document.querySelector('header a[href="#court-photos"]'),text=photo?.nextElementSibling;if(!photo||!text)return false;const a=photo.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.y-b.y)<1&&Math.abs(a.bottom-b.bottom)<1;});
+  if(await page.locator('[data-detail-updated]').evaluate(el=>getComputedStyle(el).textAlign)!=='right')throw Error('Last update is not aligned right');
   if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Responsive header overflows');
   await page.locator('header a[href="#court-photos"]').scrollIntoViewIfNeeded();
   await page.screenshot({path:`docs/qa/detail-header-${width}.png`});

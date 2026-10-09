@@ -45,6 +45,7 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
  const priceGap=latest&&Number.isSafeInteger(minimum)&&minimum>0&&Number.isSafeInteger(latestPrice)&&latestPrice>0?(minimum/latestPrice-1)*100:null;
  const status=p.lifecycle_state==="closed"?(p.lifecycle_reason?.startsWith("취하")?"취하":p.lifecycle_reason?.startsWith("취소")?"취소":p.lifecycle_reason?.startsWith("매각")?"매각 · 대금납부 미확인":"해당 입찰 종료"):p.lifecycle_state==="needs-recheck"?"진행 여부 재확인 필요":p.status||"진행상태 확인 필요";
  const facts=[
+  {label:"소재지",value:p.address||"확인 필요"},
   {label:"사건번호",value:p.source_property_id.replace(/^.*?:/,"")},
   {label:"관할 법원",value:p.source_property_id.split(":")[0]},
   {label:"물건번호",value:p.auction_condition_id},
@@ -66,8 +67,8 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
    <PriceAttractivenessDetails badge/>
   </div>
   <DetailPreviewHeader photo={photos[0]?.path} title={title}>
-   <div className="mb-1.5 flex flex-wrap items-center gap-2"><Badge variant="outline" className="rounded-full bg-white text-xs">{p.usage_type}</Badge><span className="text-xs text-muted-foreground">{p.source_property_id.replace(":"," ")} · 물건 {p.auction_condition_id}</span></div><h1 className="text-2xl leading-tight md:text-[28px]">{title}</h1>
-    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><p className="flex items-start gap-1.5 text-sm text-muted-foreground"><MapPin className="mt-0.5 size-3.5 shrink-0"/>{p.address}</p><span className="text-[11px] text-muted-foreground">마지막 업데이트 {dateLabel(p.last_seen_at)}</span></div>
+   <div className="mb-1.5 flex min-w-0 items-center gap-1.5 md:flex-wrap md:gap-2"><Badge variant="outline" className="shrink-0 rounded-full bg-white text-[10px] md:text-xs">{p.usage_type}</Badge><span className="min-w-0 truncate text-[10px] text-muted-foreground md:whitespace-normal md:text-xs" title={`${p.source_property_id.replace(":"," ")} · 물건 ${p.auction_condition_id}`}>{p.source_property_id.replace(":"," ")} · 물건 {p.auction_condition_id}</span></div><h1 className="truncate text-xl leading-tight md:whitespace-normal md:text-[28px]" title={title}>{title}</h1>
+    <div className="mt-1.5 space-y-1 md:mt-2"><p className="flex items-start gap-1.5 text-xs leading-normal text-muted-foreground md:text-sm"><MapPin className="mt-0.5 size-3 shrink-0 md:size-3.5"/><span className="min-w-0 line-clamp-2 md:line-clamp-none" title={p.address??undefined}>{p.address}</span></p><p className="truncate text-right text-[10px] text-muted-foreground md:whitespace-normal md:text-[11px]" data-detail-updated title={`마지막 업데이트 ${dateLabel(p.last_seen_at)}`}>마지막 업데이트 {dateLabel(p.last_seen_at)}</p></div>
   </DetailPreviewHeader>
   <Card className="gap-0 border-0 py-3 shadow-none"><CardContent className="flex flex-wrap items-center justify-between gap-3 px-5"><span className="flex items-center gap-2 text-sm font-medium"><ChartNoAxesColumn className="size-4 text-muted-foreground"/>가격 매력도</span><div className="flex items-center gap-2"><Badge variant="secondary">점수 산정 전</Badge><PriceAttractivenessDetails/></div></CardContent></Card>
   <Card className="gap-0 overflow-hidden border-0 py-0 shadow-none">
