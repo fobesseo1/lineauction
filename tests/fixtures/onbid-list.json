@@ -1,0 +1,17 @@
+{
+  "response": {
+    "header": { "resultCode": "00", "resultMsg": "NORMAL SERVICE" },
+    "body": {
+      "totalCount": "1", "pageNo": "1", "numOfRows": "100",
+      "items": { "item": [{
+        "cltrMngNo": "FIXTURE-2026-000001", "pbctCdtnNo": "12345", "onbidPbancNo": "67890",
+        "onbidCltrNm": "테스트용 아파트 (실제 공매물건 아님)", "prptDivNm": "압류재산",
+        "cltrUsgSclsCtgrNm": "아파트", "lctnSdnm": "서울특별시", "lctnSggnm": "테스트구", "lctnEmdNm": "테스트동",
+        "apslEvlAmt": "620000000", "lowstBidPrcIndctCont": "400000000", "usbdNft": "3",
+        "pbctNsq": "4", "pbctsn": "", "cltrBidBgngDt": "202610051000", "cltrBidEndDt": "202610071700",
+        "pbctStatCd": "0002", "pbctStatNm": "입찰진행중", "dspsMthodCd": "0001", "dspsMthodNm": "매각",
+        "batcBidYn": "N", "bldSqms": "84.9", "mdfcnDt": "20261005103000"
+      }] }
+    }
+  }
+}

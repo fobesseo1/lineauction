@@ -1,0 +1,623 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "「부동산 거래신고 등에 관한 법률」에 따라 신고된 자료로서 행정표준코드관리시스템(www.code.go.kr)의 법정동 코드 중 앞5자리(예시 : 서울 종로구 - 11110), 계약년월 6자리(예시 : 201801)로 해당 지역, 해당 기간의 오피스텔 매매 실거래가 상세자료를 조회할 수 있습니다.\\n\\nAPI 설명 : 지역코드와 기간을 설정하여 해당지역, 해당기간의 오피스텔 매매 자료를 제공하는 오피스텔 매매 실거래가 상세 자료 조회. 세부사항 참고자료 참고.\\n\\n* 공개내용 중 개인정보보호를 위해 오피스텔 매매의 층정보만 제공됩니다.",
+    "version": "1.0.0",
+    "title": "국토교통부_오피스텔 매매 실거래가 자료"
+  },
+  "host": "apis.data.go.kr/1613000/RTMSDataSvcOffiTrade",
+  "basePath": "",
+  "schemes": [
+    "https",
+    "http"
+  ],
+  "paths": {
+    "/getRTMSDataSvcOffiTrade": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "성공",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "header": {
+                  "type": "object",
+                  "description": "header",
+                  "properties": {
+                    "resultCode": {
+                      "type": "string",
+                      "description": "결과코드",
+                      "properties": {}
+                    },
+                    "resultMsg": {
+                      "type": "string",
+                      "description": "결과메세지",
+                      "properties": {}
+                    }
+                  }
+                },
+                "body": {
+                  "type": "object",
+                  "description": "body",
+                  "properties": {
+                    "items": {
+                      "type": "object",
+                      "description": "items",
+                      "properties": {
+                        "item": {
+                          "type": "object",
+                          "description": "item",
+                          "properties": {
+                            "sggCd": {
+                              "type": "string",
+                              "description": "지역코드",
+                              "properties": {}
+                            },
+                            "sggNm": {
+                              "type": "string",
+                              "description": "시군구",
+                              "properties": {}
+                            },
+                            "umdNm": {
+                              "type": "string",
+                              "description": "법정동",
+                              "properties": {}
+                            },
+                            "jibun": {
+                              "type": "string",
+                              "description": "지번",
+                              "properties": {}
+                            },
+                            "offiNm": {
+                              "type": "string",
+                              "description": "단지명",
+                              "properties": {}
+                            },
+                            "excluUseAr": {
+                              "type": "string",
+                              "description": "전용면적",
+                              "properties": {}
+                            },
+                            "dealYear": {
+                              "type": "string",
+                              "description": "계약년도",
+                              "properties": {}
+                            },
+                            "dealMonth": {
+                              "type": "string",
+                              "description": "계약월",
+                              "properties": {}
+                            },
+                            "dealDay": {
+                              "type": "string",
+                              "description": "계약일",
+                              "properties": {}
+                            },
+                            "dealAmount": {
+                              "type": "string",
+                              "description": "거래금액(만원)",
+                              "properties": {}
+                            },
+                            "floor": {
+                              "type": "string",
+                              "description": "층",
+                              "properties": {}
+                            },
+                            "buildYear": {
+                              "type": "string",
+                              "description": "건축년도",
+                              "properties": {}
+                            },
+                            "cdealType": {
+                              "type": "string",
+                              "description": "해제여부",
+                              "properties": {}
+                            },
+                            "cdealDay": {
+                              "type": "string",
+                              "description": "해제사유발생일",
+                              "properties": {}
+                            },
+                            "dealingGbn": {
+                              "type": "string",
+                              "description": "거래유형(중개 및 직거래 여부)",
+                              "properties": {}
+                            },
+                            "estateAgentSggNm": {
+                              "type": "string",
+                              "description": "중개사소재지(시군구 단위)",
+                              "properties": {}
+                            },
+                            "slerGbn": {
+                              "type": "string",
+                              "description": "거래주체정보_매도자(개인/법인/공공기관/기타)",
+                              "properties": {}
+                            },
+                            "buyerGbn": {
+                              "type": "string",
+                              "description": "거래주체정보_매수자(개인/법인/공공기관/기타)",
+                              "properties": {}
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "totalCount": {
+                      "type": "number",
+                      "description": "전체 결과 수",
+                      "properties": {}
+                    },
+                    "numOfRows": {
+                      "type": "number",
+                      "description": "한 페이지 결과 수",
+                      "properties": {}
+                    },
+                    "pageNo": {
+                      "type": "number",
+                      "description": "페이지 번호",
+                      "properties": {}
+                    }
+                  }
+                }
+              },
+              "xml": {
+                "name": "response"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API 목록"
+        ],
+        "summary": "오피스텔 매매 실거래가 공개 자료",
+        "description": "부동산 거래신고에 관한 법률에 따라 신고된 거래의 실거래 자료를 제공",
+        "operationId": "getRTMSDataSvcOffiTrade",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/xml"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "LAWD_CD",
+          "description": "지역코드, 각 지역별 코드 행정표준코드관리시스템(www.code.go.kr)의 법정동코드 10자리 중 앞 5자리",
+          "type": "number",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "DEAL_YMD",
+          "description": "계약월, 실거래 자료의 계약년월(6자리)",
+          "type": "number",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "serviceKey",
+          "description": "공공데이터포털에서 요청하는 인증키",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "getRTMSDataSvcOffiTrade_response": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "header",
+          "properties": {
+            "resultCode": {
+              "type": "string",
+              "description": "결과코드"
+            },
+            "resultMsg": {
+              "type": "string",
+              "description": "결과메세지"
+            }
+          }
+        },
+        "body": {
+          "type": "object",
+          "description": "body",
+          "properties": {
+            "items": {
+              "type": "object",
+              "description": "items",
+              "properties": {
+                "item": {
+                  "type": "object",
+                  "description": "item",
+                  "properties": {
+                    "sggCd": {
+                      "type": "string",
+                      "description": "지역코드"
+                    },
+                    "sggNm": {
+                      "type": "string",
+                      "description": "시군구"
+                    },
+                    "umdNm": {
+                      "type": "string",
+                      "description": "법정동"
+                    },
+                    "jibun": {
+                      "type": "string",
+                      "description": "지번"
+                    },
+                    "offiNm": {
+                      "type": "string",
+                      "description": "단지명"
+                    },
+                    "excluUseAr": {
+                      "type": "string",
+                      "description": "전용면적"
+                    },
+                    "dealYear": {
+                      "type": "string",
+                      "description": "계약년도"
+                    },
+                    "dealMonth": {
+                      "type": "string",
+                      "description": "계약월"
+                    },
+                    "dealDay": {
+                      "type": "string",
+                      "description": "계약일"
+                    },
+                    "dealAmount": {
+                      "type": "string",
+                      "description": "거래금액(만원)"
+                    },
+                    "floor": {
+                      "type": "string",
+                      "description": "층"
+                    },
+                    "buildYear": {
+                      "type": "string",
+                      "description": "건축년도"
+                    },
+                    "cdealType": {
+                      "type": "string",
+                      "description": "해제여부"
+                    },
+                    "cdealDay": {
+                      "type": "string",
+                      "description": "해제사유발생일"
+                    },
+                    "dealingGbn": {
+                      "type": "string",
+                      "description": "거래유형(중개 및 직거래 여부)"
+                    },
+                    "estateAgentSggNm": {
+                      "type": "string",
+                      "description": "중개사소재지(시군구 단위)"
+                    },
+                    "slerGbn": {
+                      "type": "string",
+                      "description": "거래주체정보_매도자(개인/법인/공공기관/기타)"
+                    },
+                    "buyerGbn": {
+                      "type": "string",
+                      "description": "거래주체정보_매수자(개인/법인/공공기관/기타)"
+                    }
+                  }
+                }
+              }
+            },
+            "totalCount": {
+              "type": "number",
+              "description": "전체 결과 수"
+            },
+            "numOfRows": {
+              "type": "number",
+              "description": "한 페이지 결과 수"
+            },
+            "pageNo": {
+              "type": "number",
+              "description": "페이지 번호"
+            }
+          }
+        }
+      }
+    }
+  },
+  "swaggerOprtinVOs": [
+    {
+      "oprtinUrl": "https://rt.molit.go.kr/oasis/service/public/getRTMSDataSvcOffiTrade",
+      "oprtinNm": "오피스텔 매매 실거래가 공개 자료",
+      "oprtinDc": "부동산 거래신고에 관한 법률에 따라 신고된 거래의 실거래 자료를 제공",
+      "gwSvcNm": "getRTMSDataSvcOffiTrade",
+      "operationId": "getRTMSDataSvcOffiTrade",
+      "publicDataTyDetailCode": "PRDE02",
+      "reqList": [
+        {
+          "paramtrNm": "LAWD_CD",
+          "paramtrDc": "지역코드, 각 지역별 코드 행정표준코드관리시스템(www.code.go.kr)의 법정동코드 10자리 중 앞 5자리",
+          "paramtrBassValue": "11110",
+          "paramtrTy": "number",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "DEAL_YMD",
+          "paramtrDc": "계약월, 실거래 자료의 계약년월(6자리)",
+          "paramtrBassValue": "201512",
+          "paramtrTy": "number",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "serviceKey",
+          "paramtrDc": "공공데이터포털에서 요청하는 인증키",
+          "paramtrBassValue": "인증키(URL Encode)",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        }
+      ],
+      "resList": [
+        {
+          "paramtrNm": "header",
+          "paramtrDc": "header",
+          "arrayYn": "N",
+          "paramtrDefNm": "#/definitions/oper-1-header",
+          "subDefNm": "oper-1-header",
+          "paramtrTy": "object",
+          "paramtrDivision": "필수",
+          "ck": true,
+          "subParam": [
+            {
+              "paramtrNm": "resultCode",
+              "paramtrDc": "결과코드",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "resultMsg",
+              "paramtrDc": "결과메세지",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            }
+          ]
+        },
+        {
+          "paramtrNm": "body",
+          "paramtrDc": "body",
+          "arrayYn": "N",
+          "paramtrDefNm": "#/definitions/oper-1-body",
+          "subDefNm": "oper-1-body",
+          "paramtrTy": "object",
+          "paramtrDivision": "필수",
+          "ck": true,
+          "subParam": [
+            {
+              "paramtrNm": "items",
+              "paramtrDc": "items",
+              "arrayYn": "N",
+              "paramtrDefNm": "#/definitions/oper-1-items",
+              "subDefNm": "oper-1-items",
+              "paramtrTy": "object",
+              "paramtrDivision": "필수",
+              "ck": true,
+              "subParam": [
+                {
+                  "paramtrNm": "item",
+                  "paramtrDc": "item",
+                  "arrayYn": "N",
+                  "paramtrDefNm": "#/definitions/oper-1-item",
+                  "subDefNm": "oper-1-item",
+                  "paramtrTy": "object",
+                  "paramtrDivision": "필수",
+                  "ck": true,
+                  "subParam": [
+                    {
+                      "paramtrNm": "sggCd",
+                      "paramtrDc": "지역코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "sggNm",
+                      "paramtrDc": "시군구",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "umdNm",
+                      "paramtrDc": "법정동",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "jibun",
+                      "paramtrDc": "지번",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "offiNm",
+                      "paramtrDc": "단지명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "excluUseAr",
+                      "paramtrDc": "전용면적",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dealYear",
+                      "paramtrDc": "계약년도",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dealMonth",
+                      "paramtrDc": "계약월",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dealDay",
+                      "paramtrDc": "계약일",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dealAmount",
+                      "paramtrDc": "거래금액(만원)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "floor",
+                      "paramtrDc": "층",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "buildYear",
+                      "paramtrDc": "건축년도",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cdealType",
+                      "paramtrDc": "해제여부",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cdealDay",
+                      "paramtrDc": "해제사유발생일",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dealingGbn",
+                      "paramtrDc": "거래유형(중개 및 직거래 여부)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "estateAgentSggNm",
+                      "paramtrDc": "중개사소재지(시군구 단위)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "slerGbn",
+                      "paramtrDc": "거래주체정보_매도자(개인/법인/공공기관/기타)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "buyerGbn",
+                      "paramtrDc": "거래주체정보_매수자(개인/법인/공공기관/기타)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "paramtrNm": "totalCount",
+              "paramtrDc": "전체 결과 수",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "number",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "numOfRows",
+              "paramtrDc": "한 페이지 결과 수",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "number",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "pageNo",
+              "paramtrDc": "페이지 번호",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "number",
+              "paramtrDivision": "필수",
+              "ck": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

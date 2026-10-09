@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {parseResults} from './results.mjs';
+import {lifecycleFromItem} from './lifecycle.mjs';
+const item={court:'서울중앙지방법원',caseNumber:'2024타경123',itemNumber:1,auctionDate:'2026-10-01',lastSeenAt:'2026-10-07T02:00:00Z',sourceUrl:'https://www.courtauction.go.kr/pgj/index.on',observationStatus:'observed'};
+const payload={kind:'court-results',court:item.court,query:item.court,sourceUrl:item.sourceUrl,observedAt:item.lastSeenAt,rows:[['',`${item.court}\n${item.caseNumber}`,'1','서울특별시','','100,000','경매1계\n2026.10.01'],['아파트','80,000','매각\n90,000']]};
+test('exact item sold result closes only that scheduled auction',()=>{const [proof]=parseResults(payload);assert.equal(proof.auctionDate,'2026-10-01');assert.equal(lifecycleFromItem({...item,resultEvidence:proof}).state,'closed');assert.equal(lifecycleFromItem({...item,itemNumber:2,resultEvidence:proof}).state,'observed');});
+test('newer auction date reopens; old sale cannot hide a relisted property',()=>{const [proof]=parseResults(payload);assert.equal(lifecycleFromItem({...item,auctionDate:'2026-11-01',resultEvidence:proof}).state,'observed');});
+test('missing, past date, unsuccessful auction do not imply closure',()=>{assert.equal(lifecycleFromItem({...item,observationStatus:'needs-recheck'}).state,'needs-recheck');assert.equal(lifecycleFromItem(item).state,'observed');const p=structuredClone(payload);p.rows[1][2]='유찰';assert.equal(lifecycleFromItem({...item,resultEvidence:parseResults(p)[0]}).state,'observed');});
+test('result parser refuses changed court, missing result rows and invalid dates',()=>{assert.throws(()=>parseResults({...payload,court:'제주지방법원'}));assert.throws(()=>parseResults({...payload,rows:payload.rows.slice(0,1)}));const p=structuredClone(payload);p.rows[0][6]='2026.02.30';assert.throws(()=>parseResults(p));});
+test('bundled asset continuation cannot become a separate result',()=>{const p=structuredClone(payload);p.rows.push(['','','','추가 토지','','',''],['','','']);assert.equal(parseResults(p).length,1);p.rows.at(-1)[2]='매각';assert.throws(()=>parseResults(p));});

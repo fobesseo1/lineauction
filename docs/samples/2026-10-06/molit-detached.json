@@ -1,0 +1,32 @@
+{
+  "header": {
+    "resultCode": "000",
+    "resultMsg": "OK"
+  },
+  "body": {
+    "items": {
+      "item": {
+        "buildYear": "1995",
+        "buyerGbn": "개인",
+        "cdealDay": "",
+        "cdealType": "",
+        "dealAmount": "165,000",
+        "dealDay": "12",
+        "dealMonth": "9",
+        "dealYear": "2026",
+        "dealingGbn": "중개거래",
+        "estateAgentSggNm": "서울 강남구",
+        "houseType": "다가구",
+        "jibun": "1***",
+        "plottageAr": "117.1",
+        "sggCd": "11680",
+        "slerGbn": "개인",
+        "totalFloorAr": "177.69",
+        "umdNm": "개포동"
+      }
+    },
+    "numOfRows": "1",
+    "pageNo": "1",
+    "totalCount": "1"
+  }
+}

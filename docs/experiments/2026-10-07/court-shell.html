@@ -1,0 +1,61 @@
+
+
+
+<!--
+    ============= ============ ==========================
+     Date          Author       Description
+    ============= ============ ==========================
+     2026.01.28.   강은숙               [26A-PGJ-0004] 보안취약점
+    ============= ============ ==========================
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="ko">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+        <link rel="shortcut icon" href="/pgj/cm/images/common/favicon.ico" />
+        <script type="text/javascript">
+            var WebSquareExternal = {"baseURI": "/pgj/websquare/", "w2xPath" : "/pgj/ui/pgj100/PGJ111M01.xml" };
+
+            var LOGIN_RESULT = "null";
+            var LOGIN_RESULT_MASSAGE = 'null';
+
+            if(LOGIN_RESULT != null) {
+                LOGIN_RESULT = LOGIN_RESULT.replace("<", "&lt;");
+                LOGIN_RESULT = LOGIN_RESULT.replace(">", "&gt;");
+            }
+            if(LOGIN_RESULT_MASSAGE != null) {
+                LOGIN_RESULT_MASSAGE = LOGIN_RESULT_MASSAGE.replace("<", "&lt;");
+                LOGIN_RESULT_MASSAGE = LOGIN_RESULT_MASSAGE.replace(">", "&gt;");
+            }
+
+            var PCA_PASS = true;
+            var PCA_MASSAGE = '';
+
+            if (parent.WebSquare && (parent === this)) {
+                // spa 적용 시 초기 iframe을 로딩하는 과정에서 w2xPath의 값이 없이 넘어와 초기 로딩 파일인 index_tabControl.xml을 호출한다.
+                // iframe와 같이 상위에 웹스퀘어 객체가 있고 호출 페이지가 login 페이지가 아닌 경우 매개변수를 빈값으로 설정
+                if((WebSquareExternal.w2xPath).toLowerCase().indexOf("/pgj/cm/main/index_") < 0) {
+                    WebSquareExternal.w2xPath = "/pgj/websquare/blank.xml";
+                } else {
+                    WebSquareExternal.w2xPath = "";
+                }
+            }
+
+        </script>
+        <script type="text/javascript" src="/pgj/websquare/javascript.wq?q=/bootloader"></script>
+        <script type="text/javascript">
+            window.onload = init;
+
+            function init() {
+                try{
+                     WebSquare.startApplication(WebSquareExternal.w2xPath);
+                } catch(e) {
+                    alert(e.message);
+                }
+            }
+        </script>
+    </head>
+<body></body>
+</html>

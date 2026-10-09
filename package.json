@@ -1,0 +1,52 @@
+{
+  "name": "auction-deal-finder",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:pages": "node scripts/build-pages.mjs",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "court:receive": "node scripts/court/cli.mjs receive",
+    "court:import": "node scripts/court/cli.mjs import",
+    "court:plan": "node scripts/court/plan.mjs",
+    "court:pipeline": "node scripts/court/pipeline.mjs",
+    "court:collect": "node scripts/court/standalone.mjs",
+    "court:status": "node scripts/court/standalone-status.mjs",
+    "court:test": "node --test scripts/court/*.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cn": "^0.4.0",
+    "fast-xml-parser": "^5.11.2",
+    "lossless-json": "^4.3.1",
+    "lucide-react": "^1.52.0",
+    "next": "16.3.8",
+    "radix-ui": "^1.7.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^24.19.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "playwright-core": "^1.64.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^5.0.3"
+  }
+}

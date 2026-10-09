@@ -1,0 +1,33 @@
+{
+  "header": {
+    "resultCode": "000",
+    "resultMsg": "OK"
+  },
+  "body": {
+    "items": {
+      "item": {
+        "buildYear": "1991",
+        "buyerGbn": "법인",
+        "cdealDay": "",
+        "cdealType": "",
+        "dealAmount": "28,500",
+        "dealDay": "21",
+        "dealMonth": "9",
+        "dealYear": "2026",
+        "dealingGbn": "중개거래",
+        "estateAgentSggNm": "서울 강남구",
+        "excluUseAr": "40.64",
+        "floor": "13",
+        "jibun": "203-1",
+        "offiNm": "거평타운오피스텔",
+        "sggCd": "11680",
+        "sggNm": "강남구",
+        "slerGbn": "개인",
+        "umdNm": "논현동"
+      }
+    },
+    "numOfRows": "1",
+    "pageNo": "1",
+    "totalCount": "45"
+  }
+}

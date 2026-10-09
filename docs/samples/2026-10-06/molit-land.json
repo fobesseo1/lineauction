@@ -1,0 +1,31 @@
+{
+  "header": {
+    "resultCode": "000",
+    "resultMsg": "OK"
+  },
+  "body": {
+    "items": {
+      "item": {
+        "cdealDay": "",
+        "cdealType": "",
+        "dealAmount": "2,000",
+        "dealArea": "3.31",
+        "dealDay": "15",
+        "dealMonth": "9",
+        "dealYear": "2026",
+        "dealingGbn": "직거래",
+        "estateAgentSggNm": "",
+        "jibun": "6**",
+        "jimok": "도로",
+        "landUse": "제2종일반주거지역",
+        "sggCd": "11680",
+        "sggNm": "강남구",
+        "shareDealingType": "지분",
+        "umdNm": "역삼동"
+      }
+    },
+    "numOfRows": "1",
+    "pageNo": "1",
+    "totalCount": "175"
+  }
+}

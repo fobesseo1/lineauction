@@ -1,0 +1,37 @@
+{
+  "header": {
+    "resultCode": "000",
+    "resultMsg": "OK"
+  },
+  "body": {
+    "items": {
+      "item": {
+        "buildYear": "1999",
+        "buildingAr": "47.29",
+        "buildingType": "집합",
+        "buildingUse": "업무",
+        "buyerGbn": "법인",
+        "cdealDay": "",
+        "cdealType": "",
+        "dealAmount": "86,000",
+        "dealDay": "11",
+        "dealMonth": "9",
+        "dealYear": "2026",
+        "dealingGbn": "중개거래",
+        "estateAgentSggNm": "서울 강남구",
+        "floor": "26",
+        "jibun": "467-6",
+        "landUse": "일반상업",
+        "plottageAr": "",
+        "sggCd": "11680",
+        "sggNm": "강남구",
+        "shareDealingType": "",
+        "slerGbn": "개인",
+        "umdNm": "도곡동"
+      }
+    },
+    "numOfRows": "1",
+    "pageNo": "1",
+    "totalCount": "51"
+  }
+}

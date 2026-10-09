@@ -1,0 +1,35 @@
+{
+  "header": {
+    "resultCode": "000",
+    "resultMsg": "OK"
+  },
+  "body": {
+    "items": {
+      "item": {
+        "buildYear": "2017",
+        "buyerGbn": "개인",
+        "cdealDay": "",
+        "cdealType": "",
+        "dealAmount": "47,000",
+        "dealDay": "30",
+        "dealMonth": "9",
+        "dealYear": "2026",
+        "dealingGbn": "중개거래",
+        "estateAgentSggNm": "서울 강남구",
+        "excluUseAr": "30.39",
+        "floor": "5",
+        "houseType": "다세대",
+        "jibun": "270-35",
+        "landAr": "20",
+        "mhouseNm": "아이리스논현",
+        "rgstDate": "",
+        "sggCd": "11680",
+        "slerGbn": "개인",
+        "umdNm": "논현동"
+      }
+    },
+    "numOfRows": "1",
+    "pageNo": "1",
+    "totalCount": "48"
+  }
+}

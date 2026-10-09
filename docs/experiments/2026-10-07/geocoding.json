@@ -1,0 +1,179 @@
+{
+  "capturedAt": "2026-10-07T00:56:59.325Z",
+  "results": [
+    {
+      "query": "서울특별시 강남구 선릉로 221",
+      "httpStatus": 200,
+      "status": "OK",
+      "addresses": [
+        {
+          "roadAddress": "서울특별시 강남구 선릉로 221 도곡렉슬아파트",
+          "jibunAddress": "서울특별시 강남구 도곡동 527 도곡렉슬아파트",
+          "x": "127.0509144",
+          "y": "37.4938546",
+          "addressElements": [
+            {
+              "types": [
+                "SIDO"
+              ],
+              "longName": "서울특별시",
+              "shortName": "서울특별시",
+              "code": ""
+            },
+            {
+              "types": [
+                "SIGUGUN"
+              ],
+              "longName": "강남구",
+              "shortName": "강남구",
+              "code": ""
+            },
+            {
+              "types": [
+                "DONGMYUN"
+              ],
+              "longName": "도곡동",
+              "shortName": "도곡동",
+              "code": ""
+            },
+            {
+              "types": [
+                "RI"
+              ],
+              "longName": "",
+              "shortName": "",
+              "code": ""
+            },
+            {
+              "types": [
+                "ROAD_NAME"
+              ],
+              "longName": "선릉로",
+              "shortName": "선릉로",
+              "code": ""
+            },
+            {
+              "types": [
+                "BUILDING_NUMBER"
+              ],
+              "longName": "221",
+              "shortName": "221",
+              "code": ""
+            },
+            {
+              "types": [
+                "BUILDING_NAME"
+              ],
+              "longName": "도곡렉슬아파트",
+              "shortName": "도곡렉슬아파트",
+              "code": ""
+            },
+            {
+              "types": [
+                "LAND_NUMBER"
+              ],
+              "longName": "527",
+              "shortName": "527",
+              "code": ""
+            },
+            {
+              "types": [
+                "POSTAL_CODE"
+              ],
+              "longName": "06276",
+              "shortName": "06276",
+              "code": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "query": "서울특별시 관악구 봉천동 65-30",
+      "httpStatus": 200,
+      "status": "OK",
+      "addresses": [
+        {
+          "roadAddress": "서울특별시 관악구 행운1다길 7-9",
+          "jibunAddress": "서울특별시 관악구 봉천동 65-30",
+          "x": "126.9567499",
+          "y": "37.4827260",
+          "addressElements": [
+            {
+              "types": [
+                "SIDO"
+              ],
+              "longName": "서울특별시",
+              "shortName": "서울특별시",
+              "code": ""
+            },
+            {
+              "types": [
+                "SIGUGUN"
+              ],
+              "longName": "관악구",
+              "shortName": "관악구",
+              "code": ""
+            },
+            {
+              "types": [
+                "DONGMYUN"
+              ],
+              "longName": "봉천동",
+              "shortName": "봉천동",
+              "code": ""
+            },
+            {
+              "types": [
+                "RI"
+              ],
+              "longName": "",
+              "shortName": "",
+              "code": ""
+            },
+            {
+              "types": [
+                "ROAD_NAME"
+              ],
+              "longName": "행운1다길",
+              "shortName": "행운1다길",
+              "code": ""
+            },
+            {
+              "types": [
+                "BUILDING_NUMBER"
+              ],
+              "longName": "7-9",
+              "shortName": "7-9",
+              "code": ""
+            },
+            {
+              "types": [
+                "BUILDING_NAME"
+              ],
+              "longName": "",
+              "shortName": "",
+              "code": ""
+            },
+            {
+              "types": [
+                "LAND_NUMBER"
+              ],
+              "longName": "65-30",
+              "shortName": "65-30",
+              "code": ""
+            },
+            {
+              "types": [
+                "POSTAL_CODE"
+              ],
+              "longName": "08736",
+              "shortName": "08736",
+              "code": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "observedDateKST": "2026-10-07",
+  "method": "Agent-operated browser navigation and DOM text extraction; not an unattended scheduled collector",
+  "court": {
+    "sourceUrl": "https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml",
+    "query": "서울중앙지방법원",
+    "displayedTotal": 503,
+    "totalMeaning": "Query results at observation time; not nationwide weekly new cases",
+    "page1DisplayedItems": 10,
+    "page3ParsedItems": 8,
+    "page3ParsedKeys": ["서울중앙지방법원:2023타경5787:1", "서울중앙지방법원:2023타경106314:1", "서울중앙지방법원:2023타경108730:1", "서울중앙지방법원:2023타경111613:1", "서울중앙지방법원:2023타경113350:1", "서울중앙지방법원:2023타경114001:2", "서울중앙지방법원:2023타경114001:3", "서울중앙지방법원:2023타경114001:4"],
+    "bundledLandBuildingExamples": ["2023타경106314:1", "2023타경111613:1"],
+    "comparisonTarget": {
+      "court": "서울중앙지방법원", "caseNumber": "2023타경113350", "itemNumber": 1,
+      "address": "서울특별시 강남구 선릉로 221, 407동 9층903호", "complex": "도곡렉슬아파트",
+      "exclusiveArea": 119.8906, "areaEvidence": "상세 목록내역의 전유부분 면적",
+      "mainJibun": "도곡동 527", "otherJibuns": ["527-2", "528", "529", "530"],
+      "appraisalWon": 3320000000, "minimumBidWon": 2656000000, "depositWon": 265600000,
+      "auctionDate": "2026-10-08", "floor": 9,
+      "schedule": [{"date":"2024-05-16","minimumBidWon":3320000000,"result":"유찰"},{"date":"2026-10-08","minimumBidWon":2656000000,"result":null}],
+      "occupancyEvidence": "감정평가 요약은 임대관계 미상; 매각물건명세서·현황조사서 원문 검토 미완료"
+    }
+  },
+  "listings": {
+    "source": "Npay 부동산", "complexNumber": "11698",
+    "sourceUrl": "https://fin.land.naver.com/complexes/11698?tab=article&articleTradeTypes=A1&articlePyeongTypeNumbers=13&articleSortingType=DATE_DESC",
+    "areaTypeCode": "13", "displayedAreaType": "공급143.26C㎡ / 전용119.89C㎡",
+    "displayedResultCount": 21,
+    "countCaveat": "Platform listing groups, not 21 proven unique homes; brokers may duplicate listings",
+    "rejectedSearchHit": {"url":"https://fin.land.naver.com/articles/2531194487","reason":"노출 종료를 직접 확인"},
+    "rejectedRecommendation": {"url":"https://fin.land.naver.com/articles/2653055865","reason":"전용59.99㎡로 비교 대상과 다른 면적"},
+    "verifiedDetail": {
+      "url":"https://fin.land.naver.com/articles/2649816342", "articleNumber":"2649816342",
+      "complex":"도곡렉슬", "building":"407", "askingPriceWon":4250000000,
+      "exclusiveArea":119.89, "floorRange":"9~16층", "totalFloors":25, "orientation":"남향",
+      "moveInDate":"2026-11-14", "moveInNegotiable":true, "listingVerifiedDate":"2026-09-15",
+      "contentProvider":"부동산뱅크", "isExactSameUnit":false,
+      "comparisonCaveat":"호가이며 거래 성사 가격이 아님. 층은 범위만 공개돼 정확한 층·호 일치 미확인"
+    },
+    "redistributionStatus":"Page footer restricts unauthorized copying/distribution; this experiment confirms access and matching, not production redistribution permission"
+  }
+}

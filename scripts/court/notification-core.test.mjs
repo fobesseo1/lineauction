@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {planNotification} from './notification-core.mjs';
+const input={progress:{id:'a',error:'timeout',failed:0},health:{state:'error',label:'오류로 중지',message:'중지됐습니다.'},now:1000000};
+test('fatal error immediately alerts and durable state suppresses restart duplicates',()=>{const first=planNotification(input);assert.ok(first.notification);assert.equal(planNotification({...input,state:JSON.parse(JSON.stringify(first.state))}).notification,null);});
+test('new run and different incident alert again',()=>{const {state}=planNotification(input);assert.ok(planNotification({...input,state,progress:{...input.progress,id:'b'}}).notification);assert.ok(planNotification({...input,state,health:{...input.health,state:'delayed'}}).notification);});
+test('recovery clears the incident so a later recurrence alerts',()=>{const first=planNotification(input);const recovered=planNotification({...input,state:first.state,health:{state:'healthy'}});assert.equal(recovered.notification,null);assert.ok(planNotification({...input,state:recovered.state}).notification);});
+test('individual failures aggregate for five minutes but fatal errors bypass cooldown',()=>{const active={...input,health:{state:'healthy'},progress:{id:'a',failed:1}};const first=planNotification(active);assert.ok(first.notification);assert.equal(planNotification({...active,state:first.state,progress:{id:'a',failed:2},now:1000001}).notification,null);assert.ok(planNotification({...active,state:first.state,progress:{id:'a',failed:3},now:1300001}).notification);assert.ok(planNotification({...input,state:first.state,now:1000001}).notification);});
+test('normal and intentionally stopped runs never alert',()=>{for(const status of ['healthy','stopped','unavailable'])assert.equal(planNotification({...input,health:{state:status},progress:{id:'a',failed:0}}).notification,null);});

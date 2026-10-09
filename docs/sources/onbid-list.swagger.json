@@ -1,0 +1,1839 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "한국자산관리공사에서 운영하는 온비드(Onbid)에 등록된 공매 물건목록 중 물건유형이 부동산으로 분류되며 현재 입찰 중이거나 입찰예정인 부동산 공매물건 목록을 조회할 수 있는 서비스입니다. 서비스를 활용하여 부동산 공매 정보를 한 번에 수집할 수 있으며 입찰 진행 상태(입찰 중 / 입찰 예정)를 기준으로 투자 시점 판단이 가능하고 물건 유형, 지역, 입찰일정 중심의 데이터 기반 분석 및 서비스 개발이 용이합니다. 본 서비스에서 조회된 물건관리번호(cltrMngNo), 공매조건번호(pbctCdtnNo)로 온비드 부동산 물건상세 조회 서비스를 조회하시면 더 상세한 정보를 조회 가능합니다. 필수 검색 조건 : 재산유형코드(prptDivCd), 수의계약가능여부(pvctTrgtYn)",
+    "version": "1.0.0",
+    "title": "한국자산관리공사_차세대 온비드 부동산 물건목록 조회서비스"
+  },
+  "host": "apis.data.go.kr/B010003/OnbidRlstListSrvc2",
+  "basePath": "",
+  "schemes": [
+    "https",
+    "http"
+  ],
+  "paths": {
+    "/getRlstCltrList2": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "성공",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "header": {
+                  "type": "object",
+                  "description": "header",
+                  "properties": {
+                    "resultMsg": {
+                      "type": "string",
+                      "description": "결과메세지",
+                      "properties": {}
+                    },
+                    "resultCode": {
+                      "type": "string",
+                      "description": "결과코드",
+                      "properties": {}
+                    }
+                  }
+                },
+                "body": {
+                  "type": "object",
+                  "description": "body",
+                  "properties": {
+                    "items": {
+                      "type": "object",
+                      "description": "items",
+                      "properties": {
+                        "item": {
+                          "type": "object",
+                          "description": "item",
+                          "properties": {
+                            "bidDivCd": {
+                              "type": "string",
+                              "description": "입찰구분코드 (0001:인터넷, 0002:현장)",
+                              "properties": {}
+                            },
+                            "cltrUsgLclsCtgrId": {
+                              "type": "string",
+                              "description": "용도대분류코드",
+                              "properties": {}
+                            },
+                            "cltrMngNo": {
+                              "type": "string",
+                              "description": "물건관리번호(물건 상세정보나 입찰정보 조회시 공매조건번호와 함께 입력 필요)",
+                              "properties": {}
+                            },
+                            "pbctCdtnNo": {
+                              "type": "integer",
+                              "description": "공매조건번호(물건 상세정보나 입찰정보 조회시 물건관리번호와 함께 입력 필요)",
+                              "properties": {}
+                            },
+                            "onbidCltrno": {
+                              "type": "integer",
+                              "description": "온비드물건번호",
+                              "properties": {}
+                            },
+                            "onbidPbancNo": {
+                              "type": "integer",
+                              "description": "온비드공고번호",
+                              "properties": {}
+                            },
+                            "pbctNo": {
+                              "type": "integer",
+                              "description": "공매번호",
+                              "properties": {}
+                            },
+                            "pbctNsq": {
+                              "type": "string",
+                              "description": "회차",
+                              "properties": {}
+                            },
+                            "pbctsn": {
+                              "type": "string",
+                              "description": "차수(2026.1.1 이후 확정된 공고는 차수 표시되지 않음)",
+                              "properties": {}
+                            },
+                            "prptDivCd": {
+                              "type": "string",
+                              "description": "재산유형코드 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산, 0013: 파산자산)",
+                              "properties": {}
+                            },
+                            "prptDivNm": {
+                              "type": "string",
+                              "description": "재산유형코드명 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산, 0013: 파산자산)",
+                              "properties": {}
+                            },
+                            "dspsMthodCd": {
+                              "type": "string",
+                              "description": "처분방식코드 (0001 : 매각0002 : 임대)",
+                              "properties": {}
+                            },
+                            "dspsMthodNm": {
+                              "type": "string",
+                              "description": "처분방식명 (0001 : 매각0002 : 임대)",
+                              "properties": {}
+                            },
+                            "bidMthodCd": {
+                              "type": "string",
+                              "description": "세부입찰방식코드(0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)",
+                              "properties": {}
+                            },
+                            "bidMthodNm": {
+                              "type": "string",
+                              "description": "세부입찰방식코드명(0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)",
+                              "properties": {}
+                            },
+                            "cptnMthodCd": {
+                              "type": "string",
+                              "description": "입찰방식코드(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+                              "properties": {}
+                            },
+                            "cptnMthodNm": {
+                              "type": "string",
+                              "description": "입찰방식코드명(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+                              "properties": {}
+                            },
+                            "totalamtUnpcDivCd": {
+                              "type": "string",
+                              "description": "총액/단가구분코드(0001 : 총액, 0002 : 단가)",
+                              "properties": {}
+                            },
+                            "totalamtUnpcDivNm": {
+                              "type": "string",
+                              "description": "총액/단가구분명(0001 : 총액, 0002 : 단가)",
+                              "properties": {}
+                            },
+                            "pbctStatCd": {
+                              "type": "string",
+                              "description": "입찰결과구분코드 (0001 : 입찰준비중, 0002 : 입찰진행중, 0003 : 입찰마감, 0006 : 개찰중, 0009 : 수의계약가능, 0010 : 낙찰, 0011 : 유찰, 0012 : 취소)",
+                              "properties": {}
+                            },
+                            "pbctStatNm": {
+                              "type": "string",
+                              "description": "입찰결과구분코드명 (0001 : 입찰준비중, 0002 : 입찰진행중, 0003 : 입찰마감, 0006 : 개찰중, 0009 : 수의계약가능, 0010 : 낙찰, 0011 : 유찰, 0012 : 취소)",
+                              "properties": {}
+                            },
+                            "bidDivNm": {
+                              "type": "string",
+                              "description": "입찰구분코드명 (0001:인터넷, 0002:현장)",
+                              "properties": {}
+                            },
+                            "dtbtRqrEdtmCont": {
+                              "type": "string",
+                              "description": "배분요구종기",
+                              "properties": {}
+                            },
+                            "rentMthodNm": {
+                              "type": "string",
+                              "description": "[처분방식 : 임대] 임대방식(1년미만(임대),고정형 임대,변동형 임대,매출연동 임대)",
+                              "properties": {}
+                            },
+                            "rentPerdCont": {
+                              "type": "string",
+                              "description": "[처분방식 : 임대] 임대기간내용",
+                              "properties": {}
+                            },
+                            "thnlImgUrlAdr": {
+                              "type": "string",
+                              "description": "물건 썸네일 이미지 URL주소",
+                              "properties": {}
+                            },
+                            "mdfcnDt": {
+                              "type": "string",
+                              "description": "최종수정일시(yyyyMMddHHmmss)",
+                              "properties": {}
+                            },
+                            "crtnYn": {
+                              "type": "string",
+                              "description": "정정여부(정정내역있음 : Y, 정정내역없음 : N) 물건 항목에 대한 정정이 있었는지 여부를 나타냄. Y인 경우 물건 상세의 정정내역 항목 참고",
+                              "properties": {}
+                            },
+                            "usbdNft": {
+                              "type": "integer",
+                              "description": "유찰횟수(회)",
+                              "properties": {}
+                            },
+                            "bidPrgnNft": {
+                              "type": "integer",
+                              "description": "입찰진행횟수(회)",
+                              "properties": {}
+                            },
+                            "pvctTrgtYn": {
+                              "type": "string",
+                              "description": "수의계약가능여부(수의계약 가능 : Y, 수의계약 불가능 : N)",
+                              "properties": {}
+                            },
+                            "cltrUsgMclsCtgrId": {
+                              "type": "string",
+                              "description": "용도중분류코드",
+                              "properties": {}
+                            },
+                            "cltrUsgSclsCtgrId": {
+                              "type": "string",
+                              "description": "용도소분류코드",
+                              "properties": {}
+                            },
+                            "cltrUsgLclsCtgrNm": {
+                              "type": "string",
+                              "description": "용도대분류코드명",
+                              "properties": {}
+                            },
+                            "cltrUsgMclsCtgrNm": {
+                              "type": "string",
+                              "description": "용도중분류코드명",
+                              "properties": {}
+                            },
+                            "cltrUsgSclsCtgrNm": {
+                              "type": "string",
+                              "description": "용도소분류코드명",
+                              "properties": {}
+                            },
+                            "onbidCltrNm": {
+                              "type": "string",
+                              "description": "물건명",
+                              "properties": {}
+                            },
+                            "batcBidYn": {
+                              "type": "string",
+                              "description": "일괄입찰여부(일괄입찰 : Y, 일괄입찰아님 : N) Y인 경우 물건상세 부동산 정보의 일괄입찰물건목록 참고",
+                              "properties": {}
+                            },
+                            "cltrBidBgngDt": {
+                              "type": "string",
+                              "description": "입찰시작일시(yyyyMMddHHmm)",
+                              "properties": {}
+                            },
+                            "cltrBidEndDt": {
+                              "type": "string",
+                              "description": "입찰종료일시(yyyyMMddHHmm)",
+                              "properties": {}
+                            },
+                            "apslEvlAmt": {
+                              "type": "integer",
+                              "description": "감정평가금액(원)",
+                              "properties": {}
+                            },
+                            "lowstBidPrcIndctCont": {
+                              "type": "string",
+                              "description": "최저입찰가격표시내용(원) (최저입찰가격이 표시되거나 비공개로 표시)",
+                              "properties": {}
+                            },
+                            "frstBidPrc": {
+                              "type": "integer",
+                              "description": "[재산유형 : 캠코국유] 최초예정가액",
+                              "properties": {}
+                            },
+                            "apslPrcCtrsLowstBidRto": {
+                              "type": "number",
+                              "description": "감정평가금액 대비 현재 최저입찰가격",
+                              "properties": {}
+                            },
+                            "frstCtrsLowstBidPrcRto": {
+                              "type": "number",
+                              "description": "최초최저입찰가격 대비 현재 최저입찰가격",
+                              "properties": {}
+                            },
+                            "ltnoPnu": {
+                              "type": "string",
+                              "description": "지번PNU코드",
+                              "properties": {}
+                            },
+                            "rdnmPnu": {
+                              "type": "string",
+                              "description": "도로명PNU코드",
+                              "properties": {}
+                            },
+                            "lctnSdnm": {
+                              "type": "string",
+                              "description": "소재지지번주소(시도)",
+                              "properties": {}
+                            },
+                            "lctnSggnm": {
+                              "type": "string",
+                              "description": "소재지지번주소(시군구)",
+                              "properties": {}
+                            },
+                            "lctnEmdNm": {
+                              "type": "string",
+                              "description": "소재지지번주소(읍면동)",
+                              "properties": {}
+                            },
+                            "rqstOrgNm": {
+                              "type": "string",
+                              "description": "[압류재산] 의뢰기관명",
+                              "properties": {}
+                            },
+                            "orgNm": {
+                              "type": "string",
+                              "description": "공고기관명",
+                              "properties": {}
+                            },
+                            "eltrGrprUseYn": {
+                              "type": "string",
+                              "description": "전자보증서 가능 : Y, 불가능 : N",
+                              "properties": {}
+                            },
+                            "collbBidPsblYn": {
+                              "type": "string",
+                              "description": "공동입찰 가능 : Y, 불가능 : N",
+                              "properties": {}
+                            },
+                            "twtmGthrBidPsblYn": {
+                              "type": "string",
+                              "description": "2회이상 입찰가능 : Y, 불가능 : N",
+                              "properties": {}
+                            },
+                            "subtBidPsblYn": {
+                              "type": "string",
+                              "description": "대리입찰가능 : Y, 불가능 : N",
+                              "properties": {}
+                            },
+                            "evcRsbyTrgtCont": {
+                              "type": "string",
+                              "description": "낙찰 후 인도/인수 책임",
+                              "properties": {}
+                            },
+                            "landSqms": {
+                              "type": "number",
+                              "description": "토지면적(m2)",
+                              "properties": {}
+                            },
+                            "bldSqms": {
+                              "type": "number",
+                              "description": "건물면적(m2)",
+                              "properties": {}
+                            },
+                            "alcYn": {
+                              "type": "string",
+                              "description": "지분물건여부",
+                              "properties": {}
+                            },
+                            "feeRate": {
+                              "type": "number",
+                              "description": "할인율(%)",
+                              "properties": {}
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "데이터 총 개수",
+                      "properties": {}
+                    },
+                    "numOfRows": {
+                      "type": "string",
+                      "description": "한 페이지 결과 수",
+                      "properties": {}
+                    },
+                    "pageNo": {
+                      "type": "string",
+                      "description": "페이지수",
+                      "properties": {}
+                    }
+                  }
+                }
+              },
+              "xml": {
+                "name": "response"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API 목록"
+        ],
+        "summary": "부동산 물건목록 정보조회",
+        "description": "온비드에서 입찰중이거나 입찰 예정인 부동산 물건에 대해 재산유형코드, 처분방식코드, 입찰구분코드를 입력하면 물건관리번호, 재산유형, 물건명, 입찰시작일시, 입찰종료일시, 감정평가금액, 최저입찰가격, 소재지, 면적 등의 정보를 제공합니다. 재산유형코드, 처분방식코드, 입찰구분코드 등의 코드는 항목 설명이나 코드표를 참고하시기 바랍니다.",
+        "operationId": "getRlstCltrList2",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json",
+          "application/xml"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "serviceKey",
+          "description": "공공데이터포털에서 받은 인증키",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "pageNo",
+          "description": "페이지번호",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "numOfRows",
+          "description": "한 페이지 결과 수",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "resultType",
+          "description": "응답유형",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "prptDivCd",
+          "description": "재산유형코드(복수 요청일 경우 쉼표(,)로 구분자) (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산, 0013: 파산자산)",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "bidDivCd",
+          "description": "입찰구분코드 (0001:인터넷, 0002:현장)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "pvctTrgtYn",
+          "description": "수의계약가능여부(수의계약 가능 : Y, 수의계약 불가능 : N)",
+          "type": "string",
+          "required": true,
+          "in": "query"
+        },
+        {
+          "name": "dspsMthodCd",
+          "description": "처분방식코드 (0001 : 매각, 0002 : 임대)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgLclsCtgrId",
+          "description": "용도대분류코드",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgMclsCtgrId",
+          "description": "용도중분류코드",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgSclsCtgrId",
+          "description": "용도소분류코드",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgLclsCtgrNm",
+          "description": "용도대분류코드명",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgMclsCtgrNm",
+          "description": "용도중분류코드명",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cltrUsgSclsCtgrNm",
+          "description": "용도소분류코드명",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "lctnSdnm",
+          "description": "소재지지번주소(시도)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "lctnSggnm",
+          "description": "소재지지번주소(시군구)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "lctnEmdNm",
+          "description": "소재지지번주소(읍면동)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "lowstBidPrcStart",
+          "description": "검색할 최저입찰가격의 최소값 입력",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "lowstBidPrcEnd",
+          "description": "검색할 최저입찰가격의 최대값 입력",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "landSqmsStart",
+          "description": "검색할 토지면적 범위의 최소값 입력",
+          "type": "number",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "landSqmsEnd",
+          "description": "검색할 토지면적 범위의 최대값 입력",
+          "type": "number",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "bldSqmsStart",
+          "description": "검색할 건물면적 범위의 최소값 입력",
+          "type": "number",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "bldSqmsEnd",
+          "description": "검색할 건물면적 범위의 최대값 입력",
+          "type": "number",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "bidPrdYmdStart",
+          "description": "검색할 입찰기간 시작일자 입력(yyyyMMdd)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "bidPrdYmdEnd",
+          "description": "검색할 입찰기간 종료일자 입력 (yyyyMMdd)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cptnMthodCd",
+          "description": "입찰방식코드(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "cptnMthodNm",
+          "description": "입찰방식코드명(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "alcYn",
+          "description": "지분물건여부 (Y/N)",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "usbdNftStart",
+          "description": "검색할 유찰 횟수 범위의 최소값 입력",
+          "type": "integer",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "usbdNftEnd",
+          "description": "검색할 유찰 횟수 범위의 최대값 입력",
+          "type": "integer",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "apslEvlAmtStart",
+          "description": "검색할 감정평가금액 범위의 시작금액을 입력",
+          "type": "integer",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "apslEvlAmtEnd",
+          "description": "검색할 감정평가금액 범위의 종료금액을 입력",
+          "type": "integer",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "onbidCltrNm",
+          "description": "물건명",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "orgNm",
+          "description": "공고기관명",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "mdfcnYmdStart",
+          "description": "검색할 물건최종수정일시 범위의 시작일자를 입력",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        },
+        {
+          "name": "mdfcnYmdEnd",
+          "description": "검색할 물건최종수정일시 범위의 종료일자를 입력",
+          "type": "string",
+          "required": false,
+          "in": "query"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "getRlstCltrList2_response": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "header",
+          "properties": {
+            "resultMsg": {
+              "type": "string",
+              "description": "결과메세지"
+            },
+            "resultCode": {
+              "type": "string",
+              "description": "결과코드"
+            }
+          }
+        },
+        "body": {
+          "type": "object",
+          "description": "body",
+          "properties": {
+            "items": {
+              "type": "object",
+              "description": "items",
+              "properties": {
+                "item": {
+                  "type": "object",
+                  "description": "item",
+                  "properties": {
+                    "bidDivCd": {
+                      "type": "string",
+                      "description": "입찰구분코드 (0001:인터넷, 0002:현장)"
+                    },
+                    "cltrUsgLclsCtgrId": {
+                      "type": "string",
+                      "description": "용도대분류코드"
+                    },
+                    "cltrMngNo": {
+                      "type": "string",
+                      "description": "물건관리번호(물건 상세정보나 입찰정보 조회시 공매조건번호와 함께 입력 필요)"
+                    },
+                    "pbctCdtnNo": {
+                      "type": "integer",
+                      "description": "공매조건번호(물건 상세정보나 입찰정보 조회시 물건관리번호와 함께 입력 필요)"
+                    },
+                    "onbidCltrno": {
+                      "type": "integer",
+                      "description": "온비드물건번호"
+                    },
+                    "onbidPbancNo": {
+                      "type": "integer",
+                      "description": "온비드공고번호"
+                    },
+                    "pbctNo": {
+                      "type": "integer",
+                      "description": "공매번호"
+                    },
+                    "pbctNsq": {
+                      "type": "string",
+                      "description": "회차"
+                    },
+                    "pbctsn": {
+                      "type": "string",
+                      "description": "차수(2026.1.1 이후 확정된 공고는 차수 표시되지 않음)"
+                    },
+                    "prptDivCd": {
+                      "type": "string",
+                      "description": "재산유형코드 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산, 0013: 파산자산)"
+                    },
+                    "prptDivNm": {
+                      "type": "string",
+                      "description": "재산유형코드명 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산, 0013: 파산자산)"
+                    },
+                    "dspsMthodCd": {
+                      "type": "string",
+                      "description": "처분방식코드 (0001 : 매각0002 : 임대)"
+                    },
+                    "dspsMthodNm": {
+                      "type": "string",
+                      "description": "처분방식명 (0001 : 매각0002 : 임대)"
+                    },
+                    "bidMthodCd": {
+                      "type": "string",
+                      "description": "세부입찰방식코드(0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)"
+                    },
+                    "bidMthodNm": {
+                      "type": "string",
+                      "description": "세부입찰방식코드명(0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)"
+                    },
+                    "cptnMthodCd": {
+                      "type": "string",
+                      "description": "입찰방식코드(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)"
+                    },
+                    "cptnMthodNm": {
+                      "type": "string",
+                      "description": "입찰방식코드명(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)"
+                    },
+                    "totalamtUnpcDivCd": {
+                      "type": "string",
+                      "description": "총액/단가구분코드(0001 : 총액, 0002 : 단가)"
+                    },
+                    "totalamtUnpcDivNm": {
+                      "type": "string",
+                      "description": "총액/단가구분명(0001 : 총액, 0002 : 단가)"
+                    },
+                    "pbctStatCd": {
+                      "type": "string",
+                      "description": "입찰결과구분코드 (0001 : 입찰준비중, 0002 : 입찰진행중, 0003 : 입찰마감, 0006 : 개찰중, 0009 : 수의계약가능, 0010 : 낙찰, 0011 : 유찰, 0012 : 취소)"
+                    },
+                    "pbctStatNm": {
+                      "type": "string",
+                      "description": "입찰결과구분코드명 (0001 : 입찰준비중, 0002 : 입찰진행중, 0003 : 입찰마감, 0006 : 개찰중, 0009 : 수의계약가능, 0010 : 낙찰, 0011 : 유찰, 0012 : 취소)"
+                    },
+                    "bidDivNm": {
+                      "type": "string",
+                      "description": "입찰구분코드명 (0001:인터넷, 0002:현장)"
+                    },
+                    "dtbtRqrEdtmCont": {
+                      "type": "string",
+                      "description": "배분요구종기"
+                    },
+                    "rentMthodNm": {
+                      "type": "string",
+                      "description": "[처분방식 : 임대] 임대방식(1년미만(임대),고정형 임대,변동형 임대,매출연동 임대)"
+                    },
+                    "rentPerdCont": {
+                      "type": "string",
+                      "description": "[처분방식 : 임대] 임대기간내용"
+                    },
+                    "thnlImgUrlAdr": {
+                      "type": "string",
+                      "description": "물건 썸네일 이미지 URL주소"
+                    },
+                    "mdfcnDt": {
+                      "type": "string",
+                      "description": "최종수정일시(yyyyMMddHHmmss)"
+                    },
+                    "crtnYn": {
+                      "type": "string",
+                      "description": "정정여부(정정내역있음 : Y, 정정내역없음 : N) 물건 항목에 대한 정정이 있었는지 여부를 나타냄. Y인 경우 물건 상세의 정정내역 항목 참고"
+                    },
+                    "usbdNft": {
+                      "type": "integer",
+                      "description": "유찰횟수(회)"
+                    },
+                    "bidPrgnNft": {
+                      "type": "integer",
+                      "description": "입찰진행횟수(회)"
+                    },
+                    "pvctTrgtYn": {
+                      "type": "string",
+                      "description": "수의계약가능여부(수의계약 가능 : Y, 수의계약 불가능 : N)"
+                    },
+                    "cltrUsgMclsCtgrId": {
+                      "type": "string",
+                      "description": "용도중분류코드"
+                    },
+                    "cltrUsgSclsCtgrId": {
+                      "type": "string",
+                      "description": "용도소분류코드"
+                    },
+                    "cltrUsgLclsCtgrNm": {
+                      "type": "string",
+                      "description": "용도대분류코드명"
+                    },
+                    "cltrUsgMclsCtgrNm": {
+                      "type": "string",
+                      "description": "용도중분류코드명"
+                    },
+                    "cltrUsgSclsCtgrNm": {
+                      "type": "string",
+                      "description": "용도소분류코드명"
+                    },
+                    "onbidCltrNm": {
+                      "type": "string",
+                      "description": "물건명"
+                    },
+                    "batcBidYn": {
+                      "type": "string",
+                      "description": "일괄입찰여부(일괄입찰 : Y, 일괄입찰아님 : N) Y인 경우 물건상세 부동산 정보의 일괄입찰물건목록 참고"
+                    },
+                    "cltrBidBgngDt": {
+                      "type": "string",
+                      "description": "입찰시작일시(yyyyMMddHHmm)"
+                    },
+                    "cltrBidEndDt": {
+                      "type": "string",
+                      "description": "입찰종료일시(yyyyMMddHHmm)"
+                    },
+                    "apslEvlAmt": {
+                      "type": "integer",
+                      "description": "감정평가금액(원)"
+                    },
+                    "lowstBidPrcIndctCont": {
+                      "type": "string",
+                      "description": "최저입찰가격표시내용(원) (최저입찰가격이 표시되거나 비공개로 표시)"
+                    },
+                    "frstBidPrc": {
+                      "type": "integer",
+                      "description": "[재산유형 : 캠코국유] 최초예정가액"
+                    },
+                    "apslPrcCtrsLowstBidRto": {
+                      "type": "number",
+                      "description": "감정평가금액 대비 현재 최저입찰가격"
+                    },
+                    "frstCtrsLowstBidPrcRto": {
+                      "type": "number",
+                      "description": "최초최저입찰가격 대비 현재 최저입찰가격"
+                    },
+                    "ltnoPnu": {
+                      "type": "string",
+                      "description": "지번PNU코드"
+                    },
+                    "rdnmPnu": {
+                      "type": "string",
+                      "description": "도로명PNU코드"
+                    },
+                    "lctnSdnm": {
+                      "type": "string",
+                      "description": "소재지지번주소(시도)"
+                    },
+                    "lctnSggnm": {
+                      "type": "string",
+                      "description": "소재지지번주소(시군구)"
+                    },
+                    "lctnEmdNm": {
+                      "type": "string",
+                      "description": "소재지지번주소(읍면동)"
+                    },
+                    "rqstOrgNm": {
+                      "type": "string",
+                      "description": "[압류재산] 의뢰기관명"
+                    },
+                    "orgNm": {
+                      "type": "string",
+                      "description": "공고기관명"
+                    },
+                    "eltrGrprUseYn": {
+                      "type": "string",
+                      "description": "전자보증서 가능 : Y, 불가능 : N"
+                    },
+                    "collbBidPsblYn": {
+                      "type": "string",
+                      "description": "공동입찰 가능 : Y, 불가능 : N"
+                    },
+                    "twtmGthrBidPsblYn": {
+                      "type": "string",
+                      "description": "2회이상 입찰가능 : Y, 불가능 : N"
+                    },
+                    "subtBidPsblYn": {
+                      "type": "string",
+                      "description": "대리입찰가능 : Y, 불가능 : N"
+                    },
+                    "evcRsbyTrgtCont": {
+                      "type": "string",
+                      "description": "낙찰 후 인도/인수 책임"
+                    },
+                    "landSqms": {
+                      "type": "number",
+                      "description": "토지면적(m2)"
+                    },
+                    "bldSqms": {
+                      "type": "number",
+                      "description": "건물면적(m2)"
+                    },
+                    "alcYn": {
+                      "type": "string",
+                      "description": "지분물건여부"
+                    },
+                    "feeRate": {
+                      "type": "number",
+                      "description": "할인율(%)"
+                    }
+                  }
+                }
+              }
+            },
+            "totalCount": {
+              "type": "string",
+              "description": "데이터 총 개수"
+            },
+            "numOfRows": {
+              "type": "string",
+              "description": "한 페이지 결과 수"
+            },
+            "pageNo": {
+              "type": "string",
+              "description": "페이지수"
+            }
+          }
+        }
+      }
+    }
+  },
+  "swaggerOprtinVOs": [
+    {
+      "oprtinUrl": "https://open.kamco.or.kr/services/OnbidRlstListSrvc/getRlstCltrList",
+      "oprtinNm": "부동산 물건목록 정보조회",
+      "oprtinDc": "온비드에서 입찰중이거나 입찰 예정인 부동산 물건에 대해 재산유형코드, 처분방식코드, 입찰구분코드를 입력하면 물건관리번호, 재산유형, 물건명, 입찰시작일시, 입찰종료일시, 감정평가금액, 최저입찰가격, 소재지, 면적 등의 정보를 제공합니다. 재산유형코드, 처분방식코드, 입찰구분코드 등의 코드는 항목 설명이나 코드표를 참고하시기 바랍니다.",
+      "gwSvcNm": "getRlstCltrList",
+      "operationId": "getRlstCltrList",
+      "publicDataTyDetailCode": "PRDE02",
+      "reqList": [
+        {
+          "paramtrNm": "serviceKey",
+          "paramtrDc": "공공데이터포털에서 받은 인증키",
+          "paramtrBassValue": "-",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "pageNo",
+          "paramtrDc": "페이지번호",
+          "paramtrBassValue": "1",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "numOfRows",
+          "paramtrDc": "한 페이지 결과 수",
+          "paramtrBassValue": "10",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "resultType",
+          "paramtrDc": "응답유형",
+          "paramtrBassValue": "json",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "prptDivCd",
+          "paramtrDc": "재산유형코드(복수 요청일 경우 쉼표(,)로 구분자) (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산)",
+          "paramtrBassValue": "0007,0005",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "dspsMthodCd",
+          "paramtrDc": "처분방식코드 (0001 : 매각, 0002 : 임대)",
+          "paramtrBassValue": "0001",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "bidDivCd",
+          "paramtrDc": "입찰구분코드 (0001:인터넷, 0002:현장)",
+          "paramtrBassValue": "0001",
+          "paramtrTy": "string",
+          "paramtrDivision": "필수",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgLclsCtgrId",
+          "paramtrDc": "용도대분류코드",
+          "paramtrBassValue": "10000",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgMclsCtgrId",
+          "paramtrDc": "용도중분류코드",
+          "paramtrBassValue": "10400",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgSclsCtgrId",
+          "paramtrDc": "용도소분류코드",
+          "paramtrBassValue": "10402",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgLclsCtgrNm",
+          "paramtrDc": "용도대분류코드명",
+          "paramtrBassValue": "부동산",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgMclsCtgrNm",
+          "paramtrDc": "용도중분류코드명",
+          "paramtrBassValue": "산업용및기타특수용건물",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cltrUsgSclsCtgrNm",
+          "paramtrDc": "용도소분류코드명",
+          "paramtrBassValue": "창고시설",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "lctnSdnm",
+          "paramtrDc": "소재지지번주소(시도)",
+          "paramtrBassValue": "경기도",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "lctnSggnm",
+          "paramtrDc": "소재지지번주소(시군구)",
+          "paramtrBassValue": "고양시 일산동구",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "lctnEmdNm",
+          "paramtrDc": "소재지지번주소(읍면동)",
+          "paramtrBassValue": "마두동",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "lowstBidPrcStart",
+          "paramtrDc": "검색할 최저입찰가격의 최소값 입력",
+          "paramtrBassValue": "700000000000",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "lowstBidPrcEnd",
+          "paramtrDc": "검색할 최저입찰가격의 최대값 입력",
+          "paramtrBassValue": "900000000000",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "landSqmsStart",
+          "paramtrDc": "검색할 토지면적 범위의 최소값 입력",
+          "paramtrBassValue": "84",
+          "paramtrTy": "number",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "landSqmsEnd",
+          "paramtrDc": "검색할 토지면적 범위의 최대값 입력",
+          "paramtrBassValue": "100",
+          "paramtrTy": "number",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "bldSqmsStart",
+          "paramtrDc": "검색할 건물면적 범위의 최소값 입력",
+          "paramtrBassValue": "24",
+          "paramtrTy": "number",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "bldSqmsEnd",
+          "paramtrDc": "검색할 건물면적 범위의 최대값 입력",
+          "paramtrBassValue": "50",
+          "paramtrTy": "number",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "bidPrdYmdStart",
+          "paramtrDc": "검색할 입찰기간 시작일자 입력(yyyyMMdd)",
+          "paramtrBassValue": "20250518",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "bidPrdYmdEnd",
+          "paramtrDc": "검색할 입찰기간 종료일자 입력 (yyyyMMdd)",
+          "paramtrBassValue": "20250618",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cptnMthodCd",
+          "paramtrDc": "공매입찰방식코드(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+          "paramtrBassValue": "0001",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "cptnMthodNm",
+          "paramtrDc": "공매입찰방식코드명(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+          "paramtrBassValue": "일반경쟁",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "pvctTrgtYn",
+          "paramtrDc": "수의계약가능물건여부 (Y/N)",
+          "paramtrBassValue": "N",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "alcYn",
+          "paramtrDc": "지분물건여부 (Y/N)",
+          "paramtrBassValue": "N",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "usbdNftStart",
+          "paramtrDc": "검색할 유찰 횟수 범위의 최소값 입력",
+          "paramtrBassValue": "0",
+          "paramtrTy": "integer",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "usbdNftEnd",
+          "paramtrDc": "검색할 유찰 횟수 범위의 최대값 입력",
+          "paramtrBassValue": "3",
+          "paramtrTy": "integer",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "apslEvlAmtStart",
+          "paramtrDc": "검색할 감정평가금액 범위의 시작금액(원)을 입력",
+          "paramtrBassValue": "500000000",
+          "paramtrTy": "integer",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "apslEvlAmtEnd",
+          "paramtrDc": "검색할 감정평가금액 범위의 종료금액(원)을 입력",
+          "paramtrBassValue": "1000000000",
+          "paramtrTy": "integer",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "onbidCltrNm",
+          "paramtrDc": "물건명",
+          "paramtrBassValue": "서울특별시 송파구 석촌동 242-15 짜투리 대지",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "rqstOrgNm",
+          "paramtrDc": "공고기관(압류재산인 경우만 해당)",
+          "paramtrBassValue": "통영세무서",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "mdfcnYmdStart",
+          "paramtrDc": "검색할 물건최종수정일시 범위의 시작일자를 입력",
+          "paramtrBassValue": "20251201",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        },
+        {
+          "paramtrNm": "mdfcnYmdEnd",
+          "paramtrDc": "검색할 물건최종수정일시 범위의 종료일자를 입력",
+          "paramtrBassValue": "20251231",
+          "paramtrTy": "string",
+          "paramtrDivision": "옵션",
+          "ck": true
+        }
+      ],
+      "resList": [
+        {
+          "paramtrNm": "header",
+          "paramtrDc": "header",
+          "arrayYn": "N",
+          "paramtrDefNm": "#/definitions/oper-1-header",
+          "subDefNm": "oper-1-header",
+          "paramtrTy": "object",
+          "paramtrDivision": "필수",
+          "ck": true,
+          "subParam": [
+            {
+              "paramtrNm": "resultMsg",
+              "paramtrDc": "결과메세지",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "resultCode",
+              "paramtrDc": "결과코드",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            }
+          ]
+        },
+        {
+          "paramtrNm": "body",
+          "paramtrDc": "body",
+          "arrayYn": "N",
+          "paramtrDefNm": "#/definitions/oper-1-body",
+          "subDefNm": "oper-1-body",
+          "paramtrTy": "object",
+          "paramtrDivision": "필수",
+          "ck": true,
+          "subParam": [
+            {
+              "paramtrNm": "totalCount",
+              "paramtrDc": "데이터 총 개수",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "numOfRows",
+              "paramtrDc": "한 페이지 결과 수",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            },
+            {
+              "paramtrNm": "items",
+              "paramtrDc": "items",
+              "arrayYn": "N",
+              "paramtrDefNm": "#/definitions/oper-1-items",
+              "subDefNm": "oper-1-items",
+              "paramtrTy": "object",
+              "paramtrDivision": "필수",
+              "ck": true,
+              "subParam": [
+                {
+                  "paramtrNm": "item",
+                  "paramtrDc": "item",
+                  "arrayYn": "N",
+                  "paramtrDefNm": "#/definitions/oper-1-item",
+                  "subDefNm": "oper-1-item",
+                  "paramtrTy": "object",
+                  "paramtrDivision": "필수",
+                  "ck": true,
+                  "subParam": [
+                    {
+                      "paramtrNm": "cltrUsgLclsCtgrId",
+                      "paramtrDc": "용도대분류코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrUsgSclsCtgrId",
+                      "paramtrDc": "용도소분류코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cptnMthodCd",
+                      "paramtrDc": "공매입찰방식코드(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrMngNo",
+                      "paramtrDc": "물건관리번호(물건 부가정보나 입찰정보 조회시 공매조건번호와 함께 입력 필요)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "pbctCdtnNo",
+                      "paramtrDc": "공매조건번호(물건 부가정보나 입찰정보 조회시 물건관리번호와 함께 입력 필요)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "pbctNsq",
+                      "paramtrDc": "공매회차",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "pbctsn",
+                      "paramtrDc": "공매차수",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "필수",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "prptDivCd",
+                      "paramtrDc": "재산유형코드 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "prptDivNm",
+                      "paramtrDc": "재산유형코드명 (0007 : 압류재산, 0010 : 국유재산, 0005 : 기타일반재산, 0004 : 불용품, 0002 : 공유재산, 0003 : 금융권담보재산, 0006 : 유입재산, 0008 : 수탁재산, 0011 : 공공개발재산)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dspsMthodCd",
+                      "paramtrDc": "처분방식코드 (0001 : 매각, 0002 : 임대)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dspsMthodNm",
+                      "paramtrDc": "처분방식명 (0001 : 매각, 0002 : 임대)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bidMthodCd",
+                      "paramtrDc": "입찰방식코드 (0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bidMthodNm",
+                      "paramtrDc": "입찰방식코드명(0001 : 최고가방식, 0002 : 호가방식, 0003 : 평가방식, 0004 : 추첨방식, 0005 : 시담방식, 0006:적정최고가방식, 0007:제한적최고가방식)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cptnMthodNm",
+                      "paramtrDc": "공매입찰방식코드명(0001 : 일반경쟁, 0002 : 제한경쟁, 0003 : 지명경쟁, 0004 : 수의계약)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "totalamtUnpcDivCd",
+                      "paramtrDc": "총액/단가구분코드(0001 : 총액, 0002 : 단가)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "totalamtUnpcDivNm",
+                      "paramtrDc": "총액/단가구분명(0001 : 총액, 0002 : 단가)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bidDivCd",
+                      "paramtrDc": "입찰구분코드 (0001:인터넷, 0002:현장)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bidDivNm",
+                      "paramtrDc": "입찰구분코드명 (0001:인터넷, 0002:현장)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrUsgLclsCtgrNm",
+                      "paramtrDc": "용도대분류코드명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrUsgMclsCtgrNm",
+                      "paramtrDc": "용도중분류코드명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "evcRsbyTrgtCont",
+                      "paramtrDc": "낙찰 후 인도/인수 책임",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "landSqms",
+                      "paramtrDc": "토지면적(m²)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "number",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bldSqms",
+                      "paramtrDc": "건물면적(m²)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "number",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "alcYn",
+                      "paramtrDc": "지분물건여부",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "dtbtRqrEdtmCont",
+                      "paramtrDc": "배분요구종기",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "rentMthodNm",
+                      "paramtrDc": "임대방식(1년미만(임대), 고정형 임대,변동형 임대,매출연동 임대) (처분방식코드가 임대(0002)인 경우만 표시)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "rentPerdCont",
+                      "paramtrDc": "임대기간내용 (처분방식코드가 임대(0002)인 경우만 표시)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "thnlImgUrlAdr",
+                      "paramtrDc": "물건 썸네일 이미지 URL주소",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "mdfcnDt",
+                      "paramtrDc": "최종수정일시(yyyyMMddHHmmss)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "crtnYn",
+                      "paramtrDc": "정정여부 (정정내역있음 : Y, 정정내역없음 : N) 물건 항목에 대한 정정이 있었는지 여부를 나타냄. Y인 경우 부동산 물건 상세의 정정내역 항목 참고",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "frstBidPrc",
+                      "paramtrDc": "최초예정가액(재산유형 : 캠코국유인 경우만 표시)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "apslPrcCtrsLowstBidRto",
+                      "paramtrDc": "감정평가금액 대비 현재 최저입찰가격",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "number",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "frstCtrsLowstBidPrcRto",
+                      "paramtrDc": "최초최저입찰가격 대비 현재 최저입찰가격",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "number",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "ltnoPnu",
+                      "paramtrDc": "지번PNU코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "rdnmPnu",
+                      "paramtrDc": "도로명PNU코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "lctnSdnm",
+                      "paramtrDc": "소재지지번주소(시도)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "lctnSggnm",
+                      "paramtrDc": "소재지지번주소(시군구)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "lctnEmdNm",
+                      "paramtrDc": "소재지지번주소(읍면동)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "rqstOrgNm",
+                      "paramtrDc": "공고기관(재산유형코드가 압류재산(0007)인 경우만 표시)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "exctOrgNm",
+                      "paramtrDc": "집행기관명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrUsgMclsCtgrId",
+                      "paramtrDc": "용도중분류코드",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "eltrGrprUseYn",
+                      "paramtrDc": "전자보증서 가능여부 (전자보증서 가능 : Y, 불가능 : N)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "collbBidPsblYn",
+                      "paramtrDc": "공동입찰 가능여부 (공동입찰 가능 : Y, 불가능 : N)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "twtmGthrBidPsblYn",
+                      "paramtrDc": "2회이상입찰 가능여부 (가능 : Y, 불가능 : N)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "subtBidPsblYn",
+                      "paramtrDc": "대리입찰 가능여부 (가능 : Y, 불가능 : N)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrUsgSclsCtgrNm",
+                      "paramtrDc": "용도소분류코드명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "onbidCltrNm",
+                      "paramtrDc": "물건명",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "usbdNft",
+                      "paramtrDc": "유찰횟수(회)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "bidPrgnNft",
+                      "paramtrDc": "입찰진행횟수(회)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "pvctTrgtYn",
+                      "paramtrDc": "수의계약 가능여부 (수의계약 가능 : Y, 수의계약 불가능 : N)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "batcBidYn",
+                      "paramtrDc": "일괄입찰여부(일괄입찰 : Y, 일괄입찰아님 : N) Y인 경우 부동산 상세정보의 일괄입찰물건목록 참고",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrBidBgngDt",
+                      "paramtrDc": "입찰시작일시(yyyyMMddHHmm)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "cltrBidEndDt",
+                      "paramtrDc": "입찰종료일시(yyyyMMddHHmm)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "apslEvlAmt",
+                      "paramtrDc": "감정평가금액(원)",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "integer",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    },
+                    {
+                      "paramtrNm": "lowstBidPrcIndctCont",
+                      "paramtrDc": "최저입찰가격(원) : 최저입찰가격공개여부가 Y인 경우는 최저입찰가격이 표시되며 N인 경우는 비공개이거나 값이 없음",
+                      "arrayYn": "N",
+                      "paramtrDefNm": "",
+                      "paramtrTy": "string",
+                      "paramtrDivision": "옵션",
+                      "ck": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "paramtrNm": "pageNo",
+              "paramtrDc": "페이지수",
+              "arrayYn": "N",
+              "paramtrDefNm": "",
+              "paramtrTy": "string",
+              "paramtrDivision": "필수",
+              "ck": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

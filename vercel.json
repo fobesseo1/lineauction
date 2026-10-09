@@ -1,0 +1,1 @@
+{ "crons": [{ "path": "/api/cron/collect-onbid", "schedule": "0 * * * *" }] }
