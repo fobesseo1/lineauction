@@ -34,6 +34,14 @@ try{
  await page.getByRole('button',{name:'검색 초기화'}).click();
  await mkdir('docs/qa',{recursive:true});
  await page.screenshot({path:'docs/qa/pages-desktop.png',fullPage:true});
+ if(await page.locator('header').getByRole('button',{name:'새로고침',exact:true}).count())throw Error('Header refresh button remains');
+ await page.locator('nav').getByRole('link',{name:'홈',exact:true}).waitFor();
+ await page.getByRole('link',{name:'테스트',exact:true}).click();
+ await page.getByRole('heading',{name:'테스트',exact:true}).waitFor();
+ if(await page.locator('main a[href^="#/properties/"]:has(img)').count()!==4)throw Error('Verified examples missing');
+ await page.locator('main a[href^="#/properties/"]:has(img)').first().click();
+ await page.getByText('물건 기본정보',{exact:true}).waitFor({timeout:60000});
+ if(await page.locator('#court-photos a').count()<4)throw Error('Verified example photos missing');
  await page.getByRole('link',{name:'경매물건 찾기',exact:true}).click();
  await page.getByRole('heading',{name:'경매물건 찾기',exact:true}).waitFor();
  await page.locator('main a[href^="#/properties/"]:has(img)').first().click();
@@ -50,6 +58,14 @@ try{
  await page.screenshot({path:'docs/qa/pages-mobile.png',fullPage:true});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
  if(overflow)throw Error('Mobile page overflows horizontally');
+ for(const width of [333,768]){
+  await page.setViewportSize({width,height:900});
+  await page.waitForFunction(()=>{const photo=document.querySelector('header a[href="#court-photos"]'),text=photo?.nextElementSibling;if(!photo||!text)return false;const a=photo.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.y+a.height/2-b.y-b.height/2)<1;});
+  const square=await page.locator('header a[href="#court-photos"]').boundingBox();if(Math.abs(square.width-square.height)>1)throw Error('Header photo is not square');
+  if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Responsive header overflows');
+  await page.locator('header a[href="#court-photos"]').scrollIntoViewIfNeeded();
+  await page.screenshot({path:`docs/qa/detail-header-${width}.png`});
+ }
  await page.reload();await page.getByText('물건 기본정보',{exact:true}).waitFor({timeout:60000});
  if(errors.length)throw Error(errors.join('\n'));
  console.log(JSON.stringify({dashboard:true,search:true,detail:true,directLinkReload:true,images:images.length,mobileOverflow:false,browserErrors:0}));

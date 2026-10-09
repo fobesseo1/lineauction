@@ -13,9 +13,9 @@ export function DetailPreviewHeader({ photo, title, children }: { photo?: string
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  return <header className="flex items-start gap-4" style={{ "--preview-header-height": `${height}px` } as React.CSSProperties}>
-    {photo && <a href="#court-photos" aria-label="법원 사진 모아보기" className="relative size-20 shrink-0 overflow-hidden rounded-lg md:size-[var(--preview-header-height)]">
-      <Image src={photo} alt={`${title} 대표 사진`} fill sizes="(max-width: 767px) 80px, 128px" className="object-cover"/>
+  return <header className="flex items-center gap-3 md:gap-4" style={{ "--preview-header-height": `${height}px` } as React.CSSProperties}>
+    {photo && <a href="#court-photos" aria-label="법원 사진 모아보기" className="relative size-24 shrink-0 overflow-hidden rounded-lg md:size-[var(--preview-header-height)]">
+      <Image src={photo} alt={`${title} 대표 사진`} fill sizes="(max-width: 767px) 96px, 128px" className="object-cover"/>
     </a>}
     <div ref={text} className="min-w-0 flex-1">{children}</div>
   </header>;

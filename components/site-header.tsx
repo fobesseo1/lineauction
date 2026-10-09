@@ -2,12 +2,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Building2, SlidersHorizontal } from "lucide-react";
+import { Home, Building2, SlidersHorizontal, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 const links = [
-  { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
+  { href: "/dashboard", label: "홈", icon: Home },
   { href: "/properties", label: "경매·공매물건", icon: Building2 },
+  { href: "/test", label: "테스트", icon: FlaskConical },
   { href: "/settings", label: "설정", icon: SlidersHorizontal },
 ];
 export function SiteHeader() {
@@ -18,7 +19,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b bg-white">
       <div className="mx-auto flex min-h-20 max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-3 md:px-10">
-        <Link href={destination("/dashboard")} aria-label="선경매 대시보드">
+        <Link href={destination("/dashboard")} aria-label="선경매 홈">
           <Image
             src="/brand/lineauction-logo.svg"
             alt="선경매 LINE AUCTION"
