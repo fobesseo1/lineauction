@@ -15,7 +15,7 @@ try {
     if ($account.login -ne 'fobesseo1') { throw 'GitHub account does not match requested site' }
     try { $repository = Invoke-GitHub GET '/repos/fobesseo1/lineauction' }
     catch { if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }; $repository = Invoke-GitHub POST '/user/repos' @{ name = 'lineauction'; description = '선경매 · 서울 경기 법원경매와 국토부 실거래 조회'; private = $false; auto_init = $false } }
-    foreach ($name in @('NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')) {
+    foreach ($name in @('NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_NAVER_MAP_CLIENT_ID')) {
         $line = Get-Content .env.local | Where-Object { $_ -match "^$name=" } | Select-Object -First 1
         if (-not $line) { throw "Missing public setting $name" }
         $value = ($line -split '=', 2)[1].Trim().Trim('"').Trim("'")

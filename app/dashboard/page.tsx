@@ -1,3 +1,4 @@
+import { DashboardSearch } from "@/components/property/dashboard-search";
 import Link from "next/link";
 import { ArrowRight, Search, Circle } from "lucide-react";
 import {
@@ -26,6 +27,7 @@ export default async function Dashboard({
   );
   const demo = state === "demo",
     available = demo || state === "ready";
+  if(!demo&&available)return <DashboardSearch properties={properties.filter(p=>p.source==="court"&&["서울특별시","경기도"].includes(p.sido??"")&&!!p.address&&p.address.split(" / ").every(a=>/^(서울특별시|경기도)\s/.test(a.trim())))}/>;
   const today = day(new Date().toISOString()),
     now = getRenderTimestamp();
   const active = properties.filter(
@@ -127,7 +129,7 @@ export default async function Dashboard({
             <Circle className="size-2 fill-current" />
             {demo
               ? "샘플 8건 미리보기"
-              : state === "ready"
+              : available
                 ? "데이터 연결됨"
                 : state === "error"
                   ? "연결 확인 필요"

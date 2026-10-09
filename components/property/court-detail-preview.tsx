@@ -88,9 +88,11 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
    </div><div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t px-5 py-3"><span className="flex items-center gap-2"><Gavel className="size-4"/><strong>{status}</strong></span><span><span className="text-muted-foreground">유찰 </span><strong>{p.failed_bid_count??"미확인"}{p.failed_bid_count!==null?"회":""}</strong></span><span><span className="text-muted-foreground">매각기일 </span><strong>{auctionDate||"확인 필요"}</strong></span><Button asChild variant="outline" size="sm" className="ml-auto h-8"><a href="https://www.courtauction.go.kr/" target="_blank" rel="noreferrer">법원 원문 확인<ArrowUpRight className="size-3.5"/></a></Button></div></CardContent>
   </Card>
   <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(290px,1fr)]">
-   <div className="min-w-0"><RealComparison id={p.id} minimum={p.minimum_bid_price} snapshot={comparisonResult.error?undefined:comparisonResult.data} compact/></div>
-   <div className="space-y-5">
+   <div className="min-w-0 space-y-5"><RealComparison id={p.id} minimum={p.minimum_bid_price} snapshot={comparisonResult.error?undefined:comparisonResult.data} compact/>
     <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="space-y-3 px-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">위치</h2><Button asChild variant="outline" className="min-h-[44px]"><a href={mapUrl} target="_blank" rel="noreferrer">네이버 지도로 이동<ArrowUpRight className="size-5"/></a></Button></div>{position?<NaverMapPreview {...position} title={title} compact/>:<div className="flex aspect-[4/3] flex-col md:aspect-video items-center justify-center gap-3 rounded-lg bg-muted px-5 text-center"><MapPin className="size-5 text-muted-foreground"/><p className="text-sm">{p.address}</p><a className="text-xs underline" href={mapUrl} target="_blank" rel="noreferrer">지도에서 위치 확인</a><p className="text-xs text-muted-foreground">주소 위치를 확인하지 못했습니다. 네이버지도에서 확인해 주세요.</p></div>}</CardContent></Card>
+   </div>
+   <div className="space-y-5">
+
     <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="px-5"><h2 className="mb-4 text-lg font-semibold">물건 기본정보</h2><dl className="space-y-3">{facts.map(f=><div key={f.label} className="flex items-baseline justify-between gap-3 text-sm"><dt className="shrink-0 text-muted-foreground">{f.label}</dt><dd className="text-right font-medium">{f.value}</dd></div>)}</dl></CardContent></Card>
    </div>
   </div>

@@ -51,7 +51,7 @@ await writeFile(join(stage,'next.config.mjs'),`export default {output:'export',b
 await writeFile(join(stage,'tsconfig.json'),JSON.stringify({compilerOptions:{target:'ES2020',lib:['dom','dom.iterable','esnext'],strict:true,skipLibCheck:true,noEmit:true,esModuleInterop:true,module:'esnext',moduleResolution:'bundler',resolveJsonModule:true,jsx:'react-jsx',plugins:[{name:'next'}],paths:{'@/*':['./*']}},include:['**/*.ts','**/*.tsx','.next/types/**/*.ts'],exclude:['node_modules']}));
 await cp('postcss.config.mjs',join(stage,'postcss.config.mjs'));
 await cp('package.json',join(stage,'package.json'));
-for(const directory of ['brand','fonts','media'])await cp(join('public',directory),join(stage,'public',directory),{recursive:true,force:directory!=='media'});
+for(const directory of ['brand','fonts','media','maps'])await cp(join('public',directory),join(stage,'public',directory),{recursive:true,force:directory!=='media'});
 const safeEnv=Object.fromEntries(Object.entries(process.env).filter(([name])=>!/(SECRET|SERVICE_ROLE|API_KEY|TOKEN|PASSWORD|CRON)/i.test(name)));
 const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['node_modules/next/dist/bin/next','build',stage,'--webpack'],{stdio:'inherit',env:safeEnv,windowsHide:true});child.on('error',reject);child.on('exit',resolve);});
 if(code)process.exit(code);
