@@ -7,6 +7,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {caseEvidence,applyCaseEvidence} from './case-repair-core.mjs';
 import {replaceFile} from './store.mjs';
 import {saveMedia} from './media.mjs';
+import {readAllOfficialPhotos} from './all-photos.mjs';
 import {recheckOptions} from './recheck-options.mjs';
 const root='data/court/standalone';
 const load=async(p,f)=>{try{return JSON.parse(await readFile(p,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return f;}};
@@ -20,6 +21,9 @@ const audit=await load(`${root}/repair-audit.json`,null);
 if(!audit?.allCourtsTraversed)throw Error('Complete list comparison required before case follow-up');
 let state=await load('data/court/current.json',null);
 const options=await recheckOptions(process.argv,state,audit,courts,'case-repair');
+const photosAll=process.argv.includes('--all-photos');
+if(photosAll&&!options.scoped)throw Error('All-photo follow-up requires an explicit existing target file');
+const photoSyncKeys=new Set();
 const targets=options.targets;
 const previous=await load(`${root}/${options.prefix}-results.json`,{auditRun:audit.run,items:{}});
 if(previous.auditRun!==audit.run)throw Error('Different repair audit requires a separate result file');
@@ -28,12 +32,14 @@ const groups=new Map();
 for(const item of targets){if(results.items[item.key]&&!/을\(를\)/.test(JSON.stringify([results.items[item.key].evidence?.caseOutcome,results.items[item.key].evidence?.latestResult])))continue;const match=item.caseNumber.match(/^(\d{4})타경(\d{1,7})$/);if(!match){results.items[item.key]={state:'invalid-identifier',key:item.key,observedAt:new Date().toISOString()};continue;}const key=`${item.court}:${item.caseNumber}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);}
 const lock=await open(`${root}/running.lock`,'wx');
 await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),mode:'case-repair'}));
-const progress={id:randomUUID(),pid:process.pid,mode:'case-repair',status:'starting',scope:'seoul-gyeonggi',startedAt:new Date().toISOString(),limit,attempted:0,succeeded:0,failed:0,photos:0,verified:0,unavailable:0,skipped:targets.length-[...groups.values()].flat().length,errors:[],timings:[]};
+const progress={id:randomUUID(),pid:process.pid,mode:photosAll?'all-photos':'case-repair',status:'starting',scope:'seoul-gyeonggi',startedAt:new Date().toISOString(),limit,attempted:0,succeeded:0,failed:0,photos:0,verified:0,unavailable:0,skipped:targets.length-[...groups.values()].flat().length,errors:[],timings:[]};
 const record=async(event)=>{await appendFile(`${root}/events.jsonl`,JSON.stringify({at:new Date().toISOString(),run:progress.id,...event})+'\n');await atomic(`${root}/progress.json`,progress);console.log(JSON.stringify(event));};
-const lastPipeline=await load('data/court/pipeline/latest.json',{});
-let browser,page,blocked=false,dirty=targets.some(x=>Date.parse(x.caseSearchEvidence?.observedAt??0)>Date.parse(lastPipeline.finishedAt??0));
+const pipelineReport=photosAll?'data/court/pipeline/photos-latest.json':'data/court/pipeline/latest.json';
+const lastPipeline=await load(pipelineReport,{});
+if(photosAll)for(const result of Object.values(results.items)){if(result.photos>0&&Date.parse(result.evidence?.observedAt??0)>Date.parse(lastPipeline.finishedAt??0))photoSyncKeys.add(result.key);}
+let browser,page,blocked=false,dirty=photoSyncKeys.size>0||(!photosAll&&targets.some(x=>Date.parse(x.caseSearchEvidence?.observedAt??0)>Date.parse(lastPipeline.finishedAt??0)));
 const guard=async()=>{if(blocked)throw Error('Official access denied; no bypass');const body=await page.locator('body').innerText();if(/비정상적인 접근|자동입력 방지문자|접속이 차단|요청 횟수.*초과/.test(body))throw Error('Official access challenge; no bypass');};
-const sync=async()=>{progress.syncStatus='running';await record({stage:'sync-start'});const log=await open(`${root}/pipeline.log`,'a');try{const syncStarted=Date.now();const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['scripts/court/pipeline.mjs'],{stdio:['ignore',log.fd,log.fd],windowsHide:true});child.on('error',reject);child.on('exit',resolve);});const report=await load('data/court/pipeline/latest.json',{});const errors=(report.errors??[]).filter(e=>e.stage!=='matching');progress.syncStatus=!report.finishedAt||Date.parse(report.finishedAt)<syncStarted||errors.length||![0,1].includes(code)?'failed':'completed';progress.lastSyncAt=new Date().toISOString();await record({stage:'sync-finish',status:progress.syncStatus,databaseErrors:errors.length,matchingDeferred:(report.errors??[]).filter(e=>e.stage==='matching').length,exitCode:code});if(progress.syncStatus==='failed')throw Error('Court DB synchronization failed');dirty=false;}finally{await log.close();}};
+const sync=async()=>{progress.syncStatus='running';await record({stage:'sync-start'});const log=await open(`${root}/pipeline.log`,'a');try{if(photosAll)await atomic(`${root}/${options.prefix}-sync.json`,[...photoSyncKeys]);const syncStarted=Date.now();const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,photosAll?['scripts/court/photo-db-sync.mjs',`--keys-file=${root}/${options.prefix}-sync.json`]:['scripts/court/pipeline.mjs'],{stdio:['ignore',log.fd,log.fd],windowsHide:true});child.on('error',reject);child.on('exit',resolve);});const report=await load(pipelineReport,{});const errors=(report.errors??[]).filter(e=>e.stage!=='matching');progress.syncStatus=!report.finishedAt||Date.parse(report.finishedAt)<syncStarted||errors.length||![0,1].includes(code)?'failed':'completed';progress.lastSyncAt=new Date().toISOString();await record({stage:'sync-finish',status:progress.syncStatus,databaseErrors:errors.length,matchingDeferred:(report.errors??[]).filter(e=>e.stage==='matching').length,exitCode:code});if(progress.syncStatus==='failed')throw Error('Court DB synchronization failed');dirty=false;photoSyncKeys.clear();}finally{await log.close();}};
 const searchCase=async(first)=>{
   await page.goto('https://www.courtauction.go.kr/pgj/index.on',{waitUntil:'domcontentloaded'});await page.getByRole('dialog').last().waitFor({timeout:4000}).catch(()=>{});
   for(let notice=0;notice<6&&await page.getByRole('dialog').count();notice++){const dialog=page.getByRole('dialog').last();const text=await dialog.innerText();if(!text.startsWith('공지사항')||/차단|비정상|자동입력|보안문자/.test(text))throw Error('Unrecognized or access-control dialog');const close=dialog.getByTitle('공지사항 팝업창 닫기 버튼',{exact:true});if(await close.count()!==1)throw Error('Notice close control unavailable');await close.click();await delay(300);}await guard();
@@ -79,19 +85,19 @@ try{
    const stamp=new Date().toISOString();
    const evidence=caseEvidence(item,{queryRaw,basicRaw,propertyRaw:found?.raw??'',sourceUrl:page.url(),observedAt:stamp,detailAvailable:enabled});
    let detailRaw=null,photoCount=0;
-   state=applyCaseEvidence(state,item.key,evidence);await atomic('data/court/current.json',state);dirty=true;
+   if(!photosAll){state=applyCaseEvidence(state,item.key,evidence);await atomic('data/court/current.json',state);dirty=true;}
    const media=await load('data/court/media/manifest.json',[]);
-   const needsDetail=!state.items[item.key].detail||!media.some(x=>x.key===item.key);
+   const needsDetail=photosAll||!state.items[item.key].detail||!media.some(x=>x.key===item.key);
    if(enabled&&needsDetail){
     await button.click();await page.waitForFunction(({caseNumber,itemNumber})=>{const text=Array.from(document.querySelectorAll('table')).filter(e=>e.getClientRects().length).map(e=>e.innerText).join('\n\n');return text.match(/사건번호\s*(\d{4}타경\d+)/)?.[1]===caseNumber&&text.replace(/\s/g,'').includes(`물건번호${itemNumber}물건종류`);},item,{timeout:20000});await guard();
     detailRaw=await page.locator('table:visible').evaluateAll(es=>es.map(e=>e.innerText).join('\n\n'));
-    state=applyCaseEvidence(state,item.key,evidence,detailRaw);await atomic('data/court/current.json',state);dirty=true;progress.succeeded++;
-    await delay(500);const photos=await page.locator('img:visible').evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')&&e.complete&&e.naturalWidth>0).slice(0,1).map(e=>({alt:e.alt,dataUrl:e.src})));
-    if(photos.length&&!media.some(x=>x.key===item.key)){const saved=await saveMedia({key:item.key,court:item.court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw,photos});photoCount=saved.photos;progress.photos+=photoCount;}
+    if(!photosAll||!state.items[item.key].detail){state=applyCaseEvidence(state,item.key,evidence,detailRaw);await atomic('data/court/current.json',state);}dirty=true;progress.succeeded++;
+    await delay(500);const photos=await readAllOfficialPhotos(page);
+    if(photos.length){const saved=await saveMedia({key:item.key,court:item.court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw,photos});photoCount=saved.photos;progress.photos+=photoCount;photoSyncKeys.add(item.key);}
     reload=true;
    }
    progress.verified++;if(!enabled&&needsDetail)progress.unavailable++;
-   const result={state:detailRaw?'detail-saved':!found?'property-not-provided':!enabled?'detail-disabled':'status-verified',key:item.key,evidence,photos:photoCount};
+   const result={state:detailRaw?'detail-saved':!found?'property-not-provided':!enabled?'detail-disabled':'status-verified',key:item.key,evidence,photos:photoCount,allPhotosChecked:photosAll&&!!detailRaw,photoStatus:photosAll?(detailRaw?(photoCount?'all-visible-saved':'official-no-visible-photos'):(!found?'property-not-provided':'detail-disabled')):undefined};
    await atomic(`${root}/${options.prefix}-proofs/${Buffer.from(item.key).toString('base64url')}.json`,result);
    results.items[item.key]=result;await atomic(`${root}/${options.prefix}-results.json`,results);
    await record({stage:'case-verified',key:item.key,state:result.state,caseOutcome:evidence.caseOutcome,latestResult:evidence.latestResult,detail:!!detailRaw,photos:photoCount});

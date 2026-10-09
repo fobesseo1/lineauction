@@ -30,7 +30,7 @@ async function coordinates(p:Property){
 export async function CourtDetailPreview({property:p,history}:{property:Property;history:History[]}){
  const client=await createClient();
  const [photoResult,comparisonResult,position]=await Promise.all([
-  client.from("property_media").select("id,path,width,height").eq("property_id",p.id).order("sort_order").order("id").limit(10),
+  client.from("property_media").select("id,path,width,height").eq("property_id",p.id).order("sort_order").order("id"),
   client.from("property_comparisons").select("*").eq("property_id",p.id).maybeSingle(),
   coordinates(p),
  ]);

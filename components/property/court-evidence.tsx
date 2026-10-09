@@ -11,7 +11,7 @@ const labels:Record<string,string>={observed:"목록 관측", "needs-recheck":"�
 export async function CourtEvidence({property:p}:{property:Property}){
  const client=await createClient();
  const [photos,events]=await Promise.all([
-  client.from("property_media").select("id,path,source_url,observed_at,width,height").eq("property_id",p.id).order("sort_order").order("id").limit(10),
+  client.from("property_media").select("id,path,source_url,observed_at,width,height").eq("property_id",p.id).order("sort_order").order("id"),
   client.from("property_lifecycle_history").select("id,state,reason,checked_at").eq("property_id",p.id).order("checked_at",{ascending:false}).limit(10),
  ]);
  if(photos.error||events.error)throw Error("Court evidence query failed");

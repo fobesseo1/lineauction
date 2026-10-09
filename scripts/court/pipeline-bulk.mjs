@@ -31,7 +31,7 @@ async function tradesFor(region){
   for(let page=1;page<=100;page++){
    const url=new URL('https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade');
    url.search=new URLSearchParams({serviceKey:process.env.MOLIT_API_KEY,LAWD_CD:region,DEAL_YMD:month,pageNo:String(page),numOfRows:'1000'}).toString();
-   await reserveMolitRequest(`${root}/molit-request-budget.json`,{limit:Number(process.env.MOLIT_DAILY_REQUEST_BUDGET??500)});
+   await reserveMolitRequest(`${root}/molit-request-budget.json`,{limit:Number(process.env.MOLIT_DAILY_REQUEST_BUDGET??1000)});
    await delay(Math.max(0,1100-(Date.now()-lastRequestAt)));lastRequestAt=Date.now();
    let response;try{response=await fetch(url,{signal:AbortSignal.timeout(20000)});}catch{throw Error(`MOLIT ${region}/${month}: request failed`);}
    if(!response.ok){await recordMolitRefusal(response.status,`${root}/molit-access-paused.json`);throw Error(`MOLIT HTTP ${response.status}`);}

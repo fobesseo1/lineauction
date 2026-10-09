@@ -10,7 +10,7 @@ export async function saveMedia(payload) {
  if(!item||payload.court!==item.court||payload.caseNumber!==item.caseNumber||payload.itemNumber!==item.itemNumber)throw Error('Photo identity mismatch');
  if(new URL(payload.sourceUrl).origin!=='https://www.courtauction.go.kr'||!Number.isFinite(Date.parse(payload.observedAt)))throw Error('Invalid photo provenance');
  parseDetail(payload.detailRaw,item);
- if(!Array.isArray(payload.photos)||!payload.photos.length||payload.photos.length>10)throw Error('Invalid photos');
+ if(!Array.isArray(payload.photos)||!payload.photos.length)throw Error('Invalid photos');
  await mkdir('public/media/court',{recursive:true});await mkdir('data/court/media',{recursive:true});
  let manifest=[];try{manifest=JSON.parse(await readFile('data/court/media/manifest.json','utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
  const saved=[];

@@ -46,7 +46,7 @@ export async function collectCourtDetailBatch(tab, jobs) {
       if(!raw.includes(job.caseNumber)||!raw.replace(/\s/g,'').includes(`물건번호${job.itemNumber}물건종류`))throw Error('Detail identity mismatch');
       run.details[job.key]=raw;detailJob.state='succeeded';
       try{
-        const entries=await tab.playwright.getByRole('img').filter({visible:true}).evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')).slice(0,1).map(e=>({alt:e.alt,parts:e.src.match(/.{1,24000}/g)})));
+        const entries=await tab.playwright.getByRole('img').filter({visible:true}).evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')).map(e=>({alt:e.alt,parts:e.src.match(/.{1,24000}/g)})));
         const photos=entries.map(e=>({alt:e.alt,dataUrl:e.parts.join('')}));
         if(photos.some(p=>p.dataUrl.includes('[Truncated]')))throw Error('Truncated photo');
         if(photos.length)media.push({kind:'court-media',key:job.key,court,caseNumber:job.caseNumber,itemNumber:job.itemNumber,detailRaw:raw,sourceUrl:await tab.url(),observedAt:new Date().toISOString(),photos});

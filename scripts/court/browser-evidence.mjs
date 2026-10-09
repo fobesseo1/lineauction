@@ -1,7 +1,7 @@
 // Paste these function literals into CUA. All values come from the visible official DOM.
 export async function collectCourtPhotos(tab,item){
  const detailRaw=await tab.playwright.getByRole('table').filter({visible:true}).evaluateAll(es=>es.map(e=>e.innerText).join('\n'));
- const entries=await tab.playwright.getByRole('img').filter({visible:true}).evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')).slice(0,10).map(e=>({alt:e.alt,parts:e.src.match(/.{1,24000}/g)})));
+ const entries=await tab.playwright.getByRole('img').filter({visible:true}).evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')).map(e=>({alt:e.alt,parts:e.src.match(/.{1,24000}/g)})));
  if(!entries.length)return null;
  const photos=entries.map(e=>({alt:e.alt,dataUrl:e.parts.join('')}));if(photos.some(e=>e.dataUrl.includes('[Truncated]')))throw Error('Truncated photo payload');
  return{kind:'court-media',key:item.key,court:item.court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:await tab.url(),observedAt:new Date().toISOString(),detailRaw,photos};

@@ -8,6 +8,7 @@ import { parseList, parseDetail, COURT_URL } from './core.mjs';
 import { inSeoulGyeonggi } from './scope.mjs';
 import { saveRun, replaceFile } from './store.mjs';
 import { saveMedia } from './media.mjs';
+import {readAllOfficialPhotos} from './all-photos.mjs';
 import { withCourtRecovery } from './recovery-core.mjs';
 import { needsRepair, repairAudit } from './repair-audit.mjs';
 
@@ -163,7 +164,7 @@ try{
      await saveRun(run);detailSaved=true;
      // Original bytes stay in this process: no model/tool chunk transfer.
      await delay(500);
-     const photos=await page.locator('img:visible').evaluateAll(es=>es.filter(e=>/^(전경도|관련사진)_\d+$/.test(e.alt)&&e.src.startsWith('data:image/')&&e.complete&&e.naturalWidth>0).slice(0,1).map(e=>({alt:e.alt,dataUrl:e.src})));
+     const photos=await readAllOfficialPhotos(page);
      let media=null;
      if(photos.length){media=await saveMedia({kind:'court-media',key:item.key,court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw:raw,photos});progress.photos+=media.photos;photographed.add(item.key);}
      checks[item.key]={state:photos.length?'captured':'none-visible',checkedAt:stamp};

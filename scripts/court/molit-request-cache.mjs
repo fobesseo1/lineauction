@@ -24,7 +24,7 @@ export async function cachedMolitMonth(root,region,month,{now=new Date(),ttlMs=8
 }
 
 // This is an app-side conservative budget, not a claim about the account's provider quota.
-export async function reserveMolitRequest(path,{now=new Date(),limit=100}={}) {
+export async function reserveMolitRequest(path,{now=new Date(),limit=1000}={}) {
  if(!Number.isSafeInteger(limit)||limit<1)throw Error('Invalid MOLIT request budget');
  const day=koreanDay(now);let budget;
  try{budget=JSON.parse(await readFile(path,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
