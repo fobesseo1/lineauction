@@ -13,8 +13,13 @@ export function formatWon(value: string | null) {
 // Keep the exact won amount separately when rounding the readable label.
 export function formatKoreanWon(value: string | null) {
   if (value === null) return "비공개 / 미제공";
-  const amount = BigInt(value);
-  if (amount < 1_000_000n) return formatWon(value);
+  const raw = BigInt(value);
+  const amount = raw < 0n ? -raw : raw;
+  const sign = raw < 0n ? "-" : "";
+  if (amount < 1_000_000n) {
+    const man = amount / 10_000n, won = amount % 10_000n;
+    return `${sign}${man ? `${man}만` : ""}${won || !man ? won.toLocaleString("ko-KR") : ""}원`;
+  }
   const rounded = ((amount + 500_000n) / 1_000_000n) * 1_000_000n;
   const eok = rounded / 100_000_000n;
   const man = (rounded % 100_000_000n) / 10_000n;
@@ -23,7 +28,7 @@ export function formatKoreanWon(value: string | null) {
     man / 1000n ? `${man / 1000n}천` : "",
     (man % 1000n) / 100n ? `${(man % 1000n) / 100n}백` : "",
   ].filter(Boolean);
-  return `${rounded !== amount ? "약 " : ""}${parts.join(" ")}${man ? "만원" : "원"}`;
+  return `${rounded !== amount ? "약 " : ""}${sign}${parts.join(" ")}${man ? "만원" : "원"}`;
 }
 export function appraisalRatio(bid: string | null, appraisal: string | null) {
   if (bid === null || appraisal === null || BigInt(appraisal) === 0n)

@@ -12,6 +12,9 @@ describe("readable Korean prices", () => {
     ["100000000", "1억원"],
     ["1000000", "1백만원"],
     ["0", "0원"],
+    ["163840000", "약 1억 6천 4백만원"],
+    ["-163840000", "약 -1억 6천 4백만원"],
+    ["450000", "45만원"],
     [null, "비공개 / 미제공"],
   ])("formats %s without losing rounding information", (value, expected) => {
     expect(formatKoreanWon(value)).toBe(expected);

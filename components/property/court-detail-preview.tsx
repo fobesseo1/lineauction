@@ -1,9 +1,10 @@
+import { locateAddress } from "@/lib/maps/geocode";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowUpRight, MapPin, Gavel, TriangleAlert, ChartNoAxesColumn } from "lucide-react";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { appraisalRatio, formatKoreanWon } from "@/lib/utils/money";
+import { appraisalRatio } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,23 +23,7 @@ type History={id:string;checked_at:string;minimum_bid_price:string|null;appraisa
 const dateLabel=(value:string)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 
 async function coordinates(p:Property){
- if(p.latitude!==null&&p.longitude!==null)return{latitude:p.latitude,longitude:p.longitude};
- const key=process.env.NAVER_MAP_CLIENT_SECRET,clientId=process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
- if(!key||!clientId||!p.address)return null;
- const query=p.address.split(/\s+\d+동\s+/)[0];
- try{
-  const url=new URL("https://maps.apigw.ntruss.com/map-geocode/v2/geocode");url.searchParams.set("query",query);
-  const response=await fetch(url,{headers:{"x-ncp-apigw-api-key-id":clientId,"x-ncp-apigw-api-key":key},signal:AbortSignal.timeout(5000)});
-  if(!response.ok)return null;
-  const data=z.object({addresses:z.array(z.object({roadAddress:z.string(),x:z.string(),y:z.string()}))}).safeParse(await response.json());
-  if(!data.success)return null;
-  // NAVER may append the building name after the exact road name/number.
-  const normalizedQuery=query.trim().replace(/\s+/g," ");
-  const exact=data.data.addresses.find(a=>{const road=a.roadAddress.trim().replace(/\s+/g," ");return road===normalizedQuery||road.startsWith(`${normalizedQuery} `);});
-  if(!exact)return null;
-  const latitude=Number(exact.y),longitude=Number(exact.x);
-  return Number.isFinite(latitude)&&latitude>=33&&latitude<=39&&Number.isFinite(longitude)&&longitude>=124&&longitude<=132?{latitude,longitude}:null;
- }catch{return null;}
+ return locateAddress(p);
 }
 
 // Approved detail layout for Seoul/Gyeonggi court properties.
@@ -96,8 +81,8 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
       <p className={`text-2xl font-semibold ${priceGap!==null&&priceGap>0?"text-rausch":""}`}>{priceGap===null?"미산정":priceGap===0?"동일":`${Math.abs(priceGap).toFixed(1)}% ${priceGap>0?"높음":"낮음"}`}</p>
      </div>
      {priceGap!==null&&latest&&<div className="mt-1 space-y-1 text-xs leading-4 text-muted-foreground">
-      <p>실거래보다 <span className="font-bold text-foreground">{formatKoreanWon(String(Math.abs(minimum-latestPrice)))}</span> <span className={priceGap>0?"font-medium text-rausch":"font-medium text-foreground"}>{priceGap>0?"비쌈":priceGap<0?"저렴":"동일"}</span></p>
-      <p>최신실거래 <span className="font-bold text-foreground">{formatKoreanWon(latest.price)}</span> <time dateTime={latest.date}>({latest.date.replaceAll("-", ".")})</time></p>
+      <p>실거래보다 <span className="font-bold text-foreground"><PriceAmount value={String(Math.abs(minimum-latestPrice))}/></span> <span className={priceGap>0?"font-medium text-rausch":"font-medium text-foreground"}>{priceGap>0?"비쌈":priceGap<0?"저렴":"동일"}</span></p>
+      <p>최신실거래 <span className="font-bold text-foreground"><PriceAmount value={latest.price}/></span> <time dateTime={latest.date}>({latest.date.replaceAll("-", ".")})</time></p>
      </div>}
     </div>
    </div><div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t px-5 py-3"><span className="flex items-center gap-2"><Gavel className="size-4"/><strong>{status}</strong></span><span><span className="text-muted-foreground">유찰 </span><strong>{p.failed_bid_count??"미확인"}{p.failed_bid_count!==null?"회":""}</strong></span><span><span className="text-muted-foreground">매각기일 </span><strong>{auctionDate||"확인 필요"}</strong></span><Button asChild variant="outline" size="sm" className="ml-auto h-8"><a href="https://www.courtauction.go.kr/" target="_blank" rel="noreferrer">법원 원문 확인<ArrowUpRight className="size-3.5"/></a></Button></div></CardContent>
@@ -105,7 +90,7 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
   <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(290px,1fr)]">
    <div className="min-w-0"><RealComparison id={p.id} minimum={p.minimum_bid_price} snapshot={comparisonResult.error?undefined:comparisonResult.data} compact/></div>
    <div className="space-y-5">
-    <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="space-y-3 px-5"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">위치</h2><a href={mapUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-muted-foreground">네이버지도<ArrowUpRight className="size-3"/></a></div>{position?<NaverMapPreview {...position} title={title} compact/>:<div className="flex h-36 flex-col items-center justify-center gap-3 rounded-lg bg-muted px-5 text-center"><MapPin className="size-5 text-muted-foreground"/><p className="text-sm">{p.address}</p><a className="text-xs underline" href={mapUrl} target="_blank" rel="noreferrer">지도에서 위치 확인</a></div>}</CardContent></Card>
+    <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="space-y-3 px-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">위치</h2><Button asChild variant="outline" className="min-h-[44px]"><a href={mapUrl} target="_blank" rel="noreferrer">네이버 지도로 이동<ArrowUpRight className="size-5"/></a></Button></div>{position?<NaverMapPreview {...position} title={title} compact/>:<div className="flex aspect-[4/3] flex-col md:aspect-video items-center justify-center gap-3 rounded-lg bg-muted px-5 text-center"><MapPin className="size-5 text-muted-foreground"/><p className="text-sm">{p.address}</p><a className="text-xs underline" href={mapUrl} target="_blank" rel="noreferrer">지도에서 위치 확인</a><p className="text-xs text-muted-foreground">주소 위치를 확인하지 못했습니다. 네이버지도에서 확인해 주세요.</p></div>}</CardContent></Card>
     <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="px-5"><h2 className="mb-4 text-lg font-semibold">물건 기본정보</h2><dl className="space-y-3">{facts.map(f=><div key={f.label} className="flex items-baseline justify-between gap-3 text-sm"><dt className="shrink-0 text-muted-foreground">{f.label}</dt><dd className="text-right font-medium">{f.value}</dd></div>)}</dl></CardContent></Card>
    </div>
   </div>

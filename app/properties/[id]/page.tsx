@@ -1,10 +1,11 @@
+import { PriceAmount } from "@/components/property/price-amount";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MapPin } from "lucide-react";
 import { loadPropertyDetail } from "@/lib/services/dashboard-service";
 import { DemoNotice } from "@/components/demo-notice";
-import { formatWon, appraisalRatio } from "@/lib/utils/money";
+import { appraisalRatio } from "@/lib/utils/money";
 import { formatDate } from "@/lib/utils/date";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -115,19 +116,19 @@ export default async function PropertyDetail({
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">추정시장가</dt>
                   <dd className="font-semibold">
-                    {formatWon(p.demo.analysis.marketPrice)}
+                    <PriceAmount value={p.demo.analysis.marketPrice}/>
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">최저입찰가</dt>
                   <dd className="font-semibold">
-                    {formatWon(p.minimum_bid_price)}
+                    <PriceAmount value={p.minimum_bid_price}/>
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2 border-t pt-4">
                   <dt>예상 가격차</dt>
                   <dd className="font-semibold">
-                    {formatWon(p.demo.analysis.priceGap)}
+                    <PriceAmount value={p.demo.analysis.priceGap}/>
                   </dd>
                 </div>
               </dl>
@@ -151,8 +152,8 @@ export default async function PropertyDetail({
       )}
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: "감정평가금액", value: formatWon(p.appraisal_price) },
-          { label: "현재 최저입찰가", value: formatWon(p.minimum_bid_price) },
+          { label: "감정평가금액", value: <PriceAmount value={p.appraisal_price}/> },
+          { label: "현재 최저입찰가", value: <PriceAmount value={p.minimum_bid_price}/> },
           {
             label: "감정가 대비 최저가율",
             value:
@@ -203,7 +204,7 @@ export default async function PropertyDetail({
                     <div className="mb-2 flex justify-between text-sm">
                       <span>{item.label}</span>
                       <span className="font-medium">
-                        {formatWon(item.value)}
+                        <PriceAmount value={item.value}/>
                       </span>
                     </div>
                     <div className="h-3 overflow-hidden rounded-full bg-muted">
@@ -237,7 +238,7 @@ export default async function PropertyDetail({
                       </TableCell>
                       <TableCell>{t.floor}층</TableCell>
                       <TableCell className="whitespace-nowrap text-right">
-                        {formatWon(t.price)}
+                        <PriceAmount value={t.price}/>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -322,10 +323,10 @@ export default async function PropertyDetail({
                     {formatDate(h.checked_at)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {formatWon(h.minimum_bid_price)}
+                    <PriceAmount value={h.minimum_bid_price}/>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {formatWon(h.appraisal_price)}
+                    <PriceAmount value={h.appraisal_price}/>
                   </TableCell>
                   <TableCell>{h.failed_bid_count ?? "—"}</TableCell>
                   <TableCell>{h.status || "미제공"}</TableCell>

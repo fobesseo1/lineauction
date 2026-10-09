@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { formatWon } from "@/lib/utils/money";
 import { PriceAmount } from "./price-amount";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +23,12 @@ export async function RealComparison({id,minimum,snapshot,compact=false}:{id:str
   {latest&&<>
    <p className="text-sm">{c.target.complex} · 대상 전용 {c.target.area}㎡ · {c.target.floor}층</p>
    <div className={`grid gap-4 rounded-lg bg-muted p-4 ${compact?"md:grid-cols-2":"md:grid-cols-3"}`}>
-    <div><p className="text-sm text-muted-foreground">최저입찰가</p><div className="mt-2 text-xl font-semibold">{compact?<PriceAmount value={minimum}/>:formatWon(minimum)}</div></div>
-    <div><p className="text-sm text-muted-foreground">최신 비교 거래 · {latest.date}</p><div className="mt-2 text-xl font-semibold">{compact?<PriceAmount value={latest.price}/>:formatWon(latest.price)}</div></div>
+    <div><p className="text-sm text-muted-foreground">최저입찰가</p><div className="mt-2 text-xl font-semibold"><PriceAmount value={minimum}/></div></div>
+    <div><p className="text-sm text-muted-foreground">최신 비교 거래 · {latest.date}</p><div className="mt-2 text-xl font-semibold"><PriceAmount value={latest.price}/></div></div>
     {!compact&&<div><p className="text-xs text-muted-foreground">최신 거래가 대비 최저입찰가</p><p className="mt-2 text-xl font-semibold">{gap===null?"미산정":gap===0?"동일":`${Math.abs(gap).toFixed(1)}% ${gap>0?"낮음":"높음"}`}</p></div>}
    </div>
    <Table><TableHeader><TableRow><TableHead>계약일</TableHead><TableHead>전용면적</TableHead><TableHead>동 / 층</TableHead><TableHead>대상과 차이</TableHead><TableHead className="text-right">실제 거래가</TableHead></TableRow></TableHeader><TableBody>
-    {c.trades.map(t=><TableRow key={t.id}><TableCell>{t.date}</TableCell><TableCell>{t.area}㎡</TableCell><TableCell>{t.building||"동 미공개"} / {t.floor}층</TableCell><TableCell>면적 {t.areaDelta.toFixed(4)}㎡ · 층 {t.floorDelta??"미확인"}</TableCell><TableCell className="text-right">{compact?<PriceAmount value={t.price}/>:formatWon(t.price)}</TableCell></TableRow>)}
+    {c.trades.map(t=><TableRow key={t.id}><TableCell>{t.date}</TableCell><TableCell>{t.area}㎡</TableCell><TableCell>{t.building||"동 미공개"} / {t.floor}층</TableCell><TableCell>면적 {t.areaDelta.toFixed(4)}㎡ · 층 {t.floorDelta??"미확인"}</TableCell><TableCell className="text-right"><PriceAmount value={t.price}/></TableCell></TableRow>)}
    </TableBody></Table>
    <p className="text-sm text-muted-foreground">과거 계약가와 현재 최저입찰가의 단순 비교입니다. 내부 상태·임차관계·권리와 추가 비용은 반영하지 않았습니다. 매각 일정과 조건은 법원 원문에서 재확인하세요.</p>
   </>}

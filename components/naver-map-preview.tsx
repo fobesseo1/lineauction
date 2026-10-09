@@ -57,7 +57,7 @@ export function NaverMapPreview({latitude=37.4838652,longitude=127.0808739,title
         연결 확인용 위치: 서울 강남구 일원동 719 푸른마을아파트. 실제 지도이며 공매 물건과 실거래 매칭은 아직 적용 전입니다.
       </p>}
       <div className="relative overflow-hidden rounded-xl border bg-muted">
-        <div ref={container} className={compact?"h-[240px] w-full":"h-[360px] w-full"} aria-label={`${title} 네이버지도`} />
+        <div ref={container} className="aspect-[4/3] w-full md:aspect-video" aria-label={`${title} 네이버지도`} />
         {(!clientId || error || !ready) && (
           <p role="status" className="absolute inset-0 grid place-content-center bg-white/95 px-6 text-center text-sm">
             {!clientId ? "네이버 Maps Client ID 설정이 필요합니다." : error || "네이버지도를 불러오는 중입니다…"}

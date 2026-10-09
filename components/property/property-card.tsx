@@ -1,9 +1,10 @@
+import { PriceAmount } from "@/components/property/price-amount";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, MapPin, CalendarDays } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatWon, appraisalRatio } from "@/lib/utils/money";
+import { appraisalRatio } from "@/lib/utils/money";
 import { formatDate } from "@/lib/utils/date";
 import type { PropertyListing } from "@/types/listing";
 export function PropertyCard({ property: p }: { property: PropertyListing }) {
@@ -60,11 +61,11 @@ export function PropertyCard({ property: p }: { property: PropertyListing }) {
           <div>
             <p className="text-xs text-muted-foreground">최저입찰가</p>
             <p className="mt-1 text-xl font-semibold">
-              {formatWon(p.minimum_bid_price)}
+              <PriceAmount value={p.minimum_bid_price}/>
             </p>
             {preview && (
               <p className="mt-1 text-xs text-muted-foreground">
-                추정시장가 {formatWon(preview.analysis.marketPrice)}{" "}
+                추정시장가 <PriceAmount value={preview.analysis.marketPrice}/>{" "}
                 <span className="ml-1 font-semibold text-hof">
                   · {preview.analysis.discountRate.toFixed(1)}% 할인
                 </span>

@@ -16,6 +16,7 @@ async function copySource(relative){
  if(copied.has(relative))return;copied.add(relative);
  let source=await readFile(join(root,relative),'utf8');
  if(relative==='components/property/court-detail-preview.tsx'){
+  source=source.replace('import { locateAddress } from "@/lib/maps/geocode";','');
   source=source.replace('import { createClient } from "@/lib/supabase/server";','');
   const start=source.indexOf('async function coordinates('),end=source.indexOf('// Approved detail layout');
   if(start<0||end<0)throw Error('Court detail adapter needs review');source=source.slice(0,start)+source.slice(end);
