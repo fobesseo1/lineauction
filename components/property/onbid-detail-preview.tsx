@@ -115,7 +115,7 @@ export async function OnbidDetailPreview({ property: p, history }: { property: P
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(290px,1fr)]">
       <div className="min-w-0 space-y-5"><RealComparison id={p.id} minimum={p.minimum_bid_price} snapshot={comparisonResult.error ? undefined : comparisonResult.data} compact />
         <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="space-y-3 px-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">위치</h2><Button asChild variant="outline" className="min-h-[44px]"><a href={mapUrl} target="_blank" rel="noreferrer">네이버 지도로 이동<ArrowUpRight className="size-5" /></a></Button></div>
-          {position ? <NaverMapPreview {...position} title={p.title} compact /> : <GeocodedMapPreview query={mapQuery} title={p.title} label={address} mapUrl={mapUrl} />}
+          {position ? <NaverMapPreview {...position} title={p.title} compact /> : <GeocodedMapPreview queries={[...new Set([parcel, fields.cltrRadr].filter((q): q is string => !!q))]} area={[p.sido, p.sigungu, p.dong].filter(Boolean).join(" ") || p.address} title={p.title} label={address} mapUrl={mapUrl} />}
         </CardContent></Card>
       </div>
       <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="px-5"><h2 className="mb-4 text-lg font-semibold">물건 기본정보</h2><dl className="space-y-3">{facts.map(f => <div key={f.label} className="flex items-baseline justify-between gap-3 text-sm"><dt className="shrink-0 text-muted-foreground">{f.label}</dt><dd className="text-right font-medium">{f.value}</dd></div>)}</dl></CardContent></Card>
