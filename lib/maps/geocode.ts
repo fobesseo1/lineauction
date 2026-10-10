@@ -2,11 +2,15 @@ import "server-only";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { mapAddress, matchCoordinates, type GeoAddress } from "./address";
+import positions from "@/public/maps/positions.json";
 type Position={latitude:number;longitude:number};
 const pending=new Map<string,Promise<Position|null>>();
 export async function locateAddress(p:{address:string|null;latitude:number|null;longitude:number|null}):Promise<Position|null>{
  if(p.latitude!==null&&p.longitude!==null)return {latitude:p.latitude,longitude:p.longitude};
  if(!p.address)return null;
+ // Precomputed parcel coordinates work without the server-only Naver secret (public deployment).
+ const known=(positions as Record<string,Position>)[mapAddress(p.address.split(" / ")[0])];
+ if(known)return known;
  const query=mapAddress(p.address),key=process.env.NAVER_MAP_CLIENT_SECRET,id=process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
  if(!key||!id)return null;
  if(pending.has(query))return pending.get(query)!;
