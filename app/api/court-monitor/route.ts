@@ -13,10 +13,10 @@ export async function GET(request:Request){
   const coverage=audit?{checkedAt:audit.checkedAt,detailDisabled:audit.detailDisabled,propertyNotProvided:audit.propertyNotProvided}:undefined;
   const recovery=await readFile('data/court/standalone/recovery-summary.json','utf8').then(JSON.parse).catch(()=>undefined);
   const load=async(path:string)=>readFile(path,'utf8').then(JSON.parse).catch(()=>null);
-  const [targets,results,manifest,photosDb,budget,latest,gate]=await Promise.all([
+  const [targets,results,manifest,photosDb,budget,latest,gate,staged,molitDb]=await Promise.all([
    load('data/court/standalone/all-photo-targets-2026-10-09.json'),load('data/court/standalone/case-repair-all-photos-2026-10-09-results.json'),
    load('data/court/media/manifest.json'),load('data/court/pipeline/photos-latest.json'),load('data/court/pipeline/molit-request-budget.json'),
-   load('data/court/pipeline/latest.json'),load('data/court/pipeline/molit-access-paused.json')]);
+   load('data/court/pipeline/latest.json'),load('data/court/pipeline/molit-access-paused.json'),load('data/court/pipeline/molit-staged-progress.json'),load('data/court/pipeline/molit-staged-db.json')]);
   // Read-only snapshots: never change checkpoints or issue collection requests here.
   const photoCollection=targets&&results&&manifest?{...photoCollectionSummary(targets,results.items,manifest,null),db:photosDb?{status:photosDb.status,finishedAt:photosDb.finishedAt,errors:photosDb.errors?.length??0}:null}:null;
   if(photoCollection&&latest?.media!==undefined&&Date.parse(latest.finishedAt)<Date.parse(progress?.startedAt)){
@@ -24,9 +24,15 @@ export async function GET(request:Request){
   }
   if(photoCollection)photoCollection.errors=Math.max(photoCollection.errors,progress?.failed??0);
   const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  const molit=latest?{matchedProperties:latest.matchedProperties,matchedTrades:latest.matchedTrades,unmatched:latest.unmatched,
-   retry:latest.errors?.filter((e:{stage?:string})=>e.stage==='matching').length??0,finishedAt:latest.finishedAt,
-   paused:!!gate,used:budget?.day===day?budget.requests:0,limit:budget?.limit??1000,day}:null;
+  const source=staged??latest;
+  const queries=source?.apiQueries??[];
+  const molit=source?{matchedProperties:source.matchedProperties??0,matchedTrades:source.matchedTrades??0,unmatched:(source.unmatched??0)+(staged?source.properties?.skipped??0:0),
+   retry:source.errors?.filter((e:{stage?:string})=>e.stage==='matching').length??0,finishedAt:source.finishedAt,
+   paused:!!gate&&(gate.day??new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(gate.pausedAt)))===day,
+   used:budget?.day===day?budget.requests:0,limit:budget?.day===day?budget.limit:10000,day,
+   state:staged?.status??'completed',lookbackMonths:source.lookbackMonths??6,processed:(source.processed??((source.matchedProperties??0)+(source.unmatched??0)))+(staged?source.properties?.skipped??0:0),apartments:source.apartments,
+   regions:source.regions?.length??new Set(queries.map((q:{region:string})=>q.region)).size,regionMonths:source.regionMonths??new Set(queries.map((q:{region:string;month:string})=>q.region+':'+q.month)).size,
+   plannedRegions:source.plannedRegions?.length??0,dbStatus:staged?(molitDb&&Date.parse(molitDb.startedAt)>=Date.parse(staged.startedAt)?molitDb.status:'waiting-photos'):'completed'}:null;
   const monitorFresh=Date.now()-Date.parse(data.checkedAt)<60000;
   return Response.json({...data,run:progress??data.run,monitorFresh,coverage,recovery,photoCollection,molit},{headers:{'Cache-Control':'no-store'}});
  }catch{return Response.json({monitorFresh:false,health:{state:'unavailable',label:'감시 기록 없음',message:'감시기가 시작되지 않았거나 상태 파일을 읽을 수 없습니다.'}},{headers:{'Cache-Control':'no-store'}});}

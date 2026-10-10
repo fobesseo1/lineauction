@@ -1,0 +1,1 @@
+export default function Loading(){return <div role="status" className="space-y-6"><h1>경매·공매 물건</h1><p className="text-muted-foreground">선택한 물건 목록을 불러오고 있습니다.</p><div className="grid gap-4 sm:grid-cols-3">{[1,2,3].map(n=><div key={n} className="h-64 animate-pulse rounded-xl bg-white"/>)}</div></div>;}

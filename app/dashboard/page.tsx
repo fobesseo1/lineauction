@@ -1,3 +1,4 @@
+import { DashboardSearch } from "@/components/property/dashboard-search";
 import { PagedCatalog } from "@/components/property/paged-catalog";
 import { loadCatalogPage } from "@/lib/services/catalog-service";
 import { parseCatalogFilters } from "@/types/catalog";
@@ -32,9 +33,11 @@ export default async function Dashboard({
   }
   const { properties, state } = await loadPropertyList(
     params.demo,
+    params.source==='onbid'?'onbid':params.source==='all'?undefined:'court',
   );
   const demo = state === "demo",
     available = demo || state === "ready";
+  if(!demo&&available)return <DashboardSearch key={params.source??'court'} initialSource={params.source} properties={properties.filter(p=>["서울특별시","경기도"].includes(p.sido??"")&&(p.source==="onbid"||(!!p.address&&p.address.split(" / ").every(a=>/^(서울특별시|경기도)\s/.test(a.trim())))))}/>;
   const today = day(new Date().toISOString()),
     now = getRenderTimestamp();
   const active = properties.filter(

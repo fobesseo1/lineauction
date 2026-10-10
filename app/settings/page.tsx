@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { NaverMapPreview } from "@/components/naver-map-preview";
 import { CourtMonitor } from "@/components/court-monitor";
+import { OnbidMonitor } from "@/components/onbid-monitor";
 export const dynamic = "force-dynamic";
 export default function Settings() {
   const configured = hasSupabaseConfig();
@@ -24,6 +25,7 @@ export default function Settings() {
         </Button>
       </section>
       <CourtMonitor />
+      <OnbidMonitor />
       <Card className="border-0 shadow-none">
         <CardContent className="space-y-5">
           <h2>네이버 지도 연결 확인</h2>

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import {useRouter,useSearchParams} from 'next/navigation';
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,12 +47,17 @@ function FilterSelect({
 export function PropertyBrowser({
   properties,
   initialQuery,
+  initialSource,
 }: {
   properties: PropertyListing[];
   initialQuery: string;
+  initialSource?: string;
 }) {
   const defaultRegion = properties.some((p) => p.demo) ? "all" : "seoul-gyeonggi";
+  const router=useRouter(),params=useSearchParams();
+  const changeSource=(value:string)=>{setSource(value);setVisibleCount(24);const next=new URLSearchParams(params.toString());next.set('source',value);router.push(`/properties?${next.toString()}`);};
   const [visibleCount, setVisibleCount] = useState(24);
+  const [source,setSource] = useState(initialSource==='court'||initialSource==='onbid'?initialSource:'all');
   const [lifecycle, setLifecycle] = useState("active");
   const [query, setQuery] = useState(initialQuery),
     [region, setRegion] = useState(defaultRegion),
@@ -71,13 +77,14 @@ export function PropertyBrowser({
   ];
   const filtered = properties.filter(
     (p) =>
+      (source === 'all' || p.source === source) &&
       (lifecycle === "all" || (lifecycle === "closed" ? p.lifecycle_state === "closed" : p.lifecycle_state !== "closed")) &&
       [p.title, p.address, p.sido, p.sigungu, p.dong]
         .join(" ")
         .toLowerCase()
         .includes(query.toLowerCase()) &&
       (region === "all" || (region === "seoul-gyeonggi"
-        ? !!p.address && p.address.split(" / ").every(address => /^(서울특별시|경기도)\s/.test(address.trim()))
+        ? p.source==='onbid' ? ['서울특별시','경기도'].includes(p.sido??'') : !!p.address && p.address.split(" / ").every(address => /^(서울특별시|경기도)\s/.test(address.trim()))
         : p.sido === region)) &&
       (usage === "all" || p.usage_type === usage) &&
       (!maxBid ||
@@ -137,6 +144,7 @@ export function PropertyBrowser({
           />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FilterSelect label="경매·공매 구분" value={source} onChange={changeSource} choices={[{value:'all',label:'경매·공매 전체'},{value:'court',label:'법원 경매'},{value:'onbid',label:'온비드 공매'}]} />
           <FilterSelect label="진행 구분" value={lifecycle} onChange={setLifecycle} choices={[{value:"active",label:"진행·재확인 대상"},{value:"closed",label:"종료 확인 물건"},{value:"all",label:"전체 이력 포함"}]} />
           <FilterSelect
             label="지역"
@@ -185,7 +193,7 @@ export function PropertyBrowser({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2>경매·공매물건</h2>
+          <h2>{source==='court'?'법원 경매물건':source==='onbid'?'온비드 공매물건':'경매·공매물건'}</h2>
           <Badge variant="secondary" className="rounded-full bg-white">
             {filtered.length}건
           </Badge>

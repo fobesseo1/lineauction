@@ -18,7 +18,7 @@ export default async function Properties({
     const heading=filters.source==="onbid"?"공매물건 찾기":filters.source==="court"?"경매물건 찾기":"경매·공매물건 찾기";
     return page?<div className="space-y-7"><h1>{heading}</h1><PagedCatalog initialFilters={filters} initialPage={page} explore/></div>:<CollectionState state="error"/>;
   }
-  const { properties, state } = await loadPropertyList(params.demo);
+  const { properties, state } = await loadPropertyList(params.demo,params.source==="onbid"?"onbid":params.source==="all"?undefined:"court");
   const query = params.q || "";
   return (
     <div className="space-y-8">
@@ -33,7 +33,7 @@ export default async function Properties({
         </p>
       </div>
       {properties.length ? (
-        <PropertyBrowser properties={properties} initialQuery={query} />
+        <PropertyBrowser key={params.source??"court"} properties={properties} initialQuery={query} initialSource={params.source??"court"} />
       ) : (
         <CollectionState state={state === "demo" ? "ready" : state} />
       )}

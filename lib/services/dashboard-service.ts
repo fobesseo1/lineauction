@@ -1,4 +1,5 @@
 import "server-only";
+import { attachOnbidCovers } from "@/lib/services/onbid-covers";
 import { hasSupabaseConfig } from "@/lib/env/public";
 import {
   listProperties,
@@ -21,7 +22,7 @@ export function isDemoMode(mode?: string) {
   if (process.env.DEMO_MODE === "false") return false;
   return !hasSupabaseConfig();
 }
-export async function loadPropertyList(mode?: string): Promise<{
+export async function loadPropertyList(mode?: string,source?: 'court'|'onbid'): Promise<{
   properties: PropertyListing[];
   state: ListingState;
 }> {
@@ -29,7 +30,7 @@ export async function loadPropertyList(mode?: string): Promise<{
     return { properties: getDemoProperties(), state: "demo" };
   if (!hasSupabaseConfig()) return { properties: [], state: "unconfigured" };
   try {
-    return { properties: await listProperties(), state: "ready" };
+    return { properties: await attachOnbidCovers(await listProperties(source)), state: "ready" };
   } catch {
     return { properties: [], state: "error" };
   }
