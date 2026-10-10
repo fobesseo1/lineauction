@@ -3,6 +3,8 @@ import { Sparkles, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 export function DemoNotice({ active }: { active: boolean }) {
+  // Real-data pages show no banner; the demo is reached from the 데모 menu.
+  if (!active) return null;
   return (
     <aside
       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bebe bg-white px-5 py-4"

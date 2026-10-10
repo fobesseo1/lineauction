@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { RealComparison } from "@/components/property/real-comparison";
 import { CourtEvidence } from "@/components/property/court-evidence";
 import { CourtDetailPreview } from "@/components/property/court-detail-preview";
+import { OnbidDetailPreview } from "@/components/property/onbid-detail-preview";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -36,6 +37,7 @@ export default async function PropertyDetail({
   if (!result) notFound();
   const { property: p, history } = result;
   if(!p.demo && p.source === "court" && ["서울특별시", "경기도"].includes(p.sido??"")) return <CourtDetailPreview property={p} history={history}/>;
+  if(!p.demo && p.source === "onbid") return <OnbidDetailPreview property={p} history={history}/>;
   const details = [
     { label: "물건관리번호", value: p.source_property_id },
     { label: p.source === "court" ? "물건번호" : "공매조건번호", value: p.auction_condition_id },
@@ -63,12 +65,13 @@ export default async function PropertyDetail({
     <div className="space-y-10">
       <DemoNotice active={!!p.demo} />
       <Button asChild variant="ghost" className="-ml-3 rounded-full">
-        <Link href={p.demo ? "/properties?demo=1" : "/properties?demo=0"}>
+        <Link href={p.demo ? "/properties?demo=1" : `/properties?demo=0&source=${p.source}`}>
           <ArrowLeft className="size-4" />
           목록으로
         </Link>
       </Button>
       <section>
+        <Badge variant="secondary" className="mb-4 mr-2">{p.source==='court'?'법원 경매':'온비드 공매'}</Badge>
         <Badge variant="outline" className="mb-4 rounded-full bg-white">
           {p.usage_type || "부동산"}
         </Badge>

@@ -15,7 +15,8 @@ export default async function Properties({
   if(!isDemoMode(params.demo)) {
     const filters=parseCatalogFilters(new URLSearchParams({source:params.source??'court',q:params.q??''}));
     const page=await loadCatalogPage(filters).catch(()=>null);
-    return page?<div className="space-y-7"><h1>경매·공매물건 찾기</h1><PagedCatalog initialFilters={filters} initialPage={page} explore/></div>:<CollectionState state="error"/>;
+    const heading=filters.source==="onbid"?"공매물건 찾기":filters.source==="court"?"경매물건 찾기":"경매·공매물건 찾기";
+    return page?<div className="space-y-7"><h1>{heading}</h1><PagedCatalog initialFilters={filters} initialPage={page} explore/></div>:<CollectionState state="error"/>;
   }
   const { properties, state } = await loadPropertyList(params.demo);
   const query = params.q || "";
