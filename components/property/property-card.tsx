@@ -1,4 +1,7 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
 import { PriceAmount } from "@/components/property/price-amount";
+import { PropertyCover } from "@/components/property/property-cover";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, MapPin, CalendarDays } from "lucide-react";
@@ -6,19 +9,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { appraisalRatio } from "@/lib/utils/money";
 import { formatDate } from "@/lib/utils/date";
-import type { PropertyListing } from "@/types/listing";
-export function PropertyCard({ property: p }: { property: PropertyListing }) {
+import type { CardProperty } from "@/types/catalog";
+export function PropertyCard({ property: p }: { property: CardProperty }) {
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!linkRef.current || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: "0px", threshold: 0 });
+    observer.observe(linkRef.current);
+    return () => observer.disconnect();
+  }, []);
   const preview = p.demo;
   return (
     <Link
+      ref={linkRef}
+      prefetch={visible}
       href={`/properties/${p.id}${preview ? "?demo=1" : "?demo=0"}`}
       className="group block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
     >
       <Card className="h-full gap-0 overflow-hidden rounded-xl border-0 py-0 shadow-none">
-        {!preview && p.cover_image && <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
-          <Image src={p.cover_image} alt={`${p.title} 법원 공개 사진`} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />
-          <Badge className="absolute bottom-3 right-3 bg-white text-foreground">법원 공개 사진</Badge>
-        </div>}
+        {!preview && <PropertyCover key={p.cover_image} src={p.cover_image} title={p.title} source={p.source}/>}
         {preview && (
           <div className="relative aspect-square overflow-hidden rounded-xl">
             <Image
@@ -41,6 +51,7 @@ export function PropertyCard({ property: p }: { property: PropertyListing }) {
           </div>
         )}
         <CardContent className="space-y-4 p-4">
+          <Badge variant={p.source==='court'?'outline':'secondary'}>{p.source==='court'?'법원 경매':'온비드 공매'}</Badge>
           {p.lifecycle_state === "needs-recheck" && <Badge variant="outline">목록 미관측 · 재확인 필요</Badge>}
           {p.lifecycle_state === "closed" && <Badge variant="secondary">종료 확인 · {p.lifecycle_reason}</Badge>}
           <div className="flex items-start justify-between gap-2">

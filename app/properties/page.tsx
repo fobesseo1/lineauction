@@ -2,13 +2,21 @@ import { loadPropertyList } from "@/lib/services/dashboard-service";
 import { PropertyBrowser } from "@/components/property/property-browser";
 import { CollectionState } from "@/components/collection-state";
 import { DemoNotice } from "@/components/demo-notice";
-export const dynamic = "force-dynamic";
+import { isDemoMode } from "@/lib/services/dashboard-service";
+import { PagedCatalog } from "@/components/property/paged-catalog";
+import { loadCatalogPage } from "@/lib/services/catalog-service";
+import { parseCatalogFilters } from "@/types/catalog";
 export default async function Properties({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; demo?: string }>;
+  searchParams: Promise<{ q?: string; demo?: string; source?: string }>;
 }) {
   const params = await searchParams;
+  if(!isDemoMode(params.demo)) {
+    const filters=parseCatalogFilters(new URLSearchParams({source:params.source??'court',q:params.q??''}));
+    const page=await loadCatalogPage(filters).catch(()=>null);
+    return page?<div className="space-y-7"><h1>경매·공매물건 찾기</h1><PagedCatalog initialFilters={filters} initialPage={page} explore/></div>:<CollectionState state="error"/>;
+  }
   const { properties, state } = await loadPropertyList(params.demo);
   const query = params.q || "";
   return (

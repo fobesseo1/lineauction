@@ -45,5 +45,6 @@ docs/qa/
 /data/
 *.log
 /.pages-work/
+/.next-performance/
 /docs/qa/
 /sharing/public-config.json

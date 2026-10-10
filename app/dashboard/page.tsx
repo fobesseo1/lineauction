@@ -1,4 +1,7 @@
-import { DashboardSearch } from "@/components/property/dashboard-search";
+import { PagedCatalog } from "@/components/property/paged-catalog";
+import { loadCatalogPage } from "@/lib/services/catalog-service";
+import { parseCatalogFilters } from "@/types/catalog";
+import { isDemoMode } from "@/lib/services/dashboard-service";
 import Link from "next/link";
 import { ArrowRight, Search, Circle } from "lucide-react";
 import {
@@ -12,7 +15,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-export const dynamic = "force-dynamic";
 const day = (date: string) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(
     new Date(date),
@@ -20,14 +22,19 @@ const day = (date: string) =>
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams: Promise<{ demo?: string }>;
+  searchParams: Promise<{ demo?: string; source?: string }>;
 }) {
+  const params = await searchParams;
+  if(!isDemoMode(params.demo)) {
+    const filters=parseCatalogFilters(new URLSearchParams({source:params.source??'court'}));
+    const page=await loadCatalogPage(filters).catch(()=>null);
+    return page?<PagedCatalog initialFilters={filters} initialPage={page}/>:<CollectionState state="error"/>;
+  }
   const { properties, state } = await loadPropertyList(
-    (await searchParams).demo,
+    params.demo,
   );
   const demo = state === "demo",
     available = demo || state === "ready";
-  if(!demo&&available)return <DashboardSearch properties={properties.filter(p=>p.source==="court"&&["서울특별시","경기도"].includes(p.sido??"")&&!!p.address&&p.address.split(" / ").every(a=>/^(서울특별시|경기도)\s/.test(a.trim())))}/>;
   const today = day(new Date().toISOString()),
     now = getRenderTimestamp();
   const active = properties.filter(

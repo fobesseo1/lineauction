@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicDetailClient as createClient } from "@/lib/supabase/public-detail";
 import { PriceAmount } from "./price-amount";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

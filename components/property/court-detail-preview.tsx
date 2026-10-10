@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowUpRight, MapPin, Gavel, TriangleAlert, ChartNoAxesColumn } from "lucide-react";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicDetailClient as createClient } from "@/lib/supabase/public-detail";
 import { appraisalRatio } from "@/lib/utils/money";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,6 @@ export async function CourtDetailPreview({property:p,history}:{property:Property
    </div>
   </div>
   <Card className="gap-0 border-0 py-5 shadow-none"><CardContent className="px-5"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">가격·입찰 변경이력</h2><span className="text-xs text-muted-foreground">확인된 가격과 입찰 조건의 변화</span></div><Table><TableHeader><TableRow><TableHead>기준일</TableHead><TableHead>최저입찰가</TableHead><TableHead>감정가</TableHead><TableHead>유찰</TableHead><TableHead>진행상태</TableHead></TableRow></TableHeader><TableBody>{changes.map(h=><TableRow key={h.id}><TableCell className="whitespace-nowrap">{new Date(h.checked_at).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}</TableCell><TableCell className="whitespace-nowrap font-semibold"><PriceAmount value={h.minimum_bid_price}/></TableCell><TableCell className="whitespace-nowrap"><PriceAmount value={h.appraisal_price}/></TableCell><TableCell>{h.failed_bid_count===null?"—":`${h.failed_bid_count}회`}</TableCell><TableCell>{h.status||"확인 필요"}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
-  {!!photos.length&&<section id="court-photos" className="scroll-mt-8 rounded-xl bg-white p-5"><div className="mb-3 flex items-center gap-3"><h2 className="text-lg font-semibold">물건 사진</h2><span className="text-xs text-muted-foreground">{photos.length}장</span></div><div className="flex flex-wrap gap-3">{photos.map((m,i)=><a key={m.id} href={m.path} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg bg-muted" aria-label={`법원 사진 ${i+1} 크게 보기`}><Image src={m.path} alt={`${title} 법원 사진 ${i+1}`} width={120} height={90} sizes="120px" className="h-[90px] w-[120px] object-contain"/></a>)}</div><p className="mt-3 text-xs text-muted-foreground"><a href="https://www.courtauction.go.kr/" target="_blank" rel="noreferrer">사진: 법원경매정보 참고</a></p></section>}
+  {!!photos.length&&<section id="court-photos" className="scroll-mt-8 rounded-xl bg-white p-5"><div className="mb-3 flex items-center gap-3"><h2 className="text-lg font-semibold">물건 사진</h2><span className="text-xs text-muted-foreground">{photos.length}장</span></div><div className="flex flex-wrap gap-3">{photos.map((m,i)=><a key={m.id} href={m.path} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg bg-muted" aria-label={`법원 사진 ${i+1} 크게 보기`}><Image unoptimized={m.path.startsWith("/media/court/") && m.path.endsWith(".webp")} src={m.path} alt={`${title} 법원 사진 ${i+1}`} width={120} height={90} sizes="120px" className="h-[90px] w-[120px] object-contain"/></a>)}</div><p className="mt-3 text-xs text-muted-foreground"><a href="https://www.courtauction.go.kr/" target="_blank" rel="noreferrer">사진: 법원경매정보 참고</a></p></section>}
  </div>;
 }

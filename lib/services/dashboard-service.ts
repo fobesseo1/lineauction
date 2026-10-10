@@ -43,6 +43,7 @@ export async function loadPropertyDetail(
     return property ? { property, history: getDemoHistory(property) } : null;
   }
   if (!hasSupabaseConfig()) return null;
-  const property = await findProperty(id);
-  return property ? { property, history: await listPriceHistory(id) } : null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  const [property, history] = await Promise.all([findProperty(id), listPriceHistory(id)]);
+  return property ? { property, history } : null;
 }

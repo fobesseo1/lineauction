@@ -3,6 +3,13 @@ import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {chromium} from 'playwright-core';
 const root=resolve('.pages-work/out');
+if(process.argv.includes('--static')){
+ const html=await readFile(resolve(root,'index.html'),'utf8');
+ if(Buffer.byteLength(html)>200000)throw Error('Static first page exceeds 200KB');
+ if(/sb_secret_|service_role/i.test(html))throw Error('Private key marker in static HTML');
+ console.log(JSON.stringify({mode:'static',htmlBytes:Buffer.byteLength(html),browserChecks:'not run'}));
+ process.exit(0);
+}
 const server=createServer(async(req,res)=>{
  try{
   const url=new URL(req.url,'http://127.0.0.1');
@@ -21,17 +28,21 @@ try{
  await page.route('https://fobesseo1.github.io/lineauction/**',async route=>{const path=new URL(route.request().url()).pathname.replace(/^\/lineauction/,'');try{await route.fulfill({path:resolve(root,'.'+(path==='/'?'/index.html':path))});}catch{await route.continue();}});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto('https://fobesseo1.github.io/lineauction/');
- await page.getByRole('heading',{name:'서울·경기 경매물건 총 6,570건'}).waitFor({timeout:120000});
+ await page.getByRole('heading',{name:/최근 확인된 물건 \d[\d,]*건/}).waitFor({timeout:120000});
+ if(await page.locator('main a[href^="#/properties/"]').count()!==24)throw Error('Initial catalog did not contain exactly 24 cards');
  const dashboardUrl=page.url();
- await page.getByRole('textbox',{name:'지역·주소·사건번호 검색'}).fill('2025타경101619');
- await page.getByRole('button',{name:'경매물건 검색',exact:true}).click();
+ await page.getByRole('textbox',{name:'지역·주소·사건번호·공매 관리번호 검색'}).fill('2025타경101619');
+ await page.getByRole('button',{name:'경매·공매 검색',exact:true}).click();
  await page.getByRole('heading',{name:'검색 결과 1건'}).waitFor();
  if(page.url()!==dashboardUrl)throw Error('Dashboard search navigated away');
  await page.mouse.move(0,0);
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('button[aria-label="경매물건 검색"]')).backgroundColor==='rgb(255, 56, 92)');
- const button=await page.getByRole('button',{name:'경매물건 검색',exact:true}).evaluate(el=>({radius:getComputedStyle(el).borderRadius}));
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('button[aria-label="경매·공매 검색"]')).backgroundColor==='rgb(255, 56, 92)');
+ const button=await page.getByRole('button',{name:'경매·공매 검색',exact:true}).evaluate(el=>({radius:getComputedStyle(el).borderRadius}));
  if(parseFloat(button.radius)<24)throw Error('Search button does not follow the brand design');
  await page.getByRole('button',{name:'검색 초기화'}).click();
+ await page.locator('main a[href^="#/properties/"]').nth(23).waitFor();
+ await page.getByRole('button',{name:/물건 더 보기/}).click();
+ await page.locator('main a[href^="#/properties/"]').nth(47).waitFor();
  await mkdir('docs/qa',{recursive:true});
  await page.screenshot({path:'docs/qa/pages-desktop.png',fullPage:true});
  if(await page.locator('header').getByRole('button',{name:'새로고침',exact:true}).count())throw Error('Header refresh button remains');
