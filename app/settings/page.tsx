@@ -7,6 +7,7 @@ import Link from "next/link";
 import { NaverMapPreview } from "@/components/naver-map-preview";
 import { CourtMonitor } from "@/components/court-monitor";
 import { OnbidMonitor } from "@/components/onbid-monitor";
+import { JobControls } from "@/components/job-controls";
 export const dynamic = "force-dynamic";
 export default function Settings() {
   const configured = hasSupabaseConfig();
@@ -24,6 +25,7 @@ export default function Settings() {
           <Link href="/dashboard?demo=1">가상 데이터로 디자인 둘러보기</Link>
         </Button>
       </section>
+      <JobControls />
       <CourtMonitor />
       <OnbidMonitor />
       <Card className="border-0 shadow-none">

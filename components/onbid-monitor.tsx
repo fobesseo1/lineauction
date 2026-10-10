@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {Card,CardContent} from '@/components/ui/card';
 type Progress={status:string;updatedAt?:string;properties:number;conditions:number;pages:number;dbRows:number;requests:number;budget:number;serviceUsage:{list:number;detail:number};detailStatus:string;error?:string;detail:{processed:number;total:number;remaining:number;matchedConditions:number;missingConditions:number;photos:number;thumbnails:number;documents:number;withPhotos:number;withDocuments:number;dbRows:number;dbUpdatedAt:string|null;updatedAt:string|null};};
-const labels:Record<string,string>={pending:'준비 중',running:'상세 수집 중',completed:'상세 API 처리 완료',failed:'오류 조사 필요',budget_wait:'일일 요청 한도 대기',stopped:'STOP 중지',permission_required:'상세 API 승인 대기'};
+const labels:Record<string,string>={pending:'준비 중',running:'상세 수집 중',completed:'상세 API 처리 완료',failed:'오류 조사 필요',budget_wait:'오늘 한도 소진 · 다음 실행 때 이어받음',stopped:'STOP 중지',permission_required:'상세 API 승인 대기'};
 export function OnbidMonitor(){
  const [p,setP]=useState<Progress|null>(null),[unavailable,setUnavailable]=useState(false);
  useEffect(()=>{let active=true;const load=()=>fetch('/api/onbid-progress',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(v=>{if(active){setP(v);setUnavailable(false);}}).catch(()=>{if(active)setUnavailable(true);});void load();const timer=setInterval(load,10000);return()=>{active=false;clearInterval(timer);};},[]);
@@ -17,7 +17,7 @@ export function OnbidMonitor(){
   {tiles([['사진 링크 확보 물건',d?.withPhotos],['공식 사진 링크',d?.photos],['감정평가서 확보 물건',d?.withDocuments],['감정평가서 링크',d?.documents]])}
   <p className="text-sm">상세 연결 {num(d?.matchedConditions)} 조건 · API 상세 미제공 {num(d?.missingConditions)} 조건 · 상세 DB 처리 {num(d?.dbRows)}건</p>
   <div className="space-y-2 text-sm"><p>오늘 목록 API {num(p?.serviceUsage?.list)} / 1,000회 · 남음 {num(p?Math.max(0,1000-(p.serviceUsage?.list??0)):undefined)}회</p><p>오늘 상세 API {num(p?.serviceUsage?.detail)} / 1,000회 · 남음 {num(p?Math.max(0,1000-(p.serviceUsage?.detail??0)):undefined)}회</p></div>
-  {p?.detailStatus==='budget_wait'&&<p className="text-sm">오늘 상세 API 요청 한도에 도달했습니다. 다음 한국 날짜에 저장된 체크포인트부터 이어받습니다.</p>}
+  {p?.detailStatus==='budget_wait'&&<p className="text-sm">오늘 상세 API 요청 한도에 도달했습니다. 다음 날 오전 10시 자동 실행(또는 수동 실행) 때 이어서 받습니다.</p>}
   <p className="text-xs text-muted-foreground">한 물건의 여러 입찰 회차는 조건별 자료로 구분합니다. 사진·문서 수는 물건별 중복 링크를 제거한 값입니다. 사진 중 썸네일 링크 {num(d?.thumbnails)}개이며 원본 전체 사진 다운로드 완료를 뜻하지 않습니다. 감정평가서는 API가 제공한 공식 링크이고 공고문·계약서 제공 여부는 별도 확인합니다.</p>
   {p?.error&&<p className="text-sm text-rausch">최근 오류: {p.error} · 수집 감시에서 원인을 조사합니다.</p>}
   {unavailable&&<p className="text-sm text-rausch">진행 정보를 갱신하지 못했습니다. 아래 수치는 마지막으로 확인한 값입니다.</p>}

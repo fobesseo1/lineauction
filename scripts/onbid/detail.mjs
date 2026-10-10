@@ -13,17 +13,22 @@ const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(ne
 if(await exists(`${root}/STOP`))throw Error('STOP_PRESENT');
 const list=await read('progress.json',{});if(list.status!=='list_completed')throw Error('LIST_NOT_COMPLETED');
 const state=await read('detail-progress.json',{runStartedAt:new Date().toISOString(),listRunStartedAt:list.runStartedAt,status:'pending',completed:{},requests:0,pages:0,dbRows:0,matchedConditions:0,missingConditions:0,photoLinks:0,documentLinks:0,propertiesWithPhotos:0,propertiesWithDocuments:0,thumbnailLinks:0,errors:[]});
-if(state.listRunStartedAt!==list.runStartedAt)throw Error('CHECKPOINT_RUN_MISMATCH');
-if(state.status==='completed'){console.log('DETAIL_ALREADY_COMPLETED');process.exit(0);}
+// Completed details are keyed by management number, so a refreshed list keeps them and only new
+// or still-missing properties are requested.
+if(state.listRunStartedAt!==list.runStartedAt){state.listRunStartedAt=list.runStartedAt;state.status='pending';}
 const pause=await read('access-paused.json',{});
 if(pause.detail?.requiresUserApproval||pause.detail?.blockedDay===day())throw Error('DETAIL_ACCESS_PAUSED');
 // Share the collector lock: budget.json and DB writes have a single owner.
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
-const targets=await read('targets.json',{}),groups=new Map();
-for(const r of Object.values(targets)){if(!validManagement(r.cltrMngNo))throw Error('INVALID_MANAGEMENT_NUMBER');const g=groups.get(r.cltrMngNo)??[];g.push(r);groups.set(r.cltrMngNo,g);}
+const targets=await read('targets.json',{}),byManagement=new Map();
+for(const r of Object.values(targets)){if(!validManagement(r.cltrMngNo))throw Error('INVALID_MANAGEMENT_NUMBER');const g=byManagement.get(r.cltrMngNo)??[];g.push(r);byManagement.set(r.cltrMngNo,g);}
+// Soonest bid deadline first, so the daily quota goes to listings that close soonest.
+const deadline=g=>Math.min(...g.map(r=>{const d=String(r.cltrBidEndDt??'').replace(/D/g,'');return /^d{8}/.test(d)&&!d.startsWith('2999')?Number(d.slice(0,12).padEnd(12,'0')):Infinity;}));
+const groups=new Map([...byManagement].sort(([,a],[,b])=>deadline(a)-deadline(b)));
+if(state.status==='completed'&&[...groups.keys()].every(m=>state.completed[m])){console.log('DETAIL_ALREADY_COMPLETED');process.exit(0);}
 const budget=await read('budget.json',{days:{}});
 const event=async e=>appendFile(`${root}/events.jsonl`,JSON.stringify({at:new Date().toISOString(),...e})+'\n');
-async function publish(){state.updatedAt=new Date().toISOString();state.total=groups.size;state.processed=Object.keys(state.completed).length;state.remaining=state.total-state.processed;state.pid=process.pid;await save('detail-progress.json',state);}
+async function publish(){state.updatedAt=new Date().toISOString();state.total=groups.size;state.processed=[...groups.keys()].filter(m=>state.completed[m]).length;state.remaining=state.total-state.processed;state.pid=process.pid;await save('detail-progress.json',state);}
 let lastRequest=0;
 const lock=await open(`${root}/running.lock`,'wx');await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),command:'scripts/onbid/detail.mjs'}));
 try{

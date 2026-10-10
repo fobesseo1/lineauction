@@ -10,15 +10,27 @@ await mkdir(`${root}/raw`,{recursive:true});
 async function read(name,fallback){try{return JSON.parse(await readFile(`${root}/${name}`,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
 async function save(name,value){await writeJson(`${root}/${name}`,value);}
 async function exists(path){try{await access(path);return true;}catch{return false;}}
-const state=await read('progress.json',{runStartedAt:new Date().toISOString(),status:'pending',pages:0,requests:0,rows:0,excluded:0,partition:0,nextPage:1,partitionTotals:{},completedPages:{},dbRows:0,errors:[]});
-if(state.status==='list_completed'){console.log('LIST_ALREADY_COMPLETED');process.exit(0);}
+const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
+const refresh=process.argv.includes('--refresh');
+const fresh=()=>({runStartedAt:new Date().toISOString(),runDay:day(),status:'pending',pages:0,requests:0,rows:0,excluded:0,partition:0,nextPage:1,partitionTotals:{},completedPages:{},dbRows:0,errors:[]});
+let state=await read('progress.json',fresh());
+if(state.status==='list_completed'){
+ // Daily refresh: a completed list from an earlier KST day starts a new pass; the old one is archived.
+ const finishedDay=state.listFinishedAt?new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date(state.listFinishedAt)):null;
+ if(!refresh||finishedDay===day()){console.log('LIST_ALREADY_COMPLETED');process.exit(0);}
+ await mkdir(`${root}/history`,{recursive:true});await save(`history/progress-${state.runStartedAt.replace(/[:.]/g,'-')}.json`,state);
+ state={...fresh(),refresh:true,previousRunStartedAt:state.runStartedAt};
+}
+// Refresh passes keep their raw pages apart so an earlier day's response is never reused.
+const rawDir=state.refresh?`${root}/raw/${state.runDay}`:`${root}/raw`;await mkdir(rawDir,{recursive:true});
 if(await exists(`${root}/STOP`))throw Error('STOP_PRESENT');
 const lock=await open(`${root}/running.lock`,'wx');
 await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),command:'scripts/onbid/collect.mjs'}));
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
-const targets=await read('targets.json',{});
+// A refresh builds the current listing set separately and swaps it in only when complete.
+const targetsFile=state.refresh?'targets-next.json':'targets.json';
+const targets=await read(targetsFile,{});
 const partitions=partitionList();
-const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 let budget=await read('budget.json',{days:{}});
 async function publish(){state.updatedAt=new Date().toISOString();state.conditions=Object.keys(targets).length;state.properties=new Set(Object.values(targets).map(r=>r.cltrMngNo)).size;state.remainingPartitions=partitions.length-state.partition;await save('progress.json',state);}
 const event=async data=>appendFile(`${root}/events.jsonl`,JSON.stringify({at:new Date().toISOString(),...data})+'\n');
@@ -34,7 +46,7 @@ try{
    const page=state.nextPage;
    const pageKey=`${state.partition}-${page}`;
    let raw;
-   const cache=`${root}/raw/${pageKey}.json`;
+   const cache=`${rawDir}/${pageKey}.json`;
    if(await exists(cache))raw=await readFile(cache,'utf8');
    else{
     reserve(budget,day(),'list');await save('budget.json',budget);
@@ -59,7 +71,7 @@ try{
    // A documented region filter returning another province must not silently count as complete.
    if(accepted.some(r=>r.lctnSdnm!==p.region))throw Error('REGION_FILTER_MISMATCH');
    for(const r of accepted)targets[identity(r)]=r;
-   await save('targets.json',targets);
+   await save(targetsFile,targets);
    const checkedAt=new Date().toISOString();
    const inputs=accepted.map(r=>({key:identity(r),checkedAt,input:toProperty(r)}));
    if(inputs.length){
@@ -69,7 +81,8 @@ try{
     const lookup=await db.from('properties').select('id,source_property_id,auction_condition_id').eq('source','onbid').in('auction_condition_id',accepted.map(r=>String(r.pbctCdtnNo))).in('source_property_id',accepted.map(r=>r.cltrMngNo));
     if(lookup.error)throw Error(`DB_LOOKUP_${lookup.error.code}`);
     const ids=new Map(lookup.data.map(r=>[`${r.source_property_id}:${r.auction_condition_id}`,r.id]));
-    const observations=accepted.map(r=>({property_id:ids.get(identity(r)),observed_at:checkedAt,list_payload:r,detail_status:'permission_required'}));
+    // detail_status is left to the DB default for new rows and untouched for rows that already have details.
+    const observations=accepted.map(r=>({property_id:ids.get(identity(r)),observed_at:checkedAt,list_payload:r}));
     if(observations.some(r=>!r.property_id))throw Error('DB_IDENTITY_MISSING');
     const obs=await db.from('onbid_observations').upsert(observations,{onConflict:'property_id'});if(obs.error)throw Error(`DB_OBSERVATIONS_${obs.error.code}`);
     state.dbRows+=accepted.length;state.dbUpdatedAt=checkedAt;
@@ -80,6 +93,11 @@ try{
    if(page*size>=total)break;
   }
  }
- state.status='list_completed';state.listFinishedAt=new Date().toISOString();state.detailStatus='permission_required';await publish();await event({type:'list_completed',properties:state.properties,conditions:state.conditions,dbRows:state.dbRows});
+ if(state.refresh){
+  const previous=await read('targets.json',{}),before=new Set(Object.keys(previous)),now=Object.keys(targets);
+  state.added=now.filter(k=>!before.has(k)).length;state.removed=[...before].filter(k=>!(k in targets)).length;
+  await save('targets.json',targets);await unlink(`${root}/targets-next.json`).catch(()=>{});
+ }
+ state.status='list_completed';state.listFinishedAt=new Date().toISOString();await publish();await event({type:'list_completed',properties:state.properties,conditions:state.conditions,dbRows:state.dbRows});
 }catch(error){state.status=error.message==='STOP_PRESENT'?'stopped':error.message==='DAILY_BUDGET_EXHAUSTED'?'budget_wait':'failed';state.errors=[{at:new Date().toISOString(),code:error.message}];await publish();await event({type:'failure',code:error.message});process.exitCode=1;}
 finally{await lock.close();await unlink(`${root}/running.lock`);console.log(JSON.stringify({status:state.status,pages:state.pages,properties:state.properties,conditions:state.conditions,dbRows:state.dbRows,errors:state.errors}));}

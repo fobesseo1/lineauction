@@ -34,7 +34,7 @@ export function OnbidEvidence({ detail }: { detail: OnbidDetail | null }) {
     <div className="border-t pt-4">
       <h3 className="font-semibold">감정평가서·공고·관련 문서</h3>
       {docs.length ? docs.map((d, i) => <a className="mt-2 block text-sm underline" href={d.url!} target="_blank" rel="noreferrer" key={d.url}>{d.title || `공식 문서 ${i + 1}`}</a>)
-        : <p className="mt-2 text-sm text-muted-foreground">{detail.detail_status === "permission_required" ? "상세 API 활용신청 승인 대기입니다. 사진 전체와 감정평가서 링크는 아직 확보되지 않았습니다." : "공식 문서 링크를 확인 중입니다."}</p>}
+        : <p className="mt-2 text-sm text-muted-foreground">{detail.detail_status === "completed" ? "온비드가 제공한 공식 문서 링크가 없습니다." : "상세 자료를 순서대로 수집하고 있습니다. 온비드 상세 조회는 하루 1,000건 한도라 며칠에 걸쳐 채워집니다."}</p>}
     </div>
   </CardContent></Card>;
 }
