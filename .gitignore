@@ -48,3 +48,6 @@ docs/qa/
 /.next-performance/
 /docs/qa/
 /sharing/public-config.json
+
+# court photos are served from Supabase Storage (bucket court-media)
+/public/media/court/

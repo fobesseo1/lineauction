@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>선경매 · LINE AUCTION</title>
+<script>
+// The site moved to Vercel. Map old hash routes (#/properties/ID) to the new paths.
+(function () {
+  var base = "https://lineauction-fobesseo1s-projects.vercel.app";
+  var route = location.hash.indexOf("#/") === 0 ? location.hash.slice(1).split("?")[0] : "/dashboard";
+  if (!/^\/(dashboard|properties(\/[a-f0-9-]{36})?|test)$/.test(route)) route = "/dashboard";
+  location.replace(base + route);
+})();
+</script>
+</head>
+<body style="font-family:sans-serif;padding:24px">
+<p>선경매 사이트 주소가 바뀌었습니다. <a href="https://lineauction-fobesseo1s-projects.vercel.app/dashboard">새 주소로 이동</a></p>
+</body>
+</html>

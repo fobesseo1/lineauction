@@ -1,7 +1,9 @@
-name: Publish LINE AUCTION
+name: Redirect old LINE AUCTION address
+# The site is served by Vercel. GitHub Pages only forwards old links to the new address.
 on:
   push:
     branches: [main]
+    paths: [pages-redirect/**, .github/workflows/pages.yml]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,26 +11,7 @@ concurrency:
   group: github-pages
   cancel-in-progress: false
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - uses: actions/configure-pages@v5
-      - run: npm ci
-      - run: npm run build:pages
-        env:
-          NEXT_PUBLIC_NAVER_MAP_CLIENT_ID: ${{ vars.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .pages-work/out
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -37,5 +20,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages-redirect
       - id: deployment
         uses: actions/deploy-pages@v4
