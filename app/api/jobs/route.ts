@@ -12,12 +12,12 @@ const readOnly = () => process.env.NEXT_PUBLIC_READ_ONLY_SITE === "1";
 
 export async function GET() {
   if (readOnly()) return new Response("Not Found", { status: 404 });
-  const [current, onbid, court, runs] = await Promise.all([
-    readJson("data/daily/current.json"), readJson("data/daily/last-onbid.json"), readJson("data/daily/last-court.json"),
+  const [current, onbid, court, health, runs] = await Promise.all([
+    readJson("data/daily/current.json"), readJson("data/daily/last-onbid.json"), readJson("data/daily/last-court.json"), readJson("data/daily/health.json"),
     readFile("data/daily/runs.jsonl", "utf8").catch(() => ""),
   ]);
   const recent = runs.trim().split("\n").filter(Boolean).slice(-10).map(line => JSON.parse(line)).reverse();
-  return Response.json({ current, last: { onbid, court }, recent }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ current, last: { onbid, court }, health, recent }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
