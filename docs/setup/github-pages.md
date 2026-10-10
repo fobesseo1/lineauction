@@ -1,6 +1,6 @@
 # 공개 조회 사이트
 
-주소: https://lineauction-fobesseo1s-projects.vercel.app
+주소: https://lineauction.vercel.app
 
 공개 사이트는 Vercel에서 이 저장소의 Next.js 앱을 그대로 서버 렌더링한다. `main`에 push하면 자동 배포된다. 수집·국토부 조회·오류 복구는 로컬 PC에서만 실행한다.
 
