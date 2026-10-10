@@ -4,6 +4,7 @@ import {assertMolitAllowed,recordMolitRefusal} from './molit-access-gate.mjs';
 import {cachedMolitMonth,reserveMolitRequest} from './molit-request-cache.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createClient} from '@supabase/supabase-js';
+import {uploadCourtMedia,courtMediaUrl} from './media-storage.mjs';
 import {XMLParser} from 'fast-xml-parser';
 import {mapCourtProperty,apartmentTarget,recentMonths,comparisonExclusion} from './pipeline-core.mjs';
 import {lifecycleFromItem} from './lifecycle.mjs';
@@ -93,7 +94,11 @@ try{
  }
  for(const batch of chunks([...new Map(matchedTransactions.map(t=>[t.source_transaction_id,t])).values()]))check(await db.from('transactions').upsert(batch,{onConflict:'source,source_transaction_id'}));
  let manifest=[];try{manifest=JSON.parse(await readFile('data/court/media/manifest.json','utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
- const media=manifest.filter(m=>ids.has(m.key)).map(m=>({id:m.id,path:m.path,alt:m.alt??'법원 공개 사진',sort_order:Number(m.alt?.match(/_(\d+)$/)?.[1]??99),source_url:m.source_url,observed_at:m.observed_at,width:m.width,height:m.height,bytes:m.bytes,original_bytes:m.original_bytes,property_id:ids.get(m.key)}));
+ const listed=manifest.filter(m=>ids.has(m.key));
+ // Photos live in Supabase Storage; upload first so rows never point at a missing object.
+ const upload=await uploadCourtMedia(db,listed.map(m=>m.path));
+ if(upload.failed.length)throw Error(`Photo storage upload failed (${upload.failed.length})`);
+ const media=listed.map(m=>({id:m.id,path:courtMediaUrl(m.path),alt:m.alt??'법원 공개 사진',sort_order:Number(m.alt?.match(/_(\d+)$/)?.[1]??99),source_url:m.source_url,observed_at:m.observed_at,width:m.width,height:m.height,bytes:m.bytes,original_bytes:m.original_bytes,property_id:ids.get(m.key)}));
  for(const batch of chunks(media))check(await db.from('property_media').upsert(batch));report.media=media.length;
  report.finishedAt=new Date().toISOString();report.status=report.errors.length?'partial':'completed';
  check(await db.from('collection_runs').update({status:report.status,finished_at:report.finishedAt,report}).eq('id',runId));

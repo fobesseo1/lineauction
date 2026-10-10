@@ -10,7 +10,7 @@ const links = [
   { href: "/properties", label: "경매·공매물건", icon: Building2 },
   { href: "/test", label: "테스트", icon: FlaskConical },
   { href: "/settings", label: "설정", icon: SlidersHorizontal },
-];
+].filter(link => !(process.env.NEXT_PUBLIC_READ_ONLY_SITE === "1" && link.href === "/settings"));
 export function SiteHeader() {
   const pathname = usePathname();
   const mode = useSearchParams().get("demo");

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
+import { isPreparedCourtPhoto } from "@/lib/court-media";
 import { ImageOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Link from 'next/link';
@@ -16,7 +17,7 @@ export function PropertyCover({ src, title, source, address='',region='',href,vi
   </a>;
   return <Link href={href} prefetch={visible} className="relative block aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
     {available ? <Image src={src} alt={`${title} ${source === "court" ? "법원 공개 사진" : "온비드 대표 사진"}`} fill
-      unoptimized={source === "onbid" || (src.startsWith("/media/court/") && src.endsWith(".webp"))} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw"
+      unoptimized={source === "onbid" || isPreparedCourtPhoto(src)} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw"
       className="object-cover transition-transform duration-500 group-hover:scale-[1.03]" onError={() => setFailedSource(src)} /> :
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400"><ImageOff className="size-9" strokeWidth={1.25}/><span className="text-sm">{src ? source === "onbid" ? "온비드 공식 사진을 불러오지 못했습니다" : "사진을 불러오지 못했습니다" : "대표 사진 미제공"}</span></div>}
     {available && <Badge className="absolute bottom-3 right-3 rounded-full bg-white/95 text-foreground">{source === "court" ? "법원 공개 사진" : "온비드 대표 사진"}</Badge>}
