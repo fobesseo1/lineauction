@@ -14,6 +14,7 @@ import { mapAddress } from "@/lib/maps/address";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "@/sharing/link";
+import { setDetailPrefetch } from "@/sharing/prefetch";
 import config from "@/sharing/public-config.json";
 import { inPublicScope } from "@/sharing/scope";
 
@@ -53,6 +54,27 @@ async function readDetail(id: string): Promise<Detail> {
   const published=await Promise.all((photos.data??[]).map(async p=>await publishedPhoto(p.path)?{...p,path:asset(p.path)!}:null));
   return { property: propertySchema.parse(property.data), history: history.data ?? [], photos: published.filter(p=>p!==null), comparison: comparison.error ? null : comparison.data, warning: history.error || photos.error || comparison.error ? "일부 사진·이력·실거래 자료를 불러오지 못했습니다. 새로고침해 주세요." : null };
 }
+// Visible cards warm their detail so a click renders without waiting on Supabase.
+const DETAIL_TTL=60_000,PREFETCH_CONCURRENCY=2;
+const detailCache=new Map<string,{at:number;promise:Promise<Detail>}>();
+function cachedDetail(id:string){
+ const hit=detailCache.get(id);if(hit&&Date.now()-hit.at<DETAIL_TTL)return hit.promise;
+ const promise=readDetail(id);const entry={at:Date.now(),promise};detailCache.set(id,entry);
+ promise.then(value=>{const first=value.photos[0]?.path;if(first)new window.Image().src=first;},()=>{if(detailCache.get(id)===entry)detailCache.delete(id);});
+ return promise;
+}
+const prefetchQueue:string[]=[];let prefetchActive=0,detailCodeWarmed=false;
+function pumpPrefetch(){
+ while(prefetchActive<PREFETCH_CONCURRENCY&&prefetchQueue.length){
+  const id=prefetchQueue.shift()!;prefetchActive++;
+  cachedDetail(id).catch(()=>{}).finally(()=>{prefetchActive--;pumpPrefetch();});
+ }
+}
+function prefetchDetail(id:string){
+ if(!detailCodeWarmed){detailCodeWarmed=true;void import('@/components/property/court-detail-preview').catch(()=>{});void fetch(`${config.basePath}/maps/positions.json`,{cache:'force-cache'}).catch(()=>{});}
+ const hit=detailCache.get(id);if((hit&&Date.now()-hit.at<DETAIL_TTL)||prefetchQueue.includes(id))return;
+ prefetchQueue.push(id);pumpPrefetch();
+}
 
 export function PublicApp() {
   const [route, setRoute] = useState("/dashboard");
@@ -65,7 +87,8 @@ export function PublicApp() {
   const [mapPositions,setMapPositions]=useState<Record<string,{latitude:number;longitude:number}>>({});
   useEffect(()=>{if(!route.startsWith('/properties/'))return;let active=true;fetch(`${config.basePath}/maps/positions.json`,{cache:'force-cache'}).then(r=>{if(!r.ok)throw Error("Map positions unavailable");return r.json();}).then(data=>{if(active)setMapPositions(data);}).catch(()=>{});return()=>{active=false;};},[route]);
   useEffect(() => {
-    const update = () => { if (location.hash.startsWith("#/")) { setRoute(location.hash.slice(1).split("?")[0]); setDetail(null); setError(null); window.scrollTo(0, 0); } };
+    // Back to the bare home URL (no hash) must return to the dashboard too.
+    const update = () => { setRoute(location.hash.startsWith("#/") ? location.hash.slice(1).split("?")[0] : "/dashboard"); setDetail(null); setError(null); window.scrollTo(0, 0); };
     update(); window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
@@ -79,10 +102,11 @@ export function PublicApp() {
   useEffect(() => {
     if (!detailId) return;
     let active = true;
-    readDetail(detailId).then(value => { if (active) setDetail(value); }).catch(e => { if (active) setError(e.message); });
+    cachedDetail(detailId).then(value => { if (active) setDetail(value); }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [detailId, refresh]);
-  const reload = () => { setError(null); setLoaded(false); setDetail(null); setRefresh(n => n + 1); };
+  useEffect(() => { setDetailPrefetch(prefetchDetail); return () => setDetailPrefetch(null); }, []);
+  const reload = () => { if (detailId) detailCache.delete(detailId); setError(null); setLoaded(false); setDetail(null); setRefresh(n => n + 1); };
 
   return <>
     <header className="sticky top-0 z-30 border-b bg-white"><div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-10">
