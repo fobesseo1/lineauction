@@ -52,3 +52,5 @@ test('지분매각과 일괄매각은 전체 주택 가격과 직접 비교하�
  assert.equal(apartmentTarget(share),null);assert.match(comparisonExclusion(share),/지분/);
  assert.equal(apartmentTarget({...item,assets:[...item.assets,...item.assets]}),null);
 });
+
+test('24-month MOLIT coverage preserves contiguous year boundaries',()=>{const months=recentMonths(new Date('2026-10-10T00:00:00Z'),24);assert.equal(months.length,24);assert.equal(months[0],'202610');assert.equal(months[23],'202411');assert.equal(new Set(months).size,24);});

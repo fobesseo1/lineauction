@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {navigateWithTimeoutRecovery as recover} from './navigation-recovery.mjs';
+const timeout=()=>Object.assign(Error('navigation timed out'),{name:'TimeoutError'});
+const setup=overrides=>({navigate:async()=>{},guard:async()=>{},ready:async()=>false,stopped:async()=>false,wait:async()=>{},record:async()=>{},budget:{remaining:2},...overrides});
+test('one transient timeout retries once and recovers',async()=>{let calls=0;const args=setup({navigate:async()=>{if(++calls===1)throw timeout();}});await recover(args);assert.equal(calls,2);assert.equal(args.budget.remaining,1);});
+test('second timeout propagates without a restart loop',async()=>{let calls=0;await assert.rejects(recover(setup({navigate:async()=>{calls++;throw timeout();}})),/timed out/);assert.equal(calls,2);});
+test('access denial and STOP prevent a retry',async()=>{for(const overrides of [{guard:async()=>{throw Error('Official access denied');}},{stopped:async()=>true}]){let calls=0;await assert.rejects(recover(setup({navigate:async()=>{calls++;throw timeout();},...overrides})));assert.equal(calls,1);}});
+test('already usable page needs no second navigation',async()=>{let calls=0;await recover(setup({navigate:async()=>{calls++;throw timeout();},ready:async()=>true}));assert.equal(calls,1);});
+test('total retry budget and non-timeout errors are respected',async()=>{let calls=0;await assert.rejects(recover(setup({navigate:async()=>{calls++;throw timeout();},budget:{remaining:0}})));assert.equal(calls,1);await assert.rejects(recover(setup({navigate:async()=>{throw Error('connection failed');}})),/connection failed/);});

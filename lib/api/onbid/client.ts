@@ -82,7 +82,6 @@ export class OnbidSource implements AuctionSource {
               : "INVALID_RESPONSE";
         const retry = [
           "NETWORK",
-          "HTTP_429",
           "HTTP_500",
           "HTTP_502",
           "HTTP_503",
