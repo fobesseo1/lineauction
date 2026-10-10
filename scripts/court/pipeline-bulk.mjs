@@ -30,8 +30,10 @@ async function tradesFor(region){
  if(regionErrors.has(region))throw regionErrors.get(region);
  if(cache.has(region))return cache.get(region);
  const result={rows:[],months:[],observedAt:new Date().toISOString()};
- for(const month of recentMonths(new Date(),monthCount)){
-  const saved=await cachedMolitMonth(root,region,month);
+ // Late filings land in the latest months: refresh this and last month daily, reuse older months for 7 days.
+ const months=recentMonths(new Date(),monthCount);
+ for(const month of months){
+  const saved=await cachedMolitMonth(root,region,month,{ttlMs:months.indexOf(month)<2?86400000:7*86400000});
   if(saved){result.rows.push(...saved.rows);result.months.push({month,total:saved.total,received:saved.received,cached:true});if(saved.observedAt<result.observedAt)result.observedAt=saved.observedAt;continue;}
   let total=null,received=0;
   for(let page=1;page<=100;page++){

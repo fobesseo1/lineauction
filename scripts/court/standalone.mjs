@@ -10,7 +10,7 @@ import { saveRun, replaceFile } from './store.mjs';
 import { saveMedia } from './media.mjs';
 import {readAllOfficialPhotos} from './all-photos.mjs';
 import { withCourtRecovery } from './recovery-core.mjs';
-import { needsRepair, repairAudit } from './repair-audit.mjs';
+import { needsDailyRepair, repairAudit } from './repair-audit.mjs';
 
 const root='data/court/standalone';
 await mkdir(root,{recursive:true});
@@ -57,7 +57,8 @@ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new 
 if(checkpoint.date!==today){checkpoint.date=today;checkpoint.courts={};}
 const repairSeen=repairPass?await load(`${root}/repair-seen.json`,{date:today,keys:[]}):{date:today,keys:[]};
 const seen=new Set(repairSeen.date===today?repairSeen.keys:[]);
-const photographed=new Set((await load('data/court/media/manifest.json',[])).map(x=>x.key));
+const manifest=await load('data/court/media/manifest.json',[]);
+const photographed=new Set(manifest.map(x=>x.key)),photoCounts=new Map();for(const m of manifest)photoCounts.set(m.key,(photoCounts.get(m.key)??0)+1);
 try{
  browser=await chromium.launch({channel:'msedge',headless:true});
  let pendingRequests=new Set(),lastNetworkActivity=Date.now();
@@ -142,7 +143,7 @@ try{
    const eligible=items.filter(item=>item.assetCategory==='real-estate'&&inSeoulGyeonggi(item));
    for(const item of eligible)seen.add(item.key);
    for(const item of eligible){
-    if(!needsRepair(state.items[item.key],checks[item.key],photographed,new Date().toISOString().slice(0,10))){progress.skipped++;continue;}
+    if(!needsDailyRepair(state.items[item.key],checks[item.key],photoCounts.get(item.key))){progress.skipped++;continue;}
     try{await readFile(`${root}/STOP`);stop=true;}catch(e){if(e.code!=='ENOENT')throw e;}
     if(progress.attempted>=limit||stop)return 'stop';
     const began=Date.now();progress.attempted++;progress.current={court,page:number,key:item.key};
@@ -166,7 +167,7 @@ try{
      await delay(500);
      const photos=await readAllOfficialPhotos(page);
      let media=null;
-     if(photos.length){media=await saveMedia({kind:'court-media',key:item.key,court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw:raw,photos});progress.photos+=media.photos;photographed.add(item.key);}
+     if(photos.length){media=await saveMedia({kind:'court-media',key:item.key,court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw:raw,photos});progress.photos+=media.photos;photographed.add(item.key);photoCounts.set(item.key,(photoCounts.get(item.key)??0)+media.photos);}
      checks[item.key]={state:photos.length?'captured':'none-visible',checkedAt:stamp};
      await atomic(`${root}/photo-checks.json`,checks);
      progress.succeeded++;consecutiveFailures=0;

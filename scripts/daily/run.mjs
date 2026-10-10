@@ -78,9 +78,28 @@ try{
   const failure=[!listOk&&`목록: ${progress.errors?.[0]?.code??list.result}`,!detailOk&&`상세: ${detailState.errors?.[0]?.code??detail.result}`].filter(Boolean).join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message+note:`${failure}\n${message}`);
  }else{
-  // Court job is wired in the next stage (list/status refresh, photos, MOLIT, DB apply).
-  run.status='failed';run.reason='court-job-not-configured';
-  await notify(`${label} 준비 중`,'법원 일일 갱신은 아직 연결되지 않았습니다.');
+  if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
+   run.status='skipped';run.reason='court-stop-file';
+   await notify(`${label} 건너뜀`,'법원 수집 중지(STOP) 파일이 있어 실행하지 않았습니다.\n다시 수집하려면 data/court/standalone/STOP 파일을 지워 주세요.');
+  }else{
+   // A crashed collector can leave its own lock behind; clear it only when that process is gone.
+   for(const path of ['data/court/standalone/running.lock','data/court/pipeline/running.lock']){const held=await readJson(path,null);if(held&&!alive(held.pid))await unlink(path).catch(()=>{});}
+   // 1) List/status refresh of all 16 courts + details/photos for new or due items, 2) DB + MOLIT.
+   const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass'],6*3600_000);
+   const pipeline=await step('court-pipeline','scripts/court/pipeline-bulk.mjs',['--months=24'],3*3600_000);
+   const collector=await readJson('data/court/standalone/progress.json',{}),latest=await readJson('data/court/pipeline/latest.json',{}),molit=await readJson('data/court/pipeline/molit-request-budget.json',{});
+   run.summary={collector:{status:collector.status,attempted:collector.attempted,succeeded:collector.succeeded,failed:collector.failed,photos:collector.photos,skipped:collector.skipped,error:collector.error},
+    pipeline:{status:latest.status,properties:latest.properties,lifecycle:latest.lifecycle,matchedProperties:latest.matchedProperties,matchedTrades:latest.matchedTrades,unmatched:latest.unmatched,errors:latest.errors?.length??null},
+    molit:{used:molit.day===day?molit.requests:0,limit:molit.limit}};
+   const listOk=list.code===0,pipelineOk=pipeline.code===0&&!(latest.errors??[]).filter(e=>e.stage!=='matching').length;
+   run.status=listOk&&pipelineOk?'completed':'failed';
+   const p=latest.properties??{};
+   const message=[`목록·상세 확인 ${collector.attempted??0}건 (성공 ${collector.succeeded??0} · 실패 ${collector.failed??0}) · 새 사진 ${collector.photos??0}장`,
+    `DB 신규 ${p.created??0} · 변경 ${p.updated??0} · 재확인 필요 ${latest.lifecycle?.['needs-recheck']??0} · 종결 ${latest.lifecycle?.closed??0}`,
+    `실거래 연결 ${latest.matchedProperties??0}건 · 국토부 요청 ${run.summary.molit.used}/${run.summary.molit.limit??10000}`].join('\n');
+   const failure=[!listOk&&`목록·사진: ${collector.error??collector.status??list.result}`,!pipelineOk&&`DB·실거래: ${latest.errors?.[0]?.message??latest.status??pipeline.result}`].filter(Boolean).join('\n');
+   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message:`${failure}\n${message}`);
+  }
  }
 }catch(error){run.status='failed';run.error=error.message;await notify(`${label} 실패`,error.message);}
 finally{

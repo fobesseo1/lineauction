@@ -6,6 +6,19 @@ export function needsRepair(item, check, photographed, day) {
   return !(check?.state === 'none-visible' && check.checkedAt?.slice(0, 10) === day);
 }
 
+// Daily refresh rule: new items always; 5+ photos never again; 0 photos or a disabled/missing
+// official detail weekly; 1-4 photos monthly (official photo sets rarely change). Each key gets a
+// stable offset inside its period so a bulk pass does not come due on a single day.
+const spread = (key, days) => { let h = 0; for (const c of String(key)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % days; };
+export function needsDailyRepair(item, check, photoCount, now = Date.now(), { weekly = 7, monthly = 30 } = {}) {
+  const last = Date.parse(check?.checkedAt ?? "");
+  const due = days => !Number.isFinite(last) || now - last >= (days + spread(item?.key, days)) * 86400000;
+  if (!item?.detail) return ["detail-disabled", "property-not-provided"].includes(check?.state) ? due(weekly) : true;
+  const count = photoCount ?? 0;
+  if (count >= 5) return false;
+  return due(count === 0 ? weekly : monthly);
+}
+
 // Absence from a traversal is a search task, never proof of sale or withdrawal.
 export function repairAudit(state, { media = [], checks = {}, seen = [], courts = [], completedCourts = [], run, startedAt, finishedAt } = {}) {
   const scope = new Set(courts), observed = new Set(seen), photographed = new Set(media.map(x => x.key));

@@ -22,3 +22,18 @@ test('complete traversal preserves missing and absent items without declaring co
   assert.equal(audit.absentFromPass[0].key, 'b');
   assert.equal(state.items.b.detail, null);
 });
+
+test('daily refresh: new daily, 5+ never, 0 photos weekly, 1-4 monthly, spread per key', async () => {
+  const { needsDailyRepair } = await import('./repair-audit.mjs');
+  const day = 86400000, at = d => ({ state: 'captured', checkedAt: new Date(Date.parse('2026-10-10T00:00:00Z') - d * day).toISOString() });
+  const now = Date.parse('2026-10-10T00:00:00Z'), item = { key: 'a', detail: {} };
+  assert.equal(needsDailyRepair({ key: 'a', detail: null }, null, 0, now), true);
+  assert.equal(needsDailyRepair(item, at(400), 5, now), false);
+  assert.equal(needsDailyRepair(item, at(6), 0, now), false);
+  assert.equal(needsDailyRepair(item, at(14), 0, now), true);
+  assert.equal(needsDailyRepair(item, at(20), 3, now), false);
+  assert.equal(needsDailyRepair(item, at(60), 3, now), true);
+  assert.equal(needsDailyRepair(item, undefined, 2, now), true);
+  assert.equal(needsDailyRepair({ key: 'a', detail: null }, { ...at(3), state: 'detail-disabled' }, 0, now), false);
+  assert.equal(needsDailyRepair({ key: 'a', detail: null }, { ...at(14), state: 'detail-disabled' }, 0, now), true);
+});
