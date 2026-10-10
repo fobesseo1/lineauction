@@ -30,7 +30,9 @@ async function copySource(relative){
   source=source.replace(/ const \{data,error\}=snapshot===undefined\?await .*?;\r?\n/, ' const data=snapshot,error=null;\n');
   if(source.includes('await createClient'))throw Error('Comparison adapter needs review');
  }
- source=source.replaceAll('from "next/link"','from "@/sharing/link"');
+ // Static Pages has no /properties/* routes; every Next link must become a hash link.
+ source=source.replace(/from\s*["']next\/link["']/g,'from "@/sharing/link"');
+ if(/["']next\/link["']/.test(source))throw Error(`Unconverted next/link in ${relative}`);
  const destination=join(stage,relative);await mkdir(dirname(destination),{recursive:true});await writeFile(destination,source);
  for(const match of source.matchAll(/(?:from\s*|import\s*)["'](@\/[^"']+|\.[^"']+)["']/g)){
   const candidate=match[1].startsWith('@/')?match[1].slice(2):join(dirname(relative),match[1]);
