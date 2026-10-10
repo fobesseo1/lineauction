@@ -2,14 +2,8 @@ import "server-only";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { CardProperty } from "@/types/catalog";
-
-export function officialOnbidCover(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && ["www.onbid.co.kr", "onbid.co.kr", "open.kamco.or.kr"].includes(url.hostname) && !url.username && !url.password ? url.href : null;
-  } catch { return null; }
-}
+import { officialOnbidCover } from "@/lib/onbid-cover";
+export { officialOnbidCover } from "@/lib/onbid-cover";
 
 let cached: { modified: number; covers: Map<string, string> } | undefined;
 let pending: Promise<Map<string, string>> | undefined;

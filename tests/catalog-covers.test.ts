@@ -4,8 +4,8 @@ import { queryCatalog } from '@/lib/catalog-query';
 import { defaultFilters } from '@/types/catalog';
 import { getDemoProperties } from '@/lib/demo/data';
 
-it('looks up covers only for the returned page and uses the first ordered photo', async () => {
- const property = {...getDemoProperties()[0], lifecycle:null};
+it.each(['court','onbid','all'] as const)('%s looks up covers only for the returned page and uses the first ordered photo', async (source) => {
+ const property = {...getDemoProperties()[0], source:source==='all'?'onbid':source, lifecycle:null};
  const calls:{table:string;method:string;args:unknown[]}[]=[];
  const db={from(table:string){
   const result=table==='properties'?{data:[property],count:49,error:null}:{data:[{property_id:property.id,path:'/first.webp'},{property_id:property.id,path:'/second.webp'}],error:null};
@@ -15,7 +15,7 @@ it('looks up covers only for the returned page and uses the first ordered photo'
   }});
   return chain;
  }} as unknown as SupabaseClient;
- const page=await queryCatalog(db,defaultFilters);
+ const page=await queryCatalog(db,{...defaultFilters,source});
  expect(page.items[0].cover_image).toBe('/first.webp');
  expect(page.nextOffset).toBe(24);
  expect(calls.find(c=>c.table==='properties'&&c.method==='select')?.args[0]).not.toContain('property_media');

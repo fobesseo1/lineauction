@@ -11,7 +11,7 @@ import { appraisalRatio } from "@/lib/utils/money";
 import { formatDate } from "@/lib/utils/date";
 import type { CardProperty } from "@/types/catalog";
 export function PropertyCard({ property: p }: { property: CardProperty }) {
-  const linkRef = useRef<HTMLAnchorElement>(null);
+  const linkRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (!linkRef.current || typeof IntersectionObserver === "undefined") return;
@@ -21,16 +21,14 @@ export function PropertyCard({ property: p }: { property: CardProperty }) {
   }, []);
   const preview = p.demo;
   return (
-    <Link
+    <div
       ref={linkRef}
-      prefetch={visible}
-      href={`/properties/${p.id}${preview ? "?demo=1" : "?demo=0"}`}
       className="group block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
     >
       <Card className="h-full gap-0 overflow-hidden rounded-xl border-0 py-0 shadow-none">
-        {!preview && <PropertyCover key={p.cover_image} src={p.cover_image} title={p.title} source={p.source}/>}
+        {!preview && <PropertyCover key={p.cover_image} src={p.cover_image} title={p.title} source={p.source} address={p.address??''} region={[p.sido,p.sigungu,p.dong].filter(Boolean).join(' ')} href={`/properties/${p.id}?demo=0`} visible={visible}/>}
         {preview && (
-          <div className="relative aspect-square overflow-hidden rounded-xl">
+          <Link href={`/properties/${p.id}?demo=1`} prefetch={visible} className="relative block aspect-square overflow-hidden rounded-xl">
             <Image
               src={preview.image}
               alt={`${p.usage_type} AI 생성 샘플 이미지`}
@@ -48,9 +46,9 @@ export function PropertyCard({ property: p }: { property: CardProperty }) {
             >
               AI 샘플 이미지
             </Badge>
-          </div>
+          </Link>
         )}
-        <CardContent className="space-y-4 p-4">
+        <Link href={`/properties/${p.id}${preview?'?demo=1':'?demo=0'}`} prefetch={visible}><CardContent className="space-y-4 p-4">
           <Badge variant={p.source==='court'?'outline':'secondary'}>{p.source==='court'?'법원 경매':'온비드 공매'}</Badge>
           {p.lifecycle_state === "needs-recheck" && <Badge variant="outline">목록 미관측 · 재확인 필요</Badge>}
           {p.lifecycle_state === "closed" && <Badge variant="secondary">종료 확인 · {p.lifecycle_reason}</Badge>}
@@ -95,8 +93,8 @@ export function PropertyCard({ property: p }: { property: CardProperty }) {
             <CalendarDays className="size-3.5 shrink-0" />
             <span>{p.bid_end_at ? `${formatDate(p.bid_end_at)} 마감` : p.source === "court" ? "매각기일은 상세에서 확인" : "마감시각 미제공"}</span>
           </div>
-        </CardContent>
+        </CardContent></Link>
       </Card>
-    </Link>
+    </div>
   );
 }

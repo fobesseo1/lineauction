@@ -42,6 +42,7 @@ await cp('app/icon.svg',join(stage,'app/icon.svg'));
 await copySource('sharing/public-app.tsx');await copySource('sharing/link.tsx');
 // Dynamic import: keep the existing guarded server-to-public detail adapter.
 await copySource('components/property/court-detail-preview.tsx');
+await copySource('components/property/cover-location-map.tsx');
 await writeFile(join(stage,'sharing/public-config.json'),JSON.stringify({url,publishableKey,basePath}));
 const files=await readdir('public/media',{recursive:true,withFileTypes:true});
 const mediaPaths=files.filter(file=>file.isFile()).map(file=>'/'+join('media',resolve(file.parentPath).slice(resolve('public/media').length),file.name).replaceAll('\\','/'));

@@ -67,7 +67,7 @@ export function NaverMapPreview({latitude=37.4838652,longitude=127.0808739,title
       {clientId && (
         <Script
           id="naver-maps-sdk"
-          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`}
+          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`}
           strategy="afterInteractive"
           onReady={() => {
             if ((window as MapWindow).naver?.maps) setReady(true);
