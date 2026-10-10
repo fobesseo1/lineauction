@@ -9,6 +9,12 @@ export function CoverLocationMap({address,approximate}:{address:string;approxima
  const clientId=process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID?.trim();
  const node=useRef<HTMLDivElement>(null),[ready,setReady]=useState(false),[error,setError]=useState(false);
  useEffect(()=>{
+  if(!clientId)return;
+  const started=Date.now();
+  const check=()=>{const sdk=(window as Window&{naver?:{maps:SDK}}).naver?.maps;if(sdk?.Service){setReady(true);clearInterval(timer);}else if(Date.now()-started>15000){setError(true);clearInterval(timer);}};
+  const timer=setInterval(check,250);check();return()=>clearInterval(timer);
+ },[clientId]);
+ useEffect(()=>{
   const sdk=(window as Window&{naver?:{maps:SDK}}).naver?.maps;
   if(!ready||!sdk?.Service||!node.current)return;
   const query=mapAddress(address);let active=true,map:InstanceType<SDK['Map']>|undefined,marker:InstanceType<SDK['Marker']>|undefined;
@@ -29,6 +35,6 @@ export function CoverLocationMap({address,approximate}:{address:string;approxima
   <div ref={node} className="pointer-events-none h-full w-full" aria-label={`${address} 네이버지도`}/>
   {(!ready||error||!clientId)&&<div className="absolute inset-0 grid place-content-center gap-2 p-5 text-center"><span className="text-lg font-semibold">네이버지도</span><span className="text-sm">{address}</span><span className="text-xs text-muted-foreground">{error||!clientId?'지도를 열어 위치 확인':'위치 지도를 불러오는 중…'}</span></div>}
   <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-3 py-1 text-xs">{approximate?'주소 미제공 · 지역 지도':'사진 대신 위치 지도'} · 네이버지도 열기</span>
-  {clientId&&<Script id="naver-maps-sdk" src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`} strategy="afterInteractive" onReady={()=>setReady(true)} onError={()=>setError(true)}/>}
+  {clientId&&<Script id="naver-maps-sdk" src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`} strategy="afterInteractive" onError={()=>setError(true)}/>}
  </div>;
 }
