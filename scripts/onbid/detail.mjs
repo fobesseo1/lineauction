@@ -3,6 +3,7 @@ import {mkdir,readFile,writeFile,rename,open,unlink,access,appendFile} from 'nod
 import {createClient} from '@supabase/supabase-js';
 import {DETAIL_ENDPOINT,decode,rowsOf,identity,displayPayload} from './core.mjs';
 import {evidence,matchDetails,validManagement} from './detail-core.mjs';
+import {riskFlags} from '../property-risk.mjs';
 import {reserve} from './budget.mjs';
 process.loadEnvFile('.env.local');
 const root='data/onbid';await mkdir(`${root}/detail-raw`,{recursive:true});
@@ -65,6 +66,10 @@ try{
    const observations=batch.map(({list,detail})=>({property_id:ids.get(identity(list)),observed_at:observedAt,list_payload:displayPayload(list),detail_payload:displayPayload(detail),detail_status:detail?'completed':'not_provided',...evidence(detail??{})}));
    if(observations.some(r=>!r.property_id))throw Error('DB_DETAIL_IDENTITY_MISSING');
    const result=await db.from('onbid_observations').upsert(observations,{onConflict:'property_id'});if(result.error)throw Error(`DB_DETAIL_SAVE_${result.error.code}`);
+   // Risk warnings come from the detail notes; group by flag set so one update covers many rows.
+   const byFlags=new Map();
+   for(const {list,detail} of batch){if(!detail)continue;const key=JSON.stringify(riskFlags(detail.pytnMtrsCont,detail.icdlCdtnCont,detail.cltrEtcCont));byFlags.set(key,[...(byFlags.get(key)??[]),ids.get(identity(list))]);}
+   for(const [flags,propertyIds] of byFlags){const u=await db.from('properties').update({risk_flags:JSON.parse(flags)}).in('id',propertyIds);if(u.error)throw Error(`DB_RISK_FLAGS_${u.error.code}`);}
    dbRows+=observations.length;
   }
   // Count links once per physical property, not once per future auction round.
