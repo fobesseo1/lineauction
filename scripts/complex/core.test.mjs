@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {decode,listItems,jibunPnu,date8,fromList,fromBasis,fromDetail} from './core.mjs';
+import {decode,listItems,jibunPnu,date8,fromList,fromBasis,fromDetail,sigunguName} from './core.mjs';
 
 test('decode returns body on success and throws the provider code otherwise',()=>{
  const body=decode('{"response":{"body":{"items":[{"kaptCode":"A1"}],"totalCount":1},"header":{"resultCode":"00"}}}');
@@ -41,4 +41,12 @@ test('row mappers keep identity and parse numbers',()=>{
  assert.equal(d.parking_underground,66);assert.equal(d.subway_station,null);
  assert.equal(fromBasis({kaptdaCnt:0,hoCnt:230},'t').households,230);
  assert.equal(fromBasis({kaptdaCnt:0,hoCnt:0},'t').households,null);
+});
+
+test('sigunguName splits K-APT city+district names to the catalog form',()=>{
+ const names=['경기도 수원시 권선구','경기도 고양시 일산동구','서울특별시 강남구'];
+ assert.equal(sigunguName('수원권선구',names),'수원시 권선구');
+ assert.equal(sigunguName('고양일산동구',names),'고양시 일산동구');
+ assert.equal(sigunguName('강남구',names),'강남구');
+ assert.equal(sigunguName('수원시 권선구',names),'수원시 권선구');
 });

@@ -44,10 +44,18 @@ export function jibunPnu(bjdCode,kaptAddr){
  return bjdCode+(m[1]?'2':'1')+m[2].padStart(4,'0')+(m[3]??'0').padStart(4,'0');
 }
 
-export function fromList(item,sidoCode,seenAt){
+// K-APT writes a city's 구 run together ("수원권선구"); every other table, and the region
+// catalog, uses "수원시 권선구". `regionNames` are catalog names like "경기도 수원시 권선구".
+export function sigunguName(sigungu,regionNames=[]){
+ const s=text(sigungu);if(!s||s.includes(' '))return s;
+ for(const n of regionNames){const m=n.match(/^\S+ (\S+)시 (\S+구)$/);if(m&&s===m[1]+m[2])return `${m[1]}시 ${m[2]}`;}
+ return s;
+}
+
+export function fromList(item,sidoCode,seenAt,regionNames=[]){
  const kapt=text(item.kaptCode);
  if(!kapt||!SIDO[sidoCode])throw Error('INVALID_LIST_ITEM');
- return {kapt_code:kapt,name:text(item.kaptName)??kapt,sido:text(item.as1)??SIDO[sidoCode],sigungu:text(item.as2),dong:[text(item.as3),text(item.as4)].filter(Boolean).join(' ')||null,bjd_code:/^\d{10}$/.test(item.bjdCode??'')?item.bjdCode:null,list_seen_at:seenAt};
+ return {kapt_code:kapt,name:text(item.kaptName)??kapt,sido:text(item.as1)??SIDO[sidoCode],sigungu:sigunguName(item.as2,regionNames),dong:[text(item.as3),text(item.as4)].filter(Boolean).join(' ')||null,bjd_code:/^\d{10}$/.test(item.bjdCode??'')?item.bjdCode:null,list_seen_at:seenAt};
 }
 
 export function fromBasis(b,fetchedAt){

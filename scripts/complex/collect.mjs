@@ -5,6 +5,7 @@
 import {mkdir,readFile,readdir,access,appendFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
+import {regionCatalog} from '../court/regions.mjs';
 import {LIST_ENDPOINT,BASIS_ENDPOINT,DETAIL_ENDPOINT,SIDO,LIST_PAGE_SIZE,decode,listItems,fromList,fromBasis,fromDetail} from './core.mjs';
 process.loadEnvFile('.env.local');
 
@@ -15,6 +16,7 @@ const refreshList=process.argv.includes('--refresh-list');
 if(!['list','basis','detail','all'].includes(phase))throw Error('INVALID_PHASE');
 
 const root='data/complex';
+const REGION_NAMES=Object.keys(regionCatalog.codes);
 const LIMITS={list:4800,basis:4800};      // dev account: 5,000 per service per day
 // The gateway rejects bursts with API_23 (per-second limit), and the K-APT upstream answers
 // API_04 (HTTP_ERROR) after roughly 45 quick calls, then recovers after a pause.
@@ -95,7 +97,7 @@ async function listRows(){
  const rows=new Map();
  for(const f of (await readdir(dir)).sort()){
   const sido=f.split('-')[0];
-  for(const item of listItems(decode(await readFile(`${dir}/${f}`,'utf8'))))rows.set(item.kaptCode,fromList(item,sido,meta.completedAt));
+  for(const item of listItems(decode(await readFile(`${dir}/${f}`,'utf8'))))rows.set(item.kaptCode,fromList(item,sido,meta.completedAt,REGION_NAMES));
  }
  return rows;
 }
