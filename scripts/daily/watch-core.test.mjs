@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {evaluate,due} from './watch-core.mjs';
 
 const at=(iso)=>Date.parse(iso),MIN=60000;
-// The 06:00 market job already ran, so these scenarios only look at the job under test.
+// The 09:00 market job already ran, so these scenarios only look at the job under test.
 const market=day=>({job:'market',day,status:'completed'});
 const base={day:'2026-10-11',history:[market('2026-10-11')],lock:null,lockAlive:false,activityAt:0};
 
@@ -36,6 +36,6 @@ test('no missed-start alert for court on weekends',()=>{
  assert.deepEqual(monday.map(p=>p.key),['missed:court:2026-10-12']);
 });
 
-test('the market job is reported missed after 06:30 KST',()=>{
- assert.deepEqual(evaluate({...base,history:[],now:at('2026-10-10T21:31:00Z')}).map(p=>p.key),['missed:market:2026-10-11']);
+test('the market job is reported missed after 09:30 KST',()=>{
+ assert.deepEqual(evaluate({...base,history:[],now:at('2026-10-11T00:31:00Z')}).map(p=>p.key),['missed:market:2026-10-11']);
 });

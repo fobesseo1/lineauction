@@ -2,8 +2,8 @@
 export const JOBS = ['onbid', 'court', 'market'];
 // Scheduled start time per job (KST). A schedule-triggered run before this time exits quietly,
 // which lets a logon trigger fire any time without starting a job early.
-// market = K-APT complexes + MOLIT trades + Supabase summaries, early so screens are fresh by morning.
-export const SCHEDULE_HOURS = { onbid: 10, court: 15, market: 6 };
+// market = K-APT complexes + MOLIT trades + Supabase summaries, before the 10:00 Onbid job.
+export const SCHEDULE_HOURS = { onbid: 10, court: 15, market: 9 };
 export const kstMinutes = (now = new Date()) => { const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).split(':').map(Number); return h * 60 + m; };
 // KST weekdays each job runs on (0 = Sunday). Court listings change on court business days only;
 // Onbid runs daily while its detail backlog is being filled.
