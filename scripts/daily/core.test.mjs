@@ -22,3 +22,10 @@ test('Korean day boundary and summary text',()=>{
  assert.equal(koreanDay(new Date('2026-10-10T15:30:00Z')),'2026-10-11');
  assert.match(onbidMessage({list:{properties:8907,conditions:26949,refresh:true,added:12,removed:3},detail:{processed:1999,total:8916,remaining:6917},usage:{list:276,detail:1000}}),/신규 12 · 종료 3[\s\S]*남음 6,917[\s\S]*상세 1,000\/1,000/);
 });
+test('schedule-triggered runs wait for the job hour in KST', async () => {
+ const {beforeSchedule}=await import('./core.mjs');
+ assert.equal(beforeSchedule('onbid',new Date('2026-10-11T00:59:00Z')),true);  // 09:59 KST
+ assert.equal(beforeSchedule('onbid',new Date('2026-10-11T02:08:00Z')),false); // 11:08 KST
+ assert.equal(beforeSchedule('court',new Date('2026-10-11T02:08:00Z')),true);
+ assert.equal(beforeSchedule('court',new Date('2026-10-11T06:00:00Z')),false); // 15:00 KST
+});

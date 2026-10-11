@@ -1,5 +1,10 @@
 // Pure decisions for the daily runner, kept separate so they can be unit tested.
 export const JOBS = ['onbid', 'court'];
+// Scheduled start time per job (KST). A schedule-triggered run before this time exits quietly,
+// which lets a logon trigger fire any time without starting a job early.
+export const SCHEDULE_HOURS = { onbid: 10, court: 15 };
+export const kstMinutes = (now = new Date()) => { const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).split(':').map(Number); return h * 60 + m; };
+export const beforeSchedule = (job, now = new Date()) => kstMinutes(now) < SCHEDULE_HOURS[job] * 60;
 export const koreanDay = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
 
 // A scheduled run is skipped when the same job already finished today from a manual start.
