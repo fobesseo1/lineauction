@@ -5,6 +5,10 @@ export const DETAIL_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstDtlSrvc2/
 export const PROPERTY_CODES='0007,0010,0005,0004,0002,0003,0006,0008,0011,0013';
 export const scope=r=>['서울특별시','경기도'].includes(r.lctnSdnm)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
 export const identity=r=>`${r.cltrMngNo}:${r.pbctCdtnNo}`;
+// Only these payload fields are read back from the DB (onbid_public_detail and cover
+// publishing). Full responses stay in the local raw cache, which keeps the DB small.
+export const DISPLAY_FIELDS=['orgNm','evcRsbyTrgtCont','cptnMthodNm','bidMthodNm','cltrRadr','zadrNm','utlzPscdCont','icdlCdtnCont','pytnMtrsCont','dsplVldCont','cltrEtcCont','thnlImgUrlAdr'];
+export const displayPayload=r=>r==null?r:Object.fromEntries(DISPLAY_FIELDS.filter(k=>r[k]!=null).map(k=>[k,r[k]]));
 export function decode(raw){
  let data;
  if(raw.trimStart().startsWith('<')){

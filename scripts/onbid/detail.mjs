@@ -1,7 +1,7 @@
 import {writeJson} from './atomic.mjs';
 import {mkdir,readFile,writeFile,rename,open,unlink,access,appendFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
-import {DETAIL_ENDPOINT,decode,rowsOf,identity} from './core.mjs';
+import {DETAIL_ENDPOINT,decode,rowsOf,identity,displayPayload} from './core.mjs';
 import {evidence,matchDetails,validManagement} from './detail-core.mjs';
 import {reserve} from './budget.mjs';
 process.loadEnvFile('.env.local');
@@ -62,7 +62,7 @@ try{
    const batch=matched.slice(start,start+100);
    const lookup=await db.from('properties').select('id,source_property_id,auction_condition_id').eq('source','onbid').eq('source_property_id',management).in('auction_condition_id',batch.map(r=>String(r.list.pbctCdtnNo)));
    if(lookup.error)throw Error(`DB_DETAIL_LOOKUP_${lookup.error.code}`);const ids=new Map(lookup.data.map(r=>[`${r.source_property_id}:${r.auction_condition_id}`,r.id]));
-   const observations=batch.map(({list,detail})=>({property_id:ids.get(identity(list)),observed_at:observedAt,list_payload:list,detail_payload:detail,detail_status:detail?'completed':'not_provided',...evidence(detail??{})}));
+   const observations=batch.map(({list,detail})=>({property_id:ids.get(identity(list)),observed_at:observedAt,list_payload:displayPayload(list),detail_payload:displayPayload(detail),detail_status:detail?'completed':'not_provided',...evidence(detail??{})}));
    if(observations.some(r=>!r.property_id))throw Error('DB_DETAIL_IDENTITY_MISSING');
    const result=await db.from('onbid_observations').upsert(observations,{onConflict:'property_id'});if(result.error)throw Error(`DB_DETAIL_SAVE_${result.error.code}`);
    dbRows+=observations.length;

@@ -2,7 +2,7 @@ import {writeJson} from './atomic.mjs';
 import {mkdir,readFile,writeFile,rename,open,unlink,access,appendFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
-import {LIST_ENDPOINT,PROPERTY_CODES,partitionList,decode,rowsOf,scope,identity,toProperty,safeOfficialUrl} from './core.mjs';
+import {LIST_ENDPOINT,PROPERTY_CODES,partitionList,decode,rowsOf,scope,identity,toProperty,safeOfficialUrl,displayPayload} from './core.mjs';
 import {reserve} from './budget.mjs';
 process.loadEnvFile('.env.local');
 const root='data/onbid';
@@ -82,7 +82,7 @@ try{
     if(lookup.error)throw Error(`DB_LOOKUP_${lookup.error.code}`);
     const ids=new Map(lookup.data.map(r=>[`${r.source_property_id}:${r.auction_condition_id}`,r.id]));
     // detail_status is left to the DB default for new rows and untouched for rows that already have details.
-    const observations=accepted.map(r=>({property_id:ids.get(identity(r)),observed_at:checkedAt,list_payload:r}));
+    const observations=accepted.map(r=>({property_id:ids.get(identity(r)),observed_at:checkedAt,list_payload:displayPayload(r)}));
     if(observations.some(r=>!r.property_id))throw Error('DB_IDENTITY_MISSING');
     const obs=await db.from('onbid_observations').upsert(observations,{onConflict:'property_id'});if(obs.error)throw Error(`DB_OBSERVATIONS_${obs.error.code}`);
     state.dbRows+=accepted.length;state.dbUpdatedAt=checkedAt;

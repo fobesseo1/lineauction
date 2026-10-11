@@ -90,7 +90,7 @@ try{
   const outcome=outcomes.get(item.key);if(!outcome||outcome==='stale')continue;
   const id=ids.get(`${input.source_property_id}:${input.auction_condition_id}`);if(!id){report.errors.push({key:item.key,message:'No persisted property ID'});continue;}
   report.courts[item.court]=(report.courts[item.court]??0)+1;
-  observations.push({property_id:id,court:item.court,case_number:item.caseNumber,item_number:item.itemNumber,source_url:item.sourceUrl,observed_at:item.lastSeenAt,payload:item});
+  observations.push({property_id:id,court:item.court,case_number:item.caseNumber,item_number:item.itemNumber,source_url:item.sourceUrl,observed_at:item.lastSeenAt,payload:{}});  // the full item stays in local pipeline files; nothing reads it back from the DB
   const lifecycle=lifecycleFromItem(item);report.lifecycle[lifecycle.state]++;
   lifecycles.push({property_id:id,...lifecycle});
   const target=apartmentTarget(item);

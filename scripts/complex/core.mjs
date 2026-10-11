@@ -61,7 +61,7 @@ export function fromBasis(b,fetchedAt){
   builder:text(b.kaptBcompany),developer:text(b.kaptAcompany),
   total_floor_area:num(b.kaptTarea),management_area:num(b.kaptMarea),private_area:num(b.privArea),
   units_le60:int(b.kaptMparea60),units_le85:int(b.kaptMparea85),units_le135:int(b.kaptMparea135),units_gt135:int(b.kaptMparea136),
-  basis_raw:b,basis_fetched_at:fetchedAt,
+  basis_fetched_at:fetchedAt,   // the full response stays in data/complex/raw
  };
 }
 
@@ -70,6 +70,6 @@ export function fromDetail(d,fetchedAt){
   structure:text(d.codeStr),parking_ground:int(d.kaptdPcnt),parking_underground:int(d.kaptdPcntu),elevators:int(d.kaptdEcnt),
   ev_chargers_ground:int(d.groundElChargerCnt),ev_chargers_underground:int(d.undergroundElChargerCnt),
   subway_line:text(d.subwayLine),subway_station:text(d.subwayStation),subway_walk:text(d.kaptdWtimesub),bus_walk:text(d.kaptdWtimebus),
-  detail_raw:d,detail_fetched_at:fetchedAt,
+  detail_fetched_at:fetchedAt,
  };
 }
