@@ -26,8 +26,8 @@ export function PagedCatalog({initialPage=null,initialFilters=defaultFilters,exp
  const total=page?.total;
  const selectClass="h-10 min-w-0 rounded-lg border bg-white px-3 text-sm";
  return <div className="space-y-6">
-  <section className="space-y-3" aria-label="서울·경기 경매·공매 검색">
-   {!explore&&<h1 className="text-lg font-semibold">서울·경기 경매·공매</h1>}
+  <section className="space-y-3" aria-label="수도권 경매·공매 검색">
+   {!explore&&<h1 className="text-lg font-semibold">수도권 경매·공매</h1>}
    <div className="flex flex-wrap gap-2">{(['court','onbid','all'] as const).map(source=><Button key={source} variant={filters.source===source?'default':'outline'} onClick={()=>change({source})}>{source==='court'?'법원 경매':source==='onbid'?'온비드 공매':'전체'}</Button>)}</div>
    <form className="flex items-center gap-3 rounded-full bg-white px-5 py-3 shadow-subtle" onSubmit={e=>{e.preventDefault();change({q:input.trim()});}}>
     <div className="min-w-0 flex-1"><label htmlFor="catalog-search" className="text-xs font-semibold">어떤 물건을 찾고 계신가요?</label><Input id="catalog-search" aria-label="지역·주소·사건번호·공매 관리번호 검색" placeholder="지역·주소·사건번호·공매 관리번호 검색" value={input} onChange={e=>setInput(e.target.value)} className="h-8 min-w-0 border-0 px-0 shadow-none focus-visible:ring-0"/></div>
@@ -35,7 +35,7 @@ export function PagedCatalog({initialPage=null,initialFilters=defaultFilters,exp
    </form>
    {explore&&<div className="grid gap-3 rounded-xl bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
     <select aria-label="진행 구분" className={selectClass} value={filters.lifecycle} onChange={e=>change({lifecycle:e.target.value as CatalogFilters['lifecycle']})}><option value="active">진행·재확인 대상</option><option value="closed">종료 확인 물건</option><option value="all">전체 이력 포함</option></select>
-    <select aria-label="지역" className={selectClass} value={filters.region} onChange={e=>change({region:e.target.value})}><option value="seoul-gyeonggi">서울·경기</option><option value="서울특별시">서울특별시</option><option value="경기도">경기도</option><option value="all">모든 지역</option></select>
+    <select aria-label="지역" className={selectClass} value={filters.region} onChange={e=>change({region:e.target.value})}><option value="capital">수도권 전체</option><option value="서울특별시">서울특별시</option><option value="경기도">경기도</option><option value="인천광역시">인천광역시</option><option value="all">모든 지역</option></select>
     <div><Input aria-label="물건종류" list="catalog-usages" placeholder="물건종류 (전체)" value={filters.usage==='all'?'':filters.usage} onChange={e=>change({usage:e.target.value||'all'})}/><datalist id="catalog-usages">{['아파트','다세대주택','연립주택','오피스텔','대지','근린생활시설','주택부지','기타토지'].map(v=><option key={v} value={v}/>)}</datalist></div>
     <select aria-label="정렬" className={selectClass} value={filters.sort} onChange={e=>change({sort:e.target.value as CatalogFilters['sort']})}><option value="recent">최근 등록순</option><option value="price">최저가격순</option><option value="deadline">마감임박순</option></select>
     <Input aria-label="최대 입찰가격 원" placeholder="최대 입찰가격 (원)" inputMode="numeric" value={filters.maxBid} onChange={e=>change({maxBid:e.target.value.replace(/\D/g,'').slice(0,29)})}/>

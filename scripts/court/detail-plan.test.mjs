@@ -19,8 +19,8 @@ test('가까운 입찰 아파트를 우선하고 없는 날짜를 임의 생성�
  assert.equal(planDetails(s,{now}).nextBatch[0].key,'c');
  assert.throws(()=>planDetails(s,{now,limit:100}),/1..4/);
 });
-test('서울·경기는 법원이 아닌 물건 주소로 구분하며 복합 소재지는 검토 대상으로 남긴다',()=>{
- const s=state([item('a',{court:'인천지방법원',assets:[{address:'경기도 김포시 사우동'}]}),item('b',{assets:[{address:'인천광역시 부평구'}]}),item('c',{assets:[{address:'서울특별시 강남구'},{address:'충청남도 천안시'}]})]);
+test('수도권(서울·경기·인천)은 법원이 아닌 물건 주소로 구분하며 복합 소재지는 검토 대상으로 남긴다',()=>{
+ const s=state([item('a',{court:'인천지방법원',assets:[{address:'경기도 김포시 사우동'}]}),item('b',{assets:[{address:'부산광역시 해운대구'}]}),item('c',{assets:[{address:'서울특별시 강남구'},{address:'충청남도 천안시'}]})]);
  const p=planDetails(s,{now});assert.equal(p.outsideScope,2);assert.equal(p.nextBatch[0].key,'a');
  assert.equal(planDetails(s,{now,scope:'all'}).outsideScope,0);
 });

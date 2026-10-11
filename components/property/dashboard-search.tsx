@@ -13,8 +13,8 @@ export function DashboardSearch({properties,initialSource}:{properties:PropertyL
  const selected=properties.filter(p=>source==='all'||p.source===source);
  const results=selected.filter(p=>term?[p.title,p.address,p.source_property_id,p.sido,p.sigungu,p.dong,p.usage_type].join(" ").toLocaleLowerCase().includes(term):p.lifecycle_state!=="closed");
  return <div className="space-y-6">
-  <section className="space-y-3" aria-label="서울·경기 경매·공매 검색">
-   <h1 className="text-lg font-semibold">서울·경기 경매·공매</h1>
+  <section className="space-y-3" aria-label="수도권 경매·공매 검색">
+   <h1 className="text-lg font-semibold">수도권 경매·공매</h1>
    <div className="flex flex-wrap gap-2" aria-label="경매·공매 구분">{[['court','법원 경매'],['onbid','온비드 공매'],['all','전체']].map(([value,label])=><Button asChild key={value} variant={source===value?'default':'outline'}><Link prefetch={false} href={`/dashboard?demo=0&source=${value}`}>{label}</Link></Button>)}</div>
    <p className="text-xs text-muted-foreground">{source==='court'?'법원 경매':source==='onbid'?'온비드 공매':'경매·공매 전체'} · 물건 {new Set(selected.map(p=>`${p.source}:${p.source_property_id}`)).size.toLocaleString('ko-KR')}개 · {selected.length.toLocaleString('ko-KR')}건{source!=='court'?' (공매는 입찰 회차별 자료 포함)':''}</p>
    <form className="flex w-full items-center gap-3 rounded-full bg-white px-5 py-3 shadow-subtle" onSubmit={e=>{e.preventDefault();setQuery(input);setVisible(24);}}>

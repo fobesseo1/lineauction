@@ -6,11 +6,12 @@ export async function queryCatalog(db:SupabaseClient, f:CatalogFilters, signal?:
  let query=db.from('properties').select(CARD_COLUMNS,{count:countMode});
  if(f.source!=='all')query=query.eq('source',f.source);
  if(f.region!=='all') {
-  query=f.region==='seoul-gyeonggi'?query.in('sido',['서울특별시','경기도']):query.eq('sido',f.region);
+  // 'capital' (수도권) = Seoul, Gyeonggi, Incheon; 'seoul-gyeonggi' is kept as an alias for old links.
+  query=f.region==='capital'||f.region==='seoul-gyeonggi'?query.in('sido',['서울특별시','경기도','인천광역시']):query.eq('sido',f.region);
   // Source is already fixed: avoid redundant OR branches on court-only pages.
   if(f.source!=='onbid') {
-   query=f.source==='court'?query.or('address.like.서울특별시 *,address.like.경기도 *'):query.or('source.eq.onbid,and(source.eq.court,or(address.like.서울특별시 *,address.like.경기도 *))');
-   for(const prefix of ['소재지 :','부산','대구','인천','광주','대전','울산','세종','강원','충청','전라','경상','제주','충북','충남','전북','전남','경북','경남'])query=f.source==='court'?query.not('address','like',`% / ${prefix}%`):query.or(`source.eq.onbid,address.not.like.% / ${prefix}%`);
+   query=f.source==='court'?query.or('address.like.서울특별시 *,address.like.경기도 *,address.like.인천광역시 *'):query.or('source.eq.onbid,and(source.eq.court,or(address.like.서울특별시 *,address.like.경기도 *,address.like.인천광역시 *))');
+   for(const prefix of ['소재지 :','부산','대구','광주','대전','울산','세종','강원','충청','전라','경상','제주','충북','충남','전북','전남','경북','경남'])query=f.source==='court'?query.not('address','like',`% / ${prefix}%`):query.or(`source.eq.onbid,address.not.like.% / ${prefix}%`);
   }
  }
  if(f.lifecycle==='closed')query=query.eq('closed.state','closed').not('closed','is',null);

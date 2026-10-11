@@ -53,7 +53,7 @@ export function PropertyBrowser({
   initialQuery: string;
   initialSource?: string;
 }) {
-  const defaultRegion = properties.some((p) => p.demo) ? "all" : "seoul-gyeonggi";
+  const defaultRegion = properties.some((p) => p.demo) ? "all" : "capital";
   const router=useRouter(),params=useSearchParams();
   const changeSource=(value:string)=>{setSource(value);setVisibleCount(24);const next=new URLSearchParams(params.toString());next.set('source',value);router.push(`/properties?${next.toString()}`);};
   const [visibleCount, setVisibleCount] = useState(24);
@@ -83,8 +83,8 @@ export function PropertyBrowser({
         .join(" ")
         .toLowerCase()
         .includes(query.toLowerCase()) &&
-      (region === "all" || (region === "seoul-gyeonggi"
-        ? p.source==='onbid' ? ['서울특별시','경기도'].includes(p.sido??'') : !!p.address && p.address.split(" / ").every(address => /^(서울특별시|경기도)\s/.test(address.trim()))
+      (region === "all" || (region === "capital"
+        ? p.source==='onbid' ? ['서울특별시','경기도','인천광역시'].includes(p.sido??'') : !!p.address && p.address.split(" / ").every(address => /^(서울특별시|경기도|인천광역시)\s/.test(address.trim()))
         : p.sido === region)) &&
       (usage === "all" || p.usage_type === usage) &&
       (!maxBid ||
@@ -151,7 +151,7 @@ export function PropertyBrowser({
             value={region}
             onChange={setRegion}
             choices={[
-              { value: "seoul-gyeonggi", label: "서울·경기" },
+              { value: "capital", label: "수도권" },
               { value: "all", label: "모든 지역" },
               ...regions.map((v) => ({ value: v, label: v })),
             ]}

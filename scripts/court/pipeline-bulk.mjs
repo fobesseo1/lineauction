@@ -25,7 +25,14 @@ const check=({data,error})=>{if(error)throw Error(`${error.code}: ${error.messag
 const chunks=(rows,size=200)=>Array.from({length:Math.ceil(rows.length/size)},(_,i)=>rows.slice(i*size,(i+1)*size));
 const report={startedAt:new Date().toISOString(),properties:{created:0,updated:0,unchanged:0,stale:0,skipped:0},courts:{},matchedProperties:0,matchedTrades:0,unmatched:0,errors:[],apiQueries:[],lifecycle:{observed:0,'needs-recheck':0,'needs-review':0,closed:0}};
 const cache=new Map(),regionErrors=new Map();let runId,lastRequestAt=0;
+// A legacy district name can resolve to several successor codes ('28275,28290'); fetch each and merge.
 async function tradesFor(region){
+ const codes=String(region).split(',');
+ if(codes.length===1)return tradesForOne(region);
+ const parts=[];for(const code of codes)parts.push(await tradesForOne(code));
+ return {rows:parts.flatMap(p=>p.rows),months:parts.flatMap(p=>p.months),observedAt:parts.map(p=>p.observedAt).sort()[0]};
+}
+async function tradesForOne(region){
  await assertMolitAllowed(`${root}/molit-access-paused.json`);
  if(regionErrors.has(region))throw regionErrors.get(region);
  if(cache.has(region))return cache.get(region);

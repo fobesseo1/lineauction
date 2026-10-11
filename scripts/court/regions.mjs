@@ -3,5 +3,6 @@ export const regionCatalog = JSON.parse(readFileSync(new URL('./regions.json',im
 export function regionCode(name) {
  const normalized=String(name??'').trim().replace(/\s+/g,' ');
  if(Object.keys(regionCatalog.codes).some(candidate=>candidate.startsWith(`${normalized} `)))return null;
- return regionCatalog.codes[normalized]??null;
+ // Renamed or split districts resolve to a comma-separated list of successor codes.
+ return regionCatalog.codes[normalized]??regionCatalog.aliases?.[normalized]??null;
 }

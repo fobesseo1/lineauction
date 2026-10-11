@@ -36,7 +36,7 @@ export default async function PropertyDetail({
   );
   if (!result) notFound();
   const { property: p, history } = result;
-  if(!p.demo && p.source === "court" && ["서울특별시", "경기도"].includes(p.sido??"")) return <CourtDetailPreview property={p} history={history}/>;
+  if(!p.demo && p.source === "court" && ["서울특별시", "경기도", "인천광역시"].includes(p.sido??"")) return <CourtDetailPreview property={p} history={history}/>;
   if(!p.demo && p.source === "onbid") return <OnbidDetailPreview property={p} history={history}/>;
   const details = [
     { label: "물건관리번호", value: p.source_property_id },

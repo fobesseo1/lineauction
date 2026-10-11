@@ -12,5 +12,12 @@ test('official catalog covers all Seoul districts and unambiguous Gyeonggi distr
 test('parent city without a district cannot silently use the wrong code',()=>{
  assert.equal(regionCode('경기도 수원시'),null);
  assert.equal(regionCode('경기도 화성시'),null);
- assert.equal(regionCode('인천광역시 남동구'),null);
+ assert.equal(regionCode('인천광역시'),null);
+});
+test('Incheon districts use post-2026-07 codes; legacy names map to every successor',()=>{
+ assert.equal(regionCode('인천광역시 남동구'),'28200');
+ assert.equal(regionCode('인천광역시 검단구'),'28290');
+ assert.equal(regionCode('인천광역시 서구'),'28275,28290');
+ assert.equal(regionCode('인천광역시 중구'),'28125,28155');
+ assert.equal(regionCode('인천광역시 남구'),'28177');
 });
