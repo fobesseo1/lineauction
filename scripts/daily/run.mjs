@@ -13,7 +13,8 @@ const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length
 const job=arg('job'),trigger=arg('trigger')??'manual';
 if(!JOBS.includes(job))throw Error(`--job must be one of ${JOBS.join(', ')}`);
 if(!['schedule','manual'].includes(trigger))throw Error('--trigger must be schedule or manual');
-const label=job==='onbid'?'온비드 공매':'법원 경매';
+const LABELS={onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'};
+const label=LABELS[job];
 const day=koreanDay();
 
 const readJson=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}};
@@ -42,7 +43,7 @@ for(const started=Date.now();;){
  if(state==='stale')await unlink(lockPath).catch(()=>{});
  try{lock=await open(lockPath,'wx');break;}catch(e){if(e.code!=='EEXIST')throw e;}
  const holder=await readJson(lockPath,null);
- if(trigger==='manual'){await notify(`${label} 실행 안 함`,`${holder?.job==='onbid'?'온비드 공매':'법원 경매'} 작업이 이미 실행 중입니다.\n끝난 뒤 다시 시도해 주세요.`);process.exit(0);}
+ if(trigger==='manual'){await notify(`${label} 실행 안 함`,`${LABELS[holder?.job]??'다른'} 작업이 이미 실행 중입니다.\n끝난 뒤 다시 시도해 주세요.`);process.exit(0);}
  if(Date.now()-started>8*3600_000){await record({job,trigger,day,status:'failed',reason:'lock-timeout',at:new Date().toISOString()});await notify(`${label} 시작 실패`,'다른 작업이 8시간 넘게 끝나지 않았습니다. 설정 화면을 확인해 주세요.');process.exit(1);}
  await delay(60_000);
 }
@@ -82,6 +83,17 @@ try{
   const note=detailState.status==='budget_wait'?'\n오늘 상세 한도를 다 써서 내일 이어서 받습니다.':detailState.status==='completed'?'\n상세 수집이 모두 끝났습니다.':'';
   const failure=[!listOk&&`목록: ${progress.errors?.[0]?.code??list.result}`,!detailOk&&`상세: ${detailState.errors?.[0]?.code??detail.result}`].filter(Boolean).join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message+note:`${failure}\n${message}`);
+ }else if(job==='market'){
+  // K-APT complexes (per-day quota), then MOLIT trades (recent months reloaded daily, 3-year backfill
+  // resumes), then the Supabase summaries rebuilt from the local warehouse.
+  const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
+  const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
+  const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
+  const last=s=>String(s.result??'').slice(0,160);
+  run.summary={complex:last(complex),trades:last(trades),publish:last(publish)};
+  run.status=[complex,trades,publish].every(s=>s.code===0)?'completed':'failed';
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`].join('\n');
+  await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
    run.status='skipped';run.reason='court-stop-file';

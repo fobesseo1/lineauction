@@ -20,6 +20,7 @@ const pipelineFiles=(await readdir('data/court/pipeline').catch(()=>[])).map(nam
 const activityAt=Math.max(...await Promise.all([
  `${root}/current.json`,'data/court/standalone/events.jsonl','data/court/standalone/progress.json',
  'data/onbid/events.jsonl','data/onbid/progress.json','data/onbid/detail-progress.json',...pipelineFiles,
+ 'data/complex/budget.json','data/molit/budget.json',   // both rewritten on every API call
 ].map(mtime)));
 
 // Consecutive KST days on which a provider refused requests.

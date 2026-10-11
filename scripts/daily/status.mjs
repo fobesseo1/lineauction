@@ -10,7 +10,7 @@ const when=v=>v?new Date(v).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:
 const n=v=>Number.isFinite(v)?v.toLocaleString('ko-KR'):'—';
 const ago=v=>{if(!v)return '';const m=Math.round((Date.now()-Date.parse(v))/60000);return m<1?' (방금)':` (${m}분 전)`;};
 const statusKo={completed:'완료',failed:'실패',skipped:'건너뜀',running:'진행 중',budget_wait:'오늘 한도 소진 · 다음 실행 때 이어받음',list_completed:'완료','pass-finished':'완료','pass-finished-with-errors':'완료(일부 실패)',blocked:'중단'};
-const stepKo={'onbid-list':'온비드 목록 다시 훑기','onbid-detail':'온비드 상세 수집','court-list':'법원 목록·사진 갱신','court-pipeline':'DB 반영·국토부 실거래'};
+const stepKo={'complex':'단지 정보 수집','molit':'국토부 실거래 수집','publish':'실거래 요약 업로드','onbid-list':'온비드 목록 다시 훑기','onbid-detail':'온비드 상세 수집','court-list':'법원 목록·사진 갱신','court-pipeline':'DB 반영·국토부 실거래'};
 
 async function render(){
  const day=koreanDay();
@@ -18,9 +18,9 @@ async function render(){
  const lines=[`선경매 진행 상황  ·  ${new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}  (5초마다 갱신, 창을 닫아도 수집은 계속됩니다)`,''];
  if(current){
   const done=current.steps.map(s=>s.name);
-  const order=current.job==='onbid'?['onbid-list','onbid-detail']:['court-list','court-pipeline'];
+  const order={onbid:['onbid-list','onbid-detail'],court:['court-list','court-pipeline'],market:['complex','molit','publish']}[current.job]??[];
   const now=order.find(s=>!done.includes(s));
-  lines.push(`▶ 실행 중: ${current.job==='onbid'?'온비드 공매':'법원 경매'} (${current.trigger==='manual'?'수동':'자동'}, ${time(current.startedAt)} 시작)`);
+  lines.push(`▶ 실행 중: ${({onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'})[current.job]??current.job} (${current.trigger==='manual'?'수동':'자동'}, ${time(current.startedAt)} 시작)`);
   lines.push(`  지금 단계: ${stepKo[now]??'마무리 중'}  [${order.map(s=>done.includes(s)?'✔':s===now?'…':'·').join(' ')}]`);
   if(current.job==='onbid'&&now==='onbid-list'&&onbid)lines.push(`  목록: 구간 ${n(onbid.partition)}/8 · ${n(onbid.pages)}쪽 · 요청 ${n(onbid.requests)}회 · 마지막 진행 ${time(onbid.updatedAt)}${ago(onbid.updatedAt)}`);
   if(current.job==='onbid'&&now==='onbid-detail'&&detail)lines.push(`  상세: ${n(detail.processed)} / ${n(detail.total)} (남음 ${n(detail.remaining)}) · 지금 ${detail.current??'—'} · 마지막 진행 ${time(detail.updatedAt)}${ago(detail.updatedAt)}`);

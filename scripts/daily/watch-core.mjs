@@ -1,7 +1,7 @@
 import { runsOn } from './core.mjs';
 // Pure watchdog rules for the daily jobs. watch.mjs gathers the facts and sends what this returns.
 const MIN = 60_000;
-export const SCHEDULE = { onbid: { hour: 10, label: '온비드 공매' }, court: { hour: 15, label: '법원 경매' } };
+export const SCHEDULE = { onbid: { hour: 10, label: '온비드 공매' }, court: { hour: 15, label: '법원 경매' }, market: { hour: 6, label: '단지·실거래' } };
 export const STALL_MINUTES = 25;
 
 // Minutes since KST midnight for a Date.

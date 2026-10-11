@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import {evaluate,due} from './watch-core.mjs';
 
 const at=(iso)=>Date.parse(iso),MIN=60000;
-const base={day:'2026-10-11',history:[],lock:null,lockAlive:false,activityAt:0};
+// The 06:00 market job already ran, so these scenarios only look at the job under test.
+const market=day=>({job:'market',day,status:'completed'});
+const base={day:'2026-10-11',history:[market('2026-10-11')],lock:null,lockAlive:false,activityAt:0};
 
 test('quiet before the scheduled hour plus 30 minutes, missed start after it',()=>{
  assert.equal(evaluate({...base,now:at('2026-10-11T01:20:00Z')}).length,0); // 10:20 KST
  const p=evaluate({...base,now:at('2026-10-11T01:31:00Z')}); // 10:31 KST
  assert.deepEqual(p.map(x=>x.key),['missed:onbid:2026-10-11']);
- assert.equal(evaluate({...base,now:at('2026-10-11T01:31:00Z'),history:[{job:'onbid',day:'2026-10-11',status:'skipped'}]}).length,0);
+ assert.equal(evaluate({...base,now:at('2026-10-11T01:31:00Z'),history:[market('2026-10-11'),{job:'onbid',day:'2026-10-11',status:'skipped'}]}).length,0);
 });
 test('stall and crash detection while a job holds the lock',()=>{
  const lock={job:'court',startedAt:'2026-10-11T06:00:00Z',pid:1};
@@ -28,8 +30,12 @@ test('failed runs repeat every 3 hours without duplicating the runner notice; bl
  assert.equal(evaluate({...base,now,blockedStreaks:{molit:3}}).filter(p=>p.key.startsWith('blocked')).length,1);
 });
 test('no missed-start alert for court on weekends',()=>{
- const sunday=evaluate({...base,day:'2026-10-11',now:at('2026-10-11T06:40:00Z'),history:[{job:'onbid',day:'2026-10-11',status:'completed'}]});
+ const sunday=evaluate({...base,day:'2026-10-11',now:at('2026-10-11T06:40:00Z'),history:[market('2026-10-11'),{job:'onbid',day:'2026-10-11',status:'completed'}]});
  assert.equal(sunday.length,0);
- const monday=evaluate({...base,day:'2026-10-12',now:at('2026-10-12T06:40:00Z'),history:[{job:'onbid',day:'2026-10-12',status:'completed'}]});
+ const monday=evaluate({...base,day:'2026-10-12',now:at('2026-10-12T06:40:00Z'),history:[market('2026-10-12'),{job:'onbid',day:'2026-10-12',status:'completed'}]});
  assert.deepEqual(monday.map(p=>p.key),['missed:court:2026-10-12']);
+});
+
+test('the market job is reported missed after 06:30 KST',()=>{
+ assert.deepEqual(evaluate({...base,history:[],now:at('2026-10-10T21:31:00Z')}).map(p=>p.key),['missed:market:2026-10-11']);
 });

@@ -6,6 +6,7 @@ import {mkdir,readFile,readdir,access,appendFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
+import {singleRun} from '../single-run.mjs';
 import {LIST_ENDPOINT,BASIS_ENDPOINT,DETAIL_ENDPOINT,SIDO,LIST_PAGE_SIZE,decode,listItems,fromList,fromBasis,fromDetail} from './core.mjs';
 process.loadEnvFile('.env.local');
 
@@ -23,6 +24,7 @@ const LIMITS={list:4800,basis:4800};      // dev account: 5,000 per service per 
 const INTERVAL_MS=1000;
 const MAX_CONSECUTIVE_ERRORS=5;
 for(const d of ['raw/list','raw/basis','raw/detail'])await mkdir(`${root}/${d}`,{recursive:true});
+if(!await singleRun(root,'scripts/complex/collect.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 const exists=async p=>{try{await access(p);return true;}catch{return false;}};
 const readJson=async(p,fallback)=>{try{return JSON.parse(await readFile(p,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}};

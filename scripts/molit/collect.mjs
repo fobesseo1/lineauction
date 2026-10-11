@@ -8,6 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {APIS,leafRegions,monthsBack,decode,toRow} from './core.mjs';
+import {singleRun} from '../single-run.mjs';
 process.loadEnvFile('.env.local');
 
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
@@ -16,6 +17,7 @@ const apiNames=arg('--apis',Object.keys(APIS).join(',')).split(',');
 if(apiNames.some(a=>!APIS[a]))throw Error('UNKNOWN_API');
 
 const root='data/molit';await mkdir(root,{recursive:true});
+if(!await singleRun(root,'scripts/molit/collect.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 // The court pipeline also spends apartment-sale calls every day, so that service keeps headroom.
 const LIMITS={aptSale:5000,aptRent:9000,offiSale:9000,offiRent:9000};
 const RECENT_MONTHS=3,INTERVAL_MS=500,MAX_CONSECUTIVE_ERRORS=5;
