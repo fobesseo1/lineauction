@@ -29,3 +29,12 @@ test('schedule-triggered runs wait for the job hour in KST', async () => {
  assert.equal(beforeSchedule('court',new Date('2026-10-11T02:08:00Z')),true);
  assert.equal(beforeSchedule('court',new Date('2026-10-11T06:00:00Z')),false); // 15:00 KST
 });
+test('court runs on KST weekdays only; onbid every day', async () => {
+ const {runsOn,kstWeekday}=await import('./core.mjs');
+ assert.equal(kstWeekday(new Date('2026-10-11T06:00:00Z')),0); // Sunday 15:00 KST
+ assert.equal(runsOn('court',new Date('2026-10-11T06:00:00Z')),false);
+ assert.equal(runsOn('court',new Date('2026-10-10T06:00:00Z')),false); // Saturday
+ assert.equal(runsOn('court',new Date('2026-10-12T06:00:00Z')),true);  // Monday
+ assert.equal(runsOn('court',new Date('2026-10-09T16:00:00Z')),false); // Sat 01:00 KST although Fri in UTC
+ assert.equal(runsOn('onbid',new Date('2026-10-11T06:00:00Z')),true);
+});

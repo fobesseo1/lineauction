@@ -10,7 +10,7 @@ type Health = { checkedAt: string; ok: boolean; problems: { key: string; title: 
 type State = { current: Run | null; last: Record<"onbid" | "court", Run | null>; health: Health | null; recent: Run[] };
 const JOBS = [
   { id: "onbid", label: "온비드 공매", schedule: "매일 오전 10시" },
-  { id: "court", label: "법원 경매", schedule: "매일 오후 3시" },
+  { id: "court", label: "법원 경매", schedule: "평일 오후 3시" },
 ] as const;
 const statusLabel: Record<string, string> = { completed: "완료", failed: "실패", skipped: "건너뜀" };
 const time = (value?: string) => (value ? new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "—");

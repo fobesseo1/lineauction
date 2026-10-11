@@ -27,3 +27,9 @@ test('failed runs repeat every 3 hours without duplicating the runner notice; bl
  assert.equal(evaluate({...base,now,blockedStreaks:{molit:2}}).filter(p=>p.key.startsWith('blocked')).length,0);
  assert.equal(evaluate({...base,now,blockedStreaks:{molit:3}}).filter(p=>p.key.startsWith('blocked')).length,1);
 });
+test('no missed-start alert for court on weekends',()=>{
+ const sunday=evaluate({...base,day:'2026-10-11',now:at('2026-10-11T06:40:00Z'),history:[{job:'onbid',day:'2026-10-11',status:'completed'}]});
+ assert.equal(sunday.length,0);
+ const monday=evaluate({...base,day:'2026-10-12',now:at('2026-10-12T06:40:00Z'),history:[{job:'onbid',day:'2026-10-12',status:'completed'}]});
+ assert.deepEqual(monday.map(p=>p.key),['missed:court:2026-10-12']);
+});

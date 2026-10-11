@@ -6,7 +6,7 @@ import {mkdir,readFile,writeFile,appendFile,open,unlink} from 'node:fs/promises'
 import {spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {sendWindowsNotification} from '../court/windows-notify.mjs';
-import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule} from './core.mjs';
+import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule,runsOn} from './core.mjs';
 
 const root='data/daily';await mkdir(root,{recursive:true});
 const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length+3);
@@ -24,7 +24,7 @@ const alive=pid=>{try{process.kill(pid,0);return true;}catch(e){return e.code===
 
 // 1. Scheduled starts (daily time, missed-run catch-up, or logon) wait for the job's hour and skip
 //    when the job already ran today. Manual runs always proceed.
-if(trigger==='schedule'&&beforeSchedule(job))process.exit(0);
+if(trigger==='schedule'&&(!runsOn(job)||beforeSchedule(job)))process.exit(0);
 if(trigger==='schedule'){
  const skip=scheduledSkip(await history(),job,day);
  if(skip.skip){

@@ -32,8 +32,8 @@ async function render(){
  lines.push(`오늘 API 사용량  온비드 목록 ${n(usage.list)}/1,000 · 온비드 상세 ${n(usage.detail)}/1,000 · 국토부 ${n(molit?.day===day?molit.requests:0)}/${n(molit?.limit??10000)}`);
  if(detail)lines.push(`온비드 상세 누적  ${n(detail.processed)} / ${n(detail.total)} 물건 (남음 ${n(detail.remaining)})`);
  lines.push('');
- for(const [label,run,hour] of [['온비드 공매',lastOnbid,'오전 10시'],['법원 경매',lastCourt,'오후 3시']])
-  lines.push(`${label} (매일 ${hour})  최근: ${run?`${statusKo[run.status]??run.status} · ${run.trigger==='manual'?'수동':'자동'} · ${when(run.finishedAt)}`:'기록 없음'}`);
+ for(const [label,run,hour] of [['온비드 공매',lastOnbid,'오전 10시'],['법원 경매',lastCourt,'평일 오후 3시']])
+  lines.push(`${label} (${hour.startsWith('평일')?hour:`매일 ${hour}`})  최근: ${run?`${statusKo[run.status]??run.status} · ${run.trigger==='manual'?'수동':'자동'} · ${when(run.finishedAt)}`:'기록 없음'}`);
  lines.push('');
  if(health)lines.push(`감시: ${health.ok?'정상':'이상'} (${time(health.checkedAt)} 확인)`,...health.problems.map(p=>`  ! ${p.title}: ${p.message}`));
  return lines.join('\n');

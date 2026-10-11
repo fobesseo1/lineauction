@@ -1,3 +1,4 @@
+import { runsOn } from './core.mjs';
 // Pure watchdog rules for the daily jobs. watch.mjs gathers the facts and sends what this returns.
 const MIN = 60_000;
 export const SCHEDULE = { onbid: { hour: 10, label: '온비드 공매' }, court: { hour: 15, label: '법원 경매' } };
@@ -19,7 +20,7 @@ export function evaluate({ now, day, lock, lockAlive, activityAt, history, block
   for (const [job, { hour }] of Object.entries(SCHEDULE)) {
     const runs = today.filter(run => run.job === job);
     const running = lock?.job === job;
-    if (!running && !runs.length && kstMinutes(now) >= hour * 60 + 30)
+    if (!running && !runs.length && runsOn(job, new Date(now)) && kstMinutes(now) >= hour * 60 + 30)
       problems.push({ key: `missed:${job}:${day}`, repeatMinutes: 30, title: `${label(job)} 자동 실행 안 됨`, message: `오늘 ${hour}시 실행이 시작되지 않았습니다. 바로가기나 설정 화면에서 직접 실행할 수 있습니다.` });
     const last = runs.filter(run => run.status !== 'skipped').at(-1);
     if (!running && last?.status === 'failed')

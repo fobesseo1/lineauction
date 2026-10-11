@@ -4,6 +4,12 @@ export const JOBS = ['onbid', 'court'];
 // which lets a logon trigger fire any time without starting a job early.
 export const SCHEDULE_HOURS = { onbid: 10, court: 15 };
 export const kstMinutes = (now = new Date()) => { const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).split(':').map(Number); return h * 60 + m; };
+// KST weekdays each job runs on (0 = Sunday). Court listings change on court business days only;
+// Onbid runs daily while its detail backlog is being filled.
+export const RUN_DAYS = { onbid: [0, 1, 2, 3, 4, 5, 6], court: [1, 2, 3, 4, 5] };
+const WEEKDAY = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+export const kstWeekday = (now = new Date()) => WEEKDAY[new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(now)];
+export const runsOn = (job, now = new Date()) => RUN_DAYS[job].includes(kstWeekday(now));
 export const beforeSchedule = (job, now = new Date()) => kstMinutes(now) < SCHEDULE_HOURS[job] * 60;
 export const koreanDay = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
 
