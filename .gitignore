@@ -51,3 +51,6 @@ docs/qa/
 
 # court photos are served from Supabase Storage (bucket court-media)
 /public/media/court/
+
+# competitor research captures (raw third-party pages and screenshots): keep local only
+/docs/research/
