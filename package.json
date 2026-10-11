@@ -15,7 +15,9 @@
     "court:pipeline": "node scripts/court/pipeline.mjs",
     "court:collect": "node scripts/court/standalone.mjs",
     "court:status": "node scripts/court/standalone-status.mjs",
-    "court:test": "node --test scripts/court/*.test.mjs"
+    "court:test": "node --test scripts/court/*.test.mjs",
+    "complex:collect": "node scripts/complex/collect.mjs",
+    "complex:test": "node --test scripts/complex/*.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
