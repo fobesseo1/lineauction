@@ -20,7 +20,7 @@ test('lock is busy only while its process is alive',()=>{
 });
 test('Korean day boundary and summary text',()=>{
  assert.equal(koreanDay(new Date('2026-10-10T15:30:00Z')),'2026-10-11');
- assert.match(onbidMessage({list:{properties:8907,conditions:26949,refresh:true,added:12,removed:3},detail:{processed:1999,total:8916,remaining:6917},usage:{list:276,detail:1000}}),/신규 12 · 종료 3[\s\S]*남음 6,917[\s\S]*상세 1,000\/1,000/);
+ assert.match(onbidMessage({list:{properties:8907,conditions:26949,refresh:true,added:12,removed:3},lifecycle:{closed:2,recheck:3,restored:0},detail:{processed:1999,total:8916,remaining:6917},usage:{list:276,detail:1000}}),/신규 12 · 사라짐 3[\s\S]*종료 처리 2 · 재확인 필요 3\n[\s\S]*남음 6,917[\s\S]*상세 1,000\/1,000/);
 });
 test('schedule-triggered runs wait for the job hour in KST', async () => {
  const {beforeSchedule}=await import('./core.mjs');

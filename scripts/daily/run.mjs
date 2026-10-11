@@ -68,14 +68,17 @@ try{
  if(job==='onbid'){
   // List refresh (≈276 requests) then detail backfill/new listings up to the daily 1,000.
   const list=await step('onbid-list','scripts/onbid/collect.mjs',['--refresh'],3*3600_000);
+  // Only a completed list pass may mark missing listings (needs-recheck, then closed on day two).
+  const listed=(await readJson('data/onbid/progress.json',{})).status==='list_completed';
+  const lifecycle=listed?await step('onbid-lifecycle','scripts/onbid/lifecycle-sync.mjs',[],10*60_000):null;
   const detail=await step('onbid-detail','scripts/onbid/detail.mjs',[],4*3600_000);
   const progress=await readJson('data/onbid/progress.json',{}),detailState=await readJson('data/onbid/detail-progress.json',{}),budget=await readJson('data/onbid/budget.json',{});
   const {runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt}=progress;
-  run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt},detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
+  run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt},lifecycle:lifecycle?.code===0?progress.lifecycle:null,detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
   const listOk=list.code===0||/LIST_ALREADY_COMPLETED/.test(JSON.stringify(list.result));
   const detailOk=detail.code===0;
   run.status=listOk&&detailOk?'completed':'failed';
-  const message=onbidMessage({list:run.summary.list,detail:run.summary.detail,usage:run.summary.usage});
+  const message=onbidMessage({list:run.summary.list,lifecycle:run.summary.lifecycle,detail:run.summary.detail,usage:run.summary.usage});
   const note=detailState.status==='budget_wait'?'\n오늘 상세 한도를 다 써서 내일 이어서 받습니다.':detailState.status==='completed'?'\n상세 수집이 모두 끝났습니다.':'';
   const failure=[!listOk&&`목록: ${progress.errors?.[0]?.code??list.result}`,!detailOk&&`상세: ${detailState.errors?.[0]?.code??detail.result}`].filter(Boolean).join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message+note:`${failure}\n${message}`);

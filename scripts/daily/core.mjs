@@ -23,9 +23,10 @@ export function lockState(lock, alive) {
 }
 
 const n = value => (Number.isFinite(value) ? value.toLocaleString('ko-KR') : '—');
-export function onbidMessage({ list, detail, usage }) {
+export function onbidMessage({ list, lifecycle, detail, usage }) {
   const parts = [];
-  if (list) parts.push(`목록 ${n(list.properties)}개 물건 · 조건 ${n(list.conditions)}건${list.refresh ? ` (신규 ${n(list.added)} · 종료 ${n(list.removed)})` : ''}`);
+  if (list) parts.push(`목록 ${n(list.properties)}개 물건 · 조건 ${n(list.conditions)}건${list.refresh ? ` (신규 ${n(list.added)} · 사라짐 ${n(list.removed)})` : ''}`);
+  if (lifecycle) parts.push(`종료 처리 ${n(lifecycle.closed)} · 재확인 필요 ${n(lifecycle.recheck)}${lifecycle.restored ? ` · 재등장 ${n(lifecycle.restored)}` : ''}`);
   if (detail) parts.push(`상세 ${n(detail.processed)} / ${n(detail.total)} · 남음 ${n(detail.remaining)}`);
   if (usage) parts.push(`오늘 API 목록 ${n(usage.list)}/1,000 · 상세 ${n(usage.detail)}/1,000`);
   return parts.join('\n');
