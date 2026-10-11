@@ -63,7 +63,7 @@ function step(name,script,args,timeoutMs){
  });
 }
 
-if(trigger==='manual')await notify(`${label} 수동 실행 시작`,'끝나면 결과를 알려드립니다.');
+await notify(`${label} ${trigger==='manual'?'수동':'자동'} 실행 시작`,'진행 상황은 바탕화면 "선경매 진행 상황 보기"에서 볼 수 있습니다.\n끝나면 결과를 알려드립니다.');
 try{
  if(job==='onbid'){
   // List refresh (≈276 requests) then detail backfill/new listings up to the daily 1,000.
