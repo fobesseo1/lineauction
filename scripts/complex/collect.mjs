@@ -16,7 +16,9 @@ if(!['list','basis','detail','all'].includes(phase))throw Error('INVALID_PHASE')
 
 const root='data/complex';
 const LIMITS={list:4800,basis:4800};      // dev account: 5,000 per service per day
-const INTERVAL_MS=350;                    // the gateway rejects bursts with API_23 (per-second limit)
+// The gateway rejects bursts with API_23 (per-second limit), and the K-APT upstream answers
+// API_04 (HTTP_ERROR) after roughly 45 quick calls, then recovers after a pause.
+const INTERVAL_MS=1000;
 const MAX_CONSECUTIVE_ERRORS=5;
 for(const d of ['raw/list','raw/basis','raw/detail'])await mkdir(`${root}/${d}`,{recursive:true});
 const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
@@ -38,6 +40,7 @@ async function request(service,endpoint,params){
  // Every attempt waits, success or not, so an error never turns into a tight retry loop.
  for(let attempt=0;;attempt++){
   await sleep(INTERVAL_MS);
+  if(attempt>0){used[service]++;await writeJson(`${root}/budget.json`,budget);}   // retries count too
   try{
    const r=await fetch(url,{signal:AbortSignal.timeout(20000),redirect:'error'});
    const raw=await r.text();
@@ -45,6 +48,7 @@ async function request(service,endpoint,params){
    try{decode(raw);}      // throws API_xx so callers never cache an error envelope
    catch(e){
     if((e.message==='API_23'||r.status===429)&&attempt<3){await sleep(3000*2**attempt);continue;}
+    if(e.message==='API_04'&&attempt<3){await sleep(60000*2**attempt);continue;}
     throw e;
    }
    return raw;
