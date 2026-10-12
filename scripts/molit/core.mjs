@@ -10,6 +10,12 @@ export const APIS={
  // 연립·다세대 (빌라, 1.5단계). Sales carry landAr (대지권 면적) for the land-share comparison.
  rhSale:{kind:'rh',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade'},
  rhRent:{kind:'rh',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent'},
+ // 상가·건물·토지 section (2단계). Land and 단독 lots are partly masked by MOLIT ("3**"), so they
+ // are compared by 법정동, 용도지역 and size rather than by building.
+ nrgSale:{kind:'nrg',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcNrgTrade/getRTMSDataSvcNrgTrade'},
+ landSale:{kind:'land',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcLandTrade/getRTMSDataSvcLandTrade'},
+ shSale:{kind:'sh',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade'},
+ shRent:{kind:'sh',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcSHRent/getRTMSDataSvcSHRent'},
 };
 
 // Leaf 시군구 codes for the capital area: a city whose 구 are listed separately is not
@@ -57,11 +63,14 @@ export function toRow(apiName,lawd,ym,item){
   api:apiName,kind:api.kind,deal:api.deal,lawd,ym,
   name:text(item.aptNm)??text(item.offiNm)??text(item.mhouseNm),umd:text(item.umdNm),jibun:text(item.jibun),
   apt_seq:text(item.aptSeq),building:text(item.aptDong),
-  area:real(item.excluUseAr),floor:int(item.floor),build_year:int(item.buildYear),
+  area:real(item.excluUseAr)??real(item.buildingAr)??real(item.totalFloorAr)??real(item.dealArea),floor:int(item.floor),build_year:int(item.buildYear),
   deal_date:ymd(item.dealYear,item.dealMonth,item.dealDay),
   amount:manwon(item.dealAmount),deposit:manwon(item.deposit),monthly_rent:manwon(item.monthlyRent),
   dealing:text(item.dealingGbn),cancel_date:cancelDate(item.cdealDay),contract_type:text(item.contractType),
-  land_area:real(item.landAr),house_type:text(item.houseType),
+  land_area:real(item.landAr)??real(item.plottageAr)??real(item.dealArea),house_type:text(item.houseType),
+  building_area:real(item.buildingAr),total_floor_area:real(item.totalFloorAr),
+  use_type:text(item.buildingUse)??text(item.jimok),building_type:text(item.buildingType),
+  zone:text(item.landUse),share:text(item.shareDealingType),
   raw:JSON.stringify(item),
  };
 }

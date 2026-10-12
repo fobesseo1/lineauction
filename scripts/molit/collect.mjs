@@ -19,7 +19,7 @@ if(apiNames.some(a=>!APIS[a]))throw Error('UNKNOWN_API');
 const root='data/molit';await mkdir(root,{recursive:true});
 if(!await singleRun(root,'scripts/molit/collect.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 // The court pipeline also spends apartment-sale calls every day, so that service keeps headroom.
-const LIMITS={aptSale:5000,aptRent:9000,offiSale:9000,offiRent:9000,rhSale:9000,rhRent:9000};
+const LIMITS={aptSale:5000,aptRent:9000,offiSale:9000,offiRent:9000,rhSale:9000,rhRent:9000,nrgSale:9000,landSale:9000,shSale:9000,shRent:9000};
 const RECENT_MONTHS=3,INTERVAL_MS=500,MAX_CONSECUTIVE_ERRORS=5;
 const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -37,11 +37,11 @@ create index if not exists trades_month on trades(api,lawd,ym);
 create index if not exists trades_place on trades(lawd,umd,jibun,kind,deal);
 create table if not exists month_loads(api text, lawd text, ym text, total integer, loaded_at text, primary key(api,lawd,ym));`);
 // Columns added after the first warehouse build (빌라 land share, house type).
-for(const col of ['land_area real','house_type text']){try{db.exec(`alter table trades add column ${col}`);}catch(e){if(!/duplicate column/.test(e.message))throw e;}}
+for(const col of ['land_area real','house_type text','building_area real','total_floor_area real','use_type text','building_type text','zone text','share text']){try{db.exec(`alter table trades add column ${col}`);}catch(e){if(!/duplicate column/.test(e.message))throw e;}}
 const loadOf=db.prepare('select total,loaded_at from month_loads where api=? and lawd=? and ym=?');
 const clearMonth=db.prepare('delete from trades where api=? and lawd=? and ym=?');
-const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,land_area,house_type,raw)
- values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:land_area,:house_type,:raw)`);
+const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,land_area,house_type,building_area,total_floor_area,use_type,building_type,zone,share,raw)
+ values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:land_area,:house_type,:building_area,:total_floor_area,:use_type,:building_type,:zone,:share,:raw)`);
 const recordLoad=db.prepare('insert or replace into month_loads(api,lawd,ym,total,loaded_at) values(?,?,?,?,?)');
 
 async function call(apiName,params){
