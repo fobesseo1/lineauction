@@ -93,15 +93,18 @@ try{
   const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
   const years=await step('build-year','scripts/building-year.mjs',['--limit','3000'],2*3600_000);
+  // 공시가격 for new auction units and complexes, parcel facts for the 상가·건물·토지 section.
+  const official=await step('official-price','scripts/geo/official-price.mjs',['--limit','6000'],3*3600_000);
+  const parcels=await step('parcel-info','scripts/geo/parcel-info.mjs',['--limit','2000'],2*3600_000);
   const analyze=await step('analyze','scripts/molit/analyze.mjs',[],30*60_000);
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   const geo=await step('geo','scripts/geo/coords.mjs',[],3*3600_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   const last=s=>String(s.result??'').slice(0,160);
-  run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
-  run.status=[complex,trades,publish,years,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
-  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`준공연도: ${last(years)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`].join('\n');
+  run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),official:last(official),parcels:last(parcels),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
+  run.status=[complex,trades,publish,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`].join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
