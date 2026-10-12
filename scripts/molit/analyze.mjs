@@ -8,7 +8,7 @@ import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
 import {placeId} from './summary.mjs';
 import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice,sameDong} from './match.mjs';
-import {commercialKind,floorClass,landPrice,housePrice,unitPrice,buildingPrice} from './commercial.mjs';
+import {commercialKind,floorClass,landPrice,housePrice,unitPrice,buildingPrice,houseIncome} from './commercial.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -132,11 +132,14 @@ for(let from=0;;from+=1000){
  if(error)throw Error(error.message);commercialProps.push(...data);if(data.length<1000)break;
 }
 const parcels=new Map();
-for(let from=0;;from+=1000){const {data,error}=await supa.from('parcel_info').select('pnu,zone,plot_area,land_price_per_m2').range(from,from+999);if(error)throw Error(error.message);data.forEach(r=>parcels.set(r.pnu,r));if(data.length<1000)break;}
+for(let from=0;;from+=1000){const {data,error}=await supa.from('parcel_info').select('pnu,zone,plot_area,land_price_per_m2,total_floor_area').range(from,from+999);if(error)throw Error(error.message);data.forEach(r=>parcels.set(r.pnu,r));if(data.length<1000)break;}
 const KIND={land:'land',house:'sh',unit:'nrg',building:'nrg'},MONTHS={land:24,house:24,unit:36,building:36};
-const tradesIn=wh.prepare(`select umd,jibun,area,land_area,zone,use_type,building_type,floor,build_year,amount,dealing,cancel_date,share,deal_date
+const tradesIn=wh.prepare(`select umd,jibun,area,land_area,total_floor_area,zone,use_type,building_type,floor,build_year,amount,dealing,cancel_date,share,deal_date
  from trades where kind=? and lawd=? and deal='sale' and deal_date>=?`);
 const tradeCache=new Map();
+const rentsIn=wh.prepare(`select umd,area,deposit,monthly_rent from trades where kind='sh' and lawd=? and deal='rent' and deal_date>=?`);
+const rentCache=new Map();
+const houseRents=lawd=>{if(!rentCache.has(lawd))rentCache.set(lawd,rentsIn.all(lawd,kstDay(24)));return rentCache.get(lawd);};
 const sinceMonths=m=>kstDay(m);
 const tradesFor=(kind,lawd,months)=>{const k=`${kind}:${lawd}:${months}`;if(!tradeCache.has(k))tradeCache.set(k,tradesIn.all(kind,lawd,sinceMonths(months)));return tradeCache.get(k);};
 stats.commercial={eligible:0,priced:0,basis:{}};
@@ -152,9 +155,14 @@ for(const p of commercialProps){
  const inDong=all.filter(t=>sameDong(t.umd,dong));
  const parcel=parcels.get(p.pnu);
  const area=Number(p.exclusive_area??p.building_area);
- let market=null;
+ let market=null,income=null;
  if(ck==='land')market=landPrice({area:Number(p.land_area),zone:parcel?.zone,jimok:p.usage_type,dong:inDong,lawd:all,officialPerM2:Number(parcel?.land_price_per_m2)||null});
- else if(ck==='house')market=housePrice({landArea:Number(p.land_area),buildYear:p.build_year,dong:inDong,lawd:all});
+ else if(ck==='house'){
+  market=housePrice({landArea:Number(p.land_area),buildYear:p.build_year,dong:inDong,lawd:all});
+  income=houseIncome({rents:houseRents(lawd).filter(t=>sameDong(t.umd,dong)),sales:inDong,floorArea:Number(parcel?.total_floor_area)||null});
+  // Too few comparable plots: fall back to the dong's price per ㎡ of floor area × this house's 연면적.
+  if(!market&&income?.floorPrice)market={priceManwon:income.floorPrice,count:income.sales,confidence:'low',basis:'house-floor'};
+ }
  else if(ck==='unit')market=unitPrice({area,floor:floorClass(text),use:p.usage_type,building:jibun?inDong.filter(t=>t.jibun===jibun):[],dong:inDong});
  else market=buildingPrice({plotArea:Number(parcel?.plot_area??p.land_area),zone:parcel?.zone,dong:inDong,lawd:all});
  if(!market)continue;
@@ -173,7 +181,7 @@ for(const p of commercialProps){
   market_ratio:minimum>0?pct(minimum/marketWon*100):null,discount_rate:discount,
   estimated_price_gap:minimum>0?marketWon-minimum:null,
   transaction_count_3m:null,transaction_count_6m:null,transaction_count_12m:market.count,
-  score_breakdown:{via:market.basis,kind:ck,window:MONTHS[ck],sample:market.count,score:deal?.breakdown??null},
+  score_breakdown:{via:market.basis,kind:ck,window:MONTHS[ck],sample:market.count,score:deal?.breakdown??null,...(income?{income}:{})},
   calculated_at:runAt,
  });
 }

@@ -103,3 +103,18 @@ export function buildingPrice({plotArea,zone,dong=[],lawd=[]}){
 }
 
 export {sameDong};
+
+// Income view for 단독·다가구 in a 법정동: rents are per rented room/unit, sales are whole houses.
+//   rentPerM2Year : median (월세×12 + 보증금×전환율) ÷ 임대면적, 만원/㎡/년 (전환율 5%)
+//   salePerM2     : median 매매가 ÷ 연면적, 만원/㎡
+//   grossYield    : rentPerM2Year ÷ salePerM2 × 100 (%), before vacancy, costs and tax
+//   floorPrice    : salePerM2 × the house's 연면적, a cross-check on the land-based price
+export const DEPOSIT_RATE=0.05;
+export function houseIncome({rents=[],sales=[],floorArea=null}){
+ const r=rents.filter(t=>t.area>0&&(t.monthly_rent>0||t.deposit>0)).map(t=>((t.monthly_rent??0)*12+(t.deposit??0)*DEPOSIT_RATE)/t.area);
+ const s=sales.filter(t=>valid(t)&&t.total_floor_area>0).map(t=>t.amount/t.total_floor_area);
+ if(r.length<5||s.length<5)return null;
+ const rentPerM2Year=median(r),salePerM2=median(s);
+ return {rentPerM2Year:Math.round(rentPerM2Year*10)/10,salePerM2:Math.round(salePerM2),grossYield:Math.round(rentPerM2Year/salePerM2*1000)/10,
+  rents:r.length,sales:s.length,floorPrice:floorArea>0?Math.round(salePerM2*floorArea):null};
+}

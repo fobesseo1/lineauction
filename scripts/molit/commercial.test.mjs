@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {commercialKind,normalizeZone,jimokGroup,floorClass,landPrice,housePrice,unitPrice,buildingPrice} from './commercial.mjs';
+import {commercialKind,normalizeZone,jimokGroup,floorClass,landPrice,housePrice,unitPrice,buildingPrice,houseIncome} from './commercial.mjs';
 
 test('commercialKind splits land, houses, shop units and whole buildings',()=>{
  assert.equal(commercialKind('전답'),'land');assert.equal(commercialKind('임야'),'land');
@@ -41,4 +41,11 @@ test('housePrice and buildingPrice compare land ㎡ prices; unitPrice uses the s
  const unit=[{amount:30000,area:30,building_type:'집합',floor:1,deal_date:'2026-01-01',dealing:'중개거래'},{amount:20000,area:30,building_type:'집합',floor:5,deal_date:'2026-01-01',dealing:'중개거래'}];
  const u=unitPrice({area:40,floor:'1',use:'근린시설',building:unit});
  assert.equal(u.basis,'unit-building');assert.equal(u.priceManwon,40000);assert.equal(u.count,1);
+});
+
+test('houseIncome turns dong rents and sales into a gross yield and a floor-area price',()=>{
+ const rents=[1,2,3,4,5].map(()=>({area:20,monthly_rent:50,deposit:1000}));   // (600+50)/20 = 32.5 만원/㎡/년
+ const sales=[1,2,3,4,5].map(()=>({amount:65000,total_floor_area:100,deal_date:'2026-01-01',dealing:'중개거래'}));   // 650 만원/㎡
+ assert.deepEqual(houseIncome({rents,sales,floorArea:200}),{rentPerM2Year:32.5,salePerM2:650,grossYield:5,rents:5,sales:5,floorPrice:130000});
+ assert.equal(houseIncome({rents:rents.slice(0,3),sales}),null);
 });
