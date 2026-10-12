@@ -112,6 +112,8 @@ try{
    for(const path of ['data/court/standalone/running.lock','data/court/pipeline/running.lock']){const held=await readJson(path,null);if(held&&!alive(held.pid))await unlink(path).catch(()=>{});}
    // 1) List/status refresh of all 16 courts + details/photos for new or due items, 2) DB + MOLIT.
    const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass'],6*3600_000);
+   // Results (매각/유찰) for items whose sale date passed in the last 7 days, before the DB sync.
+   await step('court-past-results','scripts/court/past-results.mjs',[],90*60_000);
    const pipeline=await step('court-pipeline','scripts/court/pipeline-bulk.mjs',['--months=24'],3*3600_000);
    await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
    const collector=await readJson('data/court/standalone/progress.json',{}),latest=await readJson('data/court/pipeline/latest.json',{}),molit=await readJson('data/court/pipeline/molit-request-budget.json',{});

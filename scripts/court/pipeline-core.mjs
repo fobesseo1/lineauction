@@ -17,6 +17,9 @@ export function mapCourtProperty(item) {
     failed_bid_count:item.status.match(/유찰\s*(\d+)회/) ? Number(item.status.match(/유찰\s*(\d+)회/)[1]) : item.status==='신건'?0:null,
     auction_sequence:null, bid_end_at:null, sale_date:/^\d{4}-\d{2}-\d{2}$/.test(item.auctionDate??'')?item.auctionDate:null,
     status:item.status,disposal_method:'법원경매',bulk_bid:item.assets.length>1,exclusive_area:item.detail?.exclusiveAreaM2??null,land_area:landShareM2(item.detail?.raw),
+    // The official result for the current sale date only; an older date's result is stale.
+    last_result:item.resultEvidence&&item.resultEvidence.auctionDate===item.auctionDate?item.resultEvidence.result:null,
+    last_result_date:item.resultEvidence&&item.resultEvidence.auctionDate===item.auctionDate?item.resultEvidence.auctionDate:null,
     source_updated_at:null };
 }
 export function apartmentTarget(item) {
