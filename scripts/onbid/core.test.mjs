@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {scope,decode,rowsOf,identity,toProperty,partitionList,safeOfficialUrl,won,koreanDate} from './core.mjs';
+import {standardPnu,scope,decode,rowsOf,identity,toProperty,partitionList,safeOfficialUrl,won,koreanDate} from './core.mjs';
 const row={cltrMngNo:'2026-1',pbctCdtnNo:'9007199254740993',lctnSdnm:'서울특별시',dspsMthodCd:'0001',cltrUsgLclsCtgrNm:'부동산',apslEvlAmt:'9007199254740993'};
 test('scope rejects rental, other provinces and non-real estate',()=>{assert.ok(scope(row));for(const patch of [{dspsMthodCd:'0002'},{lctnSdnm:'부산광역시'},{cltrUsgLclsCtgrNm:'동산'}])assert.equal(scope({...row,...patch}),false);});
 test('all provinces, bidding methods and private-contract partitions',()=>{const ps=partitionList();assert.equal(ps.length,12);assert.equal(new Set(ps.map(p=>JSON.stringify(p))).size,12);});
@@ -10,3 +10,9 @@ test('XML single-item list is normalized',()=>{assert.equal(rowsOf(decode('<resp
 test('documented no-data alternate envelope is an empty partition, never a positive total',()=>{const e=decode('{"result":{"resultCode":"03","resultMsg":"NODATA_ERROR"}}');assert.equal(e.noData,true);assert.equal(e.body.totalCount,0);assert.equal(rowsOf(e).length,0);assert.throws(()=>decode('{"header":{"resultCode":"03"},"body":{"totalCount":20}}'),/API_03/);});
 test('dates and non-disclosed prices',()=>{assert.equal(koreanDate('202610101200'),'2026-10-10T03:00:00.000Z');assert.throws(()=>koreanDate('202602301200'));assert.equal(won('비공개'),null);assert.equal(won('353,000,000'),'353000000');});
 test('only official HTTPS document/image links',()=>{assert.ok(safeOfficialUrl('https://www.onbid.co.kr/a'));for(const u of ['javascript:alert(1)','http://127.0.0.1/a','https://evil.test/a','https://www.onbid.co.kr.evil.test/a'])assert.equal(safeOfficialUrl(u),null);});
+
+test('standardPnu converts the Onbid land-type digit to the national standard',()=>{
+ assert.equal(standardPnu('4128110100000380013'),'4128110100100380013');
+ assert.equal(standardPnu('4115011000100750003'),'4115011000200750003');
+ assert.equal(standardPnu('123'),'123');assert.equal(standardPnu(null),null);
+});

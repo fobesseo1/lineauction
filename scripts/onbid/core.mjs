@@ -36,10 +36,17 @@ export function koreanDate(v){
  if(t.getUTCFullYear()!==y||t.getUTCMonth()!==m-1||t.getUTCDate()!==d||h>23||min>59||s>59)throw Error('INVALID_DATE');
  return new Date(t.getTime()-9*3600000).toISOString();
 }
+// Onbid writes the land-type digit of a PNU as 0 = regular, 1 = 산; the national standard (used
+// by vworld, the building register and court-derived PNUs) is 1 = regular, 2 = 산.
+export function standardPnu(pnu){
+ if(!/^\d{19}$/.test(pnu??''))return pnu??null;
+ const t={'0':'1','1':'2'}[pnu[10]];
+ return t?pnu.slice(0,10)+t+pnu.slice(11):pnu;
+}
 export function toProperty(r){
  if(!scope(r)||!r.cltrMngNo||!/^\d+$/.test(String(r.pbctCdtnNo)))throw Error('INVALID_SCOPE_OR_IDENTITY');
  const text=v=>v==null||String(v).trim()===''?null:String(v).trim();
  const area=v=>v==null||v===''?null:Number(v);
- return {source:'onbid',source_property_id:r.cltrMngNo,auction_condition_id:String(r.pbctCdtnNo),notice_id:text(r.onbidPbancNo),title:text(r.onbidCltrNm)||r.cltrMngNo,property_type:'real_estate',usage_type:text(r.cltrUsgSclsCtgrNm)||text(r.cltrUsgMclsCtgrNm),section:sectionOf(text(r.cltrUsgSclsCtgrNm)||text(r.cltrUsgMclsCtgrNm)),asset_type:text(r.prptDivNm),address:text(r.zadrNm)||text(r.cltrRadr),sido:r.lctnSdnm,sigungu:text(r.lctnSggnm),dong:text(r.lctnEmdNm),latitude:null,longitude:null,appraisal_price:won(r.apslEvlAmt),minimum_bid_price:won(r.lowstBidPrcIndctCont),failed_bid_count:r.usbdNft==null?null:Number(r.usbdNft),auction_round:text(r.pbctsn),auction_sequence:text(r.pbctNsq),bid_start_at:koreanDate(r.cltrBidBgngDt),bid_end_at:koreanDate(r.cltrBidEndDt),status:text(r.pbctStatNm),status_code:text(r.pbctStatCd),disposal_method:text(r.dspsMthodNm),disposal_code:r.dspsMthodCd,bulk_bid:r.batcBidYn==null?null:r.batcBidYn==='Y',land_area:area(r.landSqms),building_area:area(r.bldSqms),exclusive_area:null,pnu:text(r.ltnoPnu),source_updated_at:koreanDate(r.mdfcnDt)};
+ return {source:'onbid',source_property_id:r.cltrMngNo,auction_condition_id:String(r.pbctCdtnNo),notice_id:text(r.onbidPbancNo),title:text(r.onbidCltrNm)||r.cltrMngNo,property_type:'real_estate',usage_type:text(r.cltrUsgSclsCtgrNm)||text(r.cltrUsgMclsCtgrNm),section:sectionOf(text(r.cltrUsgSclsCtgrNm)||text(r.cltrUsgMclsCtgrNm)),asset_type:text(r.prptDivNm),address:text(r.zadrNm)||text(r.cltrRadr),sido:r.lctnSdnm,sigungu:text(r.lctnSggnm),dong:text(r.lctnEmdNm),latitude:null,longitude:null,appraisal_price:won(r.apslEvlAmt),minimum_bid_price:won(r.lowstBidPrcIndctCont),failed_bid_count:r.usbdNft==null?null:Number(r.usbdNft),auction_round:text(r.pbctsn),auction_sequence:text(r.pbctNsq),bid_start_at:koreanDate(r.cltrBidBgngDt),bid_end_at:koreanDate(r.cltrBidEndDt),status:text(r.pbctStatNm),status_code:text(r.pbctStatCd),disposal_method:text(r.dspsMthodNm),disposal_code:r.dspsMthodCd,bulk_bid:r.batcBidYn==null?null:r.batcBidYn==='Y',land_area:area(r.landSqms),building_area:area(r.bldSqms),exclusive_area:null,pnu:standardPnu(text(r.ltnoPnu)),source_updated_at:koreanDate(r.mdfcnDt)};
 }
 export function safeOfficialUrl(value){try{const u=new URL(value);return u.protocol==='https:'&&['www.onbid.co.kr','onbid.co.kr','open.kamco.or.kr'].includes(u.hostname)&&!u.username&&!u.password?u.href:null;}catch{return null;}}
