@@ -14,7 +14,7 @@ export function mapCourtProperty(item) {
     property_type:item.use,usage_type:item.use,section:sectionOf(item.use,courtSectionText(item)),risk_flags:riskFlags(item.note),asset_type:'부동산',address,sido:region[0]??null,sigungu:region[1]??null,
     dong:legalDong, appraisal_price:String(item.appraisalWon), minimum_bid_price:String(item.minimumBidWon),
     failed_bid_count:item.status.match(/유찰\s*(\d+)회/) ? Number(item.status.match(/유찰\s*(\d+)회/)[1]) : item.status==='신건'?0:null,
-    auction_sequence:null, bid_end_at:null,
+    auction_sequence:null, bid_end_at:null, sale_date:/^\d{4}-\d{2}-\d{2}$/.test(item.auctionDate??'')?item.auctionDate:null,
     status:item.status,disposal_method:'법원경매',bulk_bid:item.assets.length>1,exclusive_area:item.detail?.exclusiveAreaM2??null,
     source_updated_at:null };
 }

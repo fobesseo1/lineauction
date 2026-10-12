@@ -73,6 +73,7 @@ try{
   const listed=(await readJson('data/onbid/progress.json',{})).status==='list_completed';
   const lifecycle=listed?await step('onbid-lifecycle','scripts/onbid/lifecycle-sync.mjs',[],10*60_000):null;
   const detail=await step('onbid-detail','scripts/onbid/detail.mjs',[],4*3600_000);
+  await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
   const progress=await readJson('data/onbid/progress.json',{}),detailState=await readJson('data/onbid/detail-progress.json',{}),budget=await readJson('data/onbid/budget.json',{});
   const {runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt}=progress;
   run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt},lifecycle:lifecycle?.code===0?progress.lifecycle:null,detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
@@ -108,6 +109,7 @@ try{
    // 1) List/status refresh of all 16 courts + details/photos for new or due items, 2) DB + MOLIT.
    const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass'],6*3600_000);
    const pipeline=await step('court-pipeline','scripts/court/pipeline-bulk.mjs',['--months=24'],3*3600_000);
+   await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
    const collector=await readJson('data/court/standalone/progress.json',{}),latest=await readJson('data/court/pipeline/latest.json',{}),molit=await readJson('data/court/pipeline/molit-request-budget.json',{});
    run.summary={collector:{status:collector.status,attempted:collector.attempted,succeeded:collector.succeeded,failed:collector.failed,photos:collector.photos,skipped:collector.skipped,error:collector.error},
     pipeline:{status:latest.status,properties:latest.properties,lifecycle:latest.lifecycle,matchedProperties:latest.matchedProperties,matchedTrades:latest.matchedTrades,unmatched:latest.unmatched,errors:latest.errors?.length??null},
