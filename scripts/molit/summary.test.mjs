@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory} from './summary.mjs';
 
 test('jibunPnu handles plain, sub-lot and mountain lots',()=>{
  assert.equal(jibunPnu('1168010600','316'),'1168010600103160000');
@@ -30,4 +30,13 @@ test('areaStats excludes cancelled and 직거래 sales and computes the jeonse r
 test('periodStart is one year back in KST and placeId is stable',()=>{
  assert.equal(periodStart(new Date('2026-10-12T01:00:00Z')),'2025-10-12');
  assert.equal(placeId('apt','11680','대치동','316'),'apt:11680:대치동:316');
+});
+
+test('monthlyHistory lines up medians with the month list',()=>{
+ const h=monthlyHistory([
+  {deal:'sale',amount:100,deal_date:'2026-01-05',dealing:'중개거래'},{deal:'sale',amount:120,deal_date:'2026-01-20',dealing:'중개거래'},
+  {deal:'sale',amount:999,deal_date:'2026-01-21',dealing:'직거래'},{deal:'rent',deposit:50,monthly_rent:0,deal_date:'2026-03-01'},
+  {deal:'sale',amount:80,deal_date:'2025-01-01',dealing:'중개거래'},
+ ],['2026-01','2026-02','2026-03']);
+ assert.deepEqual(h,{from:'2026-01',sale:'0:110:2',jeonse:'2:50:1'});
 });

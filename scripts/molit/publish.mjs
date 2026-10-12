@@ -7,7 +7,7 @@ import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,monthlyHistory} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -54,7 +54,7 @@ for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_d
 const stats=[],sales=[];
 let group=[],groupKey=null;
 const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|');
- stats.push({place_id:pid,area_type:Number(areaType),...areaStats(group),period_start:start,period_end:end,refreshed_at:runAt});group=[];};
+ stats.push({place_id:pid,area_type:Number(areaType),...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
   from trades where deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
@@ -63,6 +63,19 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
  if(t.deal==='sale'&&t.amount!=null)sales.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
 }
 flush();
+
+// 36-month chart history per building+평형, attached to the stats rows that exist.
+const months=Array.from({length:36},(_,i)=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35+i);return d.toISOString().slice(0,7);});
+const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
+let hGroup=[],hKey=null;
+const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length)row.history=monthlyHistory(hGroup,months);hGroup=[];};
+for(const t of wh.prepare(`select kind,lawd,umd,jibun,area,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
+  from trades where deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
+ const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
+ if(key!==hKey){hFlush();hKey=key;}
+ hGroup.push(t);
+}
+hFlush();
 
 const placeRows=[...places.values()].map(({_d,...p})=>p);
 const matched=placeRows.filter(p=>p.kapt_code).length;

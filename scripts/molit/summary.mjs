@@ -43,3 +43,17 @@ export function periodStart(now){
  const d=new Date(now.getTime()+9*3600000);d.setUTCFullYear(d.getUTCFullYear()-1);
  return d.toISOString().slice(0,10);
 }
+
+// Month-by-month medians for a price chart, stored sparsely to keep the free-tier DB small:
+//   {"from":"2023-11","sale":"0:201000:3,1:192500:5","jeonse":"2:110000:4"}
+// Each entry is <month index from "from">:<median 만원>:<count>; months without trades are left out.
+export function monthlyHistory(trades,months){
+ const index=new Map(months.map((m,i)=>[m,i]));
+ const sale=months.map(()=>[]),jeonse=months.map(()=>[]);
+ for(const t of trades){
+  const i=index.get(t.deal_date?.slice(0,7));if(i===undefined)continue;
+  if(validSale(t))sale[i].push(t.amount);else if(isJeonse(t))jeonse[i].push(t.deposit);
+ }
+ const pack=lists=>lists.map((v,i)=>v.length?`${i}:${median(v)}:${v.length}`:null).filter(Boolean).join(',');
+ return {from:months[0],sale:pack(sale),jeonse:pack(jeonse)};
+}

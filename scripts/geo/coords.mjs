@@ -60,12 +60,18 @@ const missing=[];for(const pnu of wanted)if(!((pnu) in await shardOf(pnu)))missi
 console.log(`places ${places.length} (pnu ${places.filter(p=>p.pnu).length}), complexes ${complexes.length}, properties ${properties.length} (court pnu ${courtPnu.size}); parcels wanted ${wanted.size}, to fetch ${missing.length}`);
 if(plan)process.exit(0);
 
-let fetched=0,stopped=null;const dirty=new Set();
+let fetched=0,timeouts=0,stopped=null;const dirty=new Set();
 for(const pnu of missing){
  if(fetched>=limit)break;
  if(await access(`${root}/STOP`).then(()=>true,()=>false)){stopped='STOP_PRESENT';break;}
  try{
-  const {features}=await vworldFeatures('LP_PA_CBND_BUBUN',{attrFilter:`pnu:=:${pnu}`,geometry:'true'},{size:1});
+  // A slow response is retried twice, then that parcel is skipped (not cached) for the next run.
+  let features=null;
+  for(let attempt=0;attempt<3&&!features;attempt++){
+   try{({features}=await vworldFeatures('LP_PA_CBND_BUBUN',{attrFilter:`pnu:=:${pnu}`,geometry:'true'},{size:1}));}
+   catch(e){if(e.name!=='TimeoutError'&&!/VWORLD_HTTP_5/.test(e.message))throw e;await sleep(5000*(attempt+1));}
+  }
+  if(!features){timeouts++;continue;}
   const f=features[0];
   const shard=await shardOf(pnu);shard[pnu]=f?bboxCenter(f.bbox??boxOf(f.geometry)):null;dirty.add(pnu.slice(0,10));
   fetched++;
@@ -88,4 +94,4 @@ const propertyRows=[];for(const p of properties){const pnu=propertyPnu(p);const 
 await applyGeo('market_places',placeRows);
 await applyGeo('complexes',complexRows);
 await applyGeo('properties',propertyRows);
-console.log(`DONE fetched ${fetched}${stopped?` (stopped: ${stopped})`:''}; coordinates: places ${placeRows.length}, complexes ${complexRows.length}, properties ${propertyRows.length}`);
+console.log(`DONE fetched ${fetched}, skipped after timeouts ${timeouts}${stopped?` (stopped: ${stopped})`:''}; coordinates: places ${placeRows.length}, complexes ${complexRows.length}, properties ${propertyRows.length}`);
