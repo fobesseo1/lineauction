@@ -10,7 +10,7 @@ export function OnbidMonitor(){
  const tiles=(items:[string,number|undefined][])=> <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{items.map(([label,v])=><div className="rounded-xl bg-muted p-4" key={label}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold">{num(v)}</p></div>)}</div>;
  const d=p?.detail;
  return <Card className="border-0 shadow-none"><CardContent className="space-y-5">
-  <div className="flex justify-between gap-3"><h2>온비드 · 서울·경기 부동산 매각</h2><span className="text-sm">{p?.status==='list_completed'?'목록 완료':p?.status==='running'?'목록 수집 중':'목록 상태 확인 중'} · {labels[p?.detailStatus??'pending']??p?.detailStatus}</span></div>
+  <div className="flex justify-between gap-3"><h2>온비드 · 서울·경기·인천 부동산 매각</h2><span className="text-sm">{p?.status==='list_completed'?'목록 완료':p?.status==='running'?'목록 수집 중':'목록 상태 확인 중'} · {labels[p?.detailStatus??'pending']??p?.detailStatus}</span></div>
   {tiles([['전체 중복 제거 물건',p?.properties],['공매조건별 자료',p?.conditions],['저장 목록 페이지',p?.pages],['목록 DB 처리 자료',p?.dbRows]])}
   <div className="space-y-2"><p className="text-sm">목록 조회 {p?.status==='list_completed'?'완료 · 100%':'진행 중'}</p><progress aria-label="목록 수집 진행" className="h-2 w-full accent-rausch" value={p?.status==='list_completed'?1:0} max={1}/></div>
   <div className="space-y-2"><div className="flex justify-between text-sm"><span>상세 확인 {num(d?.processed)} / {num(d?.total)} 물건</span><span>남음 {num(d?.remaining)} 물건</span></div><progress className="h-2 w-full accent-rausch" value={d?.processed??0} max={d?.total||1}/></div>

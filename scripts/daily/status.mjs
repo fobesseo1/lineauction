@@ -22,7 +22,7 @@ async function render(){
   const now=order.find(s=>!done.includes(s));
   lines.push(`▶ 실행 중: ${({onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'})[current.job]??current.job} (${current.trigger==='manual'?'수동':'자동'}, ${time(current.startedAt)} 시작)`);
   lines.push(`  지금 단계: ${stepKo[now]??'마무리 중'}  [${order.map(s=>done.includes(s)?'✔':s===now?'…':'·').join(' ')}]`);
-  if(current.job==='onbid'&&now==='onbid-list'&&onbid)lines.push(`  목록: 구간 ${n(onbid.partition)}/8 · ${n(onbid.pages)}쪽 · 요청 ${n(onbid.requests)}회 · 마지막 진행 ${time(onbid.updatedAt)}${ago(onbid.updatedAt)}`);
+  if(current.job==='onbid'&&now==='onbid-list'&&onbid)lines.push(`  목록: 구간 ${n(onbid.partition)}/12 · ${n(onbid.pages)}쪽 · 요청 ${n(onbid.requests)}회 · 마지막 진행 ${time(onbid.updatedAt)}${ago(onbid.updatedAt)}`);
   if(current.job==='onbid'&&now==='onbid-detail'&&detail)lines.push(`  상세: ${n(detail.processed)} / ${n(detail.total)} (남음 ${n(detail.remaining)}) · 지금 ${detail.current??'—'} · 마지막 진행 ${time(detail.updatedAt)}${ago(detail.updatedAt)}`);
   if(current.job==='court'&&now==='court-list'&&court)lines.push(`  법원: ${court.current?.court??'—'} ${court.current?.page?`${court.current.page}쪽`:''} · 확인 ${n(court.attempted)}건 (성공 ${n(court.succeeded)} · 실패 ${n(court.failed)}) · 새 사진 ${n(court.photos)}장 · 건너뜀 ${n(court.skipped)}`);
   if(current.job==='court'&&now==='court-pipeline')lines.push('  DB 반영과 국토부 실거래 조회 중 (보통 수 분)');

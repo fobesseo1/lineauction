@@ -7,7 +7,7 @@ const id=process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID,key=process.env.NAVER_MAP_C
 if(!id||!key)throw Error('Map credentials unavailable');
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false}});
 const properties=[];
-for(let offset=0;;offset+=500){const {data,error}=await db.from('properties_catalog').select('address').eq('source','court').in('sido',['서울특별시','경기도']).range(offset,offset+499);if(error)throw Error('Public address query failed');properties.push(...data);if(data.length<500)break;}
+for(let offset=0;;offset+=500){const {data,error}=await db.from('properties_catalog').select('address').eq('source','court').in('sido',['서울특별시','경기도','인천광역시']).range(offset,offset+499);if(error)throw Error('Public address query failed');properties.push(...data);if(data.length<500)break;}
 const queries=[...new Set(properties.filter(p=>p.address&&p.address.split(' / ').every(a=>/^(서울특별시|경기도)\s/.test(a.trim()))).map(p=>mapAddress(p.address.split(' / ')[0])))];
 await mkdir('data/maps',{recursive:true});await mkdir('public/maps',{recursive:true});
 let cache={};try{cache=JSON.parse(await readFile('data/maps/public-position-audit.json','utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}

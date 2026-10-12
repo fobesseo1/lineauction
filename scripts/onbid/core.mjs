@@ -4,7 +4,9 @@ import {sectionOf} from '../property-section.mjs';
 export const LIST_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstListSrvc2/getRlstCltrList2';
 export const DETAIL_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstDtlSrvc2/getRlstDtlInf2';
 export const PROPERTY_CODES='0007,0010,0005,0004,0002,0003,0006,0008,0011,0013';
-export const scope=r=>['서울특별시','경기도'].includes(r.lctnSdnm)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
+// Capital area. 인천 added 2026-10-12 (list ~+15%, details join the deadline-ordered queue).
+export const REGIONS=['서울특별시','경기도','인천광역시'];
+export const scope=r=>REGIONS.includes(r.lctnSdnm)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
 export const identity=r=>`${r.cltrMngNo}:${r.pbctCdtnNo}`;
 // Only these payload fields are read back from the DB (onbid_public_detail and cover
 // publishing). Full responses stay in the local raw cache, which keeps the DB small.
@@ -25,7 +27,7 @@ export function decode(raw){
  return e;
 }
 export function rowsOf(e){const v=e.body?.items?.item;return Array.isArray(v)?v:v?[v]:[];}
-export function partitionList(){return ['서울특별시','경기도'].flatMap(region=>['0001','0002'].flatMap(bid=>['N','Y'].map(privateContract=>({region,bid,privateContract}))));}
+export function partitionList(){return REGIONS.flatMap(region=>['0001','0002'].flatMap(bid=>['N','Y'].map(privateContract=>({region,bid,privateContract}))));}
 export function won(v){if(v==null||v==='')return null;const s=String(v).replace(/,/g,'').trim();return /^\d+$/.test(s)&&BigInt(s)<10n**30n?s:null;}
 export function koreanDate(v){
  if(!v)return null;if(!/^\d{12}(\d{2})?$/.test(v))throw Error('INVALID_DATE');

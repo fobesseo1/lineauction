@@ -6,7 +6,7 @@ process.loadEnvFile('.env.local');
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
 let published=0,missing=0;
 for(let offset=0;;offset+=500){
- const result=await db.from('onbid_observations').select('property_id,observed_at,list_payload,property:properties!inner(source,sido,title)').eq('property.source','onbid').in('property.sido',['서울특별시','경기도']).order('property_id').range(offset,offset+499);
+ const result=await db.from('onbid_observations').select('property_id,observed_at,list_payload,property:properties!inner(source,sido,title)').eq('property.source','onbid').in('property.sido',['서울특별시','경기도','인천광역시']).order('property_id').range(offset,offset+499);
  if(result.error)throw Error(`Saved cover read failed: ${result.error.code}`);
  const rows=[];
  for(const saved of result.data){

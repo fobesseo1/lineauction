@@ -1,6 +1,7 @@
 // Marks Onbid conditions that dropped out of the latest complete list pass. Runs after each list
 // refresh (collect.mjs) and can be run alone; it makes no Onbid API requests.
 import {readFile} from 'node:fs/promises';
+import {REGIONS} from './core.mjs';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from './atomic.mjs';
 import {trackMissing} from './lifecycle-core.mjs';
@@ -14,7 +15,7 @@ const listed=Object.keys(await read('targets.json',{}));
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const ids=new Map();
 for(let offset=0;;offset+=1000){
- const {data,error}=await db.from('properties').select('id,source_property_id,auction_condition_id').eq('source','onbid').in('sido',['서울특별시','경기도']).order('id').range(offset,offset+999);
+ const {data,error}=await db.from('properties').select('id,source_property_id,auction_condition_id').eq('source','onbid').in('sido',REGIONS).order('id').range(offset,offset+999);
  if(error)throw Error(`DB_LOOKUP_${error.code}`);
  for(const r of data)ids.set(`${r.source_property_id}:${r.auction_condition_id}`,r.id);
  if(data.length<1000)break;
