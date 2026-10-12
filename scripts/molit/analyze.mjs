@@ -8,6 +8,7 @@ import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
 import {placeId} from './summary.mjs';
 import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice,sameDong} from './match.mjs';
+import {commercialKind,floorClass,landPrice,housePrice,unitPrice,buildingPrice} from './commercial.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -123,6 +124,60 @@ for(const p of properties){
   calculated_at:runAt,
  });
 }
+// ---- 상가·건물·토지 section (2단계): land, 단독·다가구, shop units and whole buildings.
+const commercialProps=[];
+for(let from=0;;from+=1000){
+ const {data,error}=await supa.from('properties').select('id,source,usage_type,title,section,address,dong,pnu,exclusive_area,building_area,land_area,build_year,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
+  .eq('section','commercial').eq('is_current',true).in('sido',['서울특별시','경기도','인천광역시']).order('id').range(from,from+999);
+ if(error)throw Error(error.message);commercialProps.push(...data);if(data.length<1000)break;
+}
+const parcels=new Map();
+for(let from=0;;from+=1000){const {data,error}=await supa.from('parcel_info').select('pnu,zone,plot_area').range(from,from+999);if(error)throw Error(error.message);data.forEach(r=>parcels.set(r.pnu,r));if(data.length<1000)break;}
+const KIND={land:'land',house:'sh',unit:'nrg',building:'nrg'},MONTHS={land:24,house:24,unit:36,building:36};
+const tradesIn=wh.prepare(`select umd,jibun,area,land_area,zone,use_type,building_type,floor,build_year,amount,dealing,cancel_date,share,deal_date
+ from trades where kind=? and lawd=? and deal='sale' and deal_date>=?`);
+const tradeCache=new Map();
+const sinceMonths=m=>kstDay(m);
+const tradesFor=(kind,lawd,months)=>{const k=`${kind}:${lawd}:${months}`;if(!tradeCache.has(k))tradeCache.set(k,tradesIn.all(kind,lawd,sinceMonths(months)));return tradeCache.get(k);};
+stats.commercial={eligible:0,priced:0,basis:{}};
+for(const p of commercialProps){
+ const text=`${p.address??''} ${p.title??''}`;
+ const ck=commercialKind(p.usage_type,text);if(!ck)continue;
+ let lawd=null,dong=p.dong,jibun=null;
+ if(p.source==='onbid'){const lot=pnuLot(p.pnu);lawd=lot?.lawd??null;jibun=lot?.jibun??null;}
+ else{lawd=lawdsOf(p.address)[0]??null;const a=courtAddress(p.address);dong=a.dong??dong;jibun=a.jibun;}
+ if(!lawd||!dong)continue;
+ stats.commercial.eligible++;
+ const all=tradesFor(KIND[ck],lawd,MONTHS[ck]);
+ const inDong=all.filter(t=>sameDong(t.umd,dong));
+ const parcel=parcels.get(p.pnu);
+ const area=Number(p.exclusive_area??p.building_area);
+ let market=null;
+ if(ck==='land')market=landPrice({area:Number(p.land_area),zone:parcel?.zone,jimok:p.usage_type,dong:inDong,lawd:all});
+ else if(ck==='house')market=housePrice({landArea:Number(p.land_area),buildYear:p.build_year,dong:inDong,lawd:all});
+ else if(ck==='unit')market=unitPrice({area,floor:floorClass(text),use:p.usage_type,building:jibun?inDong.filter(t=>t.jibun===jibun):[],dong:inDong});
+ else market=buildingPrice({plotArea:Number(parcel?.plot_area??p.land_area),zone:parcel?.zone,dong:inDong,lawd:all});
+ if(!market)continue;
+ stats.commercial.priced++;stats.commercial.basis[market.basis]=(stats.commercial.basis[market.basis]??0)+1;
+ const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
+ const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
+ const discount=minimum>0?pct((1-minimum/marketWon)*100):null;
+ // v1: land, houses, shops and buildings vary too much for a comparable set to be more than a
+ // reference, so every 2단계 price is shown as 참고용 (low) whatever the sample size.
+ const confidence='low';
+ const deal=dealScore({discount,confidence,riskFlags:p.risk_flags,failedBids:p.failed_bid_count??0});
+ rows.push({
+  property_id:p.id,place_id:null,area_type:ck==='unit'&&area>0?Math.floor(area):null,confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
+  market_price:marketWon,market_price_method:`${market.basis}-${MONTHS[ck]}m`,
+  appraisal_ratio:appraisal>0&&minimum>0?pct(minimum/appraisal*100):null,
+  market_ratio:minimum>0?pct(minimum/marketWon*100):null,discount_rate:discount,
+  estimated_price_gap:minimum>0?marketWon-minimum:null,
+  transaction_count_3m:null,transaction_count_6m:null,transaction_count_12m:market.count,
+  score_breakdown:{via:market.basis,kind:ck,window:MONTHS[ck],sample:market.count,score:deal?.breakdown??null},
+  calculated_at:runAt,
+ });
+}
+
 console.log(JSON.stringify(stats));
 if(dryRun){wh.close();process.exit(0);}
 
