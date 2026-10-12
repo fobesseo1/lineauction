@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore} from './match.mjs';
+import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice} from './match.mjs';
 
-test('tradeKind maps uses to MOLIT datasets and skips 빌라 for now',()=>{
+test('tradeKind maps uses to MOLIT datasets',()=>{
  assert.equal(tradeKind('아파트','apartment'),'apt');
  assert.equal(tradeKind('도시형생활주택','apartment'),'apt');
  assert.equal(tradeKind('오피스텔','apartment'),'offi');
  assert.equal(tradeKind('상가,오피스텔,근린시설','apartment'),'offi');
- assert.equal(tradeKind('다세대','apartment'),null);
+ assert.equal(tradeKind('다세대','apartment'),'rh');assert.equal(tradeKind('연립주택,다세대,빌라','apartment'),'rh');
  assert.equal(tradeKind('아파트','commercial'),null);
 });
 
@@ -68,4 +68,16 @@ test('dealScore ranks a clean 25% discount above a troubled 90% discount',()=>{
  assert.equal(dealScore({discount:70,confidence:'high'}).score,90);
  assert.equal(dealScore({discount:-20,confidence:'low'}).grade,'D');
  assert.equal(dealScore({discount:null}),null);
+});
+
+test('villaPrice scales the building or dong price per ㎡ to the unit area',()=>{
+ const s=(d,amount,area,build_year=2015)=>({deal_date:d,amount,area,build_year});
+ const since12='2025-10-12';
+ const b=villaPrice({area:50,building:[s('2026-03-01',25000,49),s('2026-05-01',27000,51),s('2024-01-01',10000,50)],since12});
+ assert.equal(b.basis,'building');assert.equal(b.count,2);assert.equal(b.confidence,'low');
+ assert.equal(b.priceManwon,Math.round((25000/49+27000/51)/2)*50);  // median() rounds the per-㎡ price
+ const dong=[1,2,3,4,5].map(i=>s('2026-0'+i+'-01',20000,40+i,2014)).concat([s('2026-06-01',99999,45,1990)]);
+ const d=villaPrice({area:45,dong,buildYear:2015,since12});
+ assert.equal(d.basis,'dong');assert.equal(d.count,5);assert.equal(d.confidence,'low');
+ assert.equal(villaPrice({area:45,dong:dong.slice(0,3),since12}),null);
 });

@@ -7,7 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
 import {placeId} from './summary.mjs';
-import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore} from './match.mjs';
+import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice,sameDong} from './match.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -26,6 +26,14 @@ for(const r of wh.prepare('select distinct kind,lawd,umd,jibun,name from trades 
 }
 const salesOf=wh.prepare(`select deal_date,amount,area from trades where kind=? and lawd=? and umd=? and jibun=? and deal='sale'
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
+
+// 빌라: same-building sales and, per 시군구, all villa sales for the dong comparison.
+const villaBuilding=wh.prepare(`select deal_date,amount,area,build_year from trades where kind='rh' and lawd=? and umd=? and jibun=? and deal='sale'
+ and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
+const villaLawd=wh.prepare(`select umd,deal_date,amount,area,build_year from trades where kind='rh' and lawd=? and deal='sale'
+ and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
+const villaLawdCache=new Map();
+const villaSalesIn=lawd=>{if(!villaLawdCache.has(lawd))villaLawdCache.set(lawd,villaLawd.all(lawd,since[12]));return villaLawdCache.get(lawd);};
 
 // 시군구 code(s) from the start of a court address ("경기도 용인시 처인구 ...").
 function lawdsOf(address){
@@ -56,6 +64,32 @@ for(const p of properties){
  }else{
   const a=courtAddress(p.address);
   for(const lawd of lawdsOf(p.address)){hit=findPlace(placesBy.get(`${kind}:${lawd}`)??[],{lawd,...a,kind});if(hit)break;}
+ }
+ if(kind==='rh'){
+  // Building methodology: same building first, else the same 법정동 by price per ㎡.
+  const lawd=p.source==='onbid'?pnuLot(p.pnu)?.lawd:(hit?.place.lawd??lawdsOf(p.address)[0]);
+  const dong=hit?.place.umd??(p.source==='onbid'?p.dong:courtAddress(p.address).dong);
+  if(!lawd||!dong)continue;
+  const building=hit?villaBuilding.all(lawd,hit.place.umd,hit.place.jibun,since[12]):[];
+  const market=villaPrice({area,building,dong:villaSalesIn(lawd).filter(s=>sameDong(s.umd,dong)),buildYear:building[0]?.build_year??null,since12:since[12]});
+  if(!market)continue;
+  stats.linked++;stats.priced++;stats.villa=(stats.villa??0)+1;
+  const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
+  const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
+  const discount=minimum>0?pct((1-minimum/marketWon)*100):null;
+  const confidence=outlier(discount)?'low':market.confidence;
+  const deal=dealScore({discount,confidence,riskFlags:p.risk_flags,failedBids:p.failed_bid_count??0});
+  rows.push({
+   property_id:p.id,place_id:null,area_type:Math.floor(area),confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
+   market_price:marketWon,market_price_method:`villa-${market.basis}-12m`,
+   appraisal_ratio:appraisal>0&&minimum>0?pct(minimum/appraisal*100):null,
+   market_ratio:minimum>0?pct(minimum/marketWon*100):null,discount_rate:discount,
+   estimated_price_gap:minimum>0?marketWon-minimum:null,
+   transaction_count_3m:null,transaction_count_6m:null,transaction_count_12m:market.count,
+   score_breakdown:{via:hit?.via??'dong',window:12,sample:market.count,basis:market.basis,villaBuilding:hit?.place.id??null,score:deal?.breakdown??null},
+   calculated_at:runAt,
+  });
+  continue;
  }
  if(!hit)continue;
  stats.linked++;stats.via[hit.via]=(stats.via[hit.via]??0)+1;

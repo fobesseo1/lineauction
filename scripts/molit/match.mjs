@@ -2,12 +2,13 @@
 // turning that building's sales into a discount. Amounts from MOLIT are 만원; properties are 원.
 import {normalizeName,median} from './summary.mjs';
 
-// Which MOLIT dataset a property's use is filed under. 빌라 waits for the rowhouse stage.
+// Which MOLIT dataset a property's use is filed under (rh = 연립·다세대, compared by villaPrice).
 export function tradeKind(usage,section){
  const u=String(usage??'');
  if(section!=='apartment')return null;
  if(/오피스텔/.test(u))return 'offi';
  if(/^(아파트|도시형생활주택|주상복합)$/.test(u))return 'apt';
+ if(VILLA_USES.test(u))return 'rh';
  return null;
 }
 
@@ -90,4 +91,19 @@ export function dealScore({discount,confidence,riskFlags=[],failedBids=0}){
  const score=Math.max(0,Math.min(100,20+discountPoints+confidencePoints-riskPoints-failedPoints-deepPoints));
  const grade=score>=80?'S':score>=65?'A':score>=50?'B':score>=35?'C':'D';
  return {score,grade,breakdown:{base:20,discountPoints,confidencePoints,riskPoints:-riskPoints,failedPoints:-failedPoints,deepPoints:-deepPoints}};
+}
+
+// 빌라 (연립·다세대) use the building methodology: villas rarely repeat a sale in the same building
+// and size, so price per ㎡ is compared and scaled to the unit's area.
+//   building: same lot, area within ±3㎡, last 12 months (3+ → medium, 1-2 → low)
+//   dong    : same 법정동, build year within ±5 (when known), area within ±30%, 5+ sales → low
+export const VILLA_USES=/^(다세대|다세대주택|연립주택|연립주택,다세대,빌라|빌라)$/;
+export function villaPrice({area,building=[],dong=[],buildYear=null,since12}){
+ const perM2=list=>median(list.map(s=>s.amount/s.area));
+ const recent=list=>list.filter(s=>s.deal_date>=since12&&s.area>0);
+ const same=recent(building).filter(s=>Math.abs(s.area-area)<=3);
+ if(same.length)return {priceManwon:Math.round(perM2(same)*area),window:12,count:same.length,confidence:same.length>=3?'medium':'low',basis:'building'};
+ const near=recent(dong).filter(s=>Math.abs(s.area-area)<=area*0.3&&(buildYear==null||s.build_year==null||Math.abs(s.build_year-buildYear)<=5));
+ if(near.length>=5)return {priceManwon:Math.round(perM2(near)*area),window:12,count:near.length,confidence:'low',basis:'dong'};
+ return null;
 }
