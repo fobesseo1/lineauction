@@ -47,14 +47,24 @@ const conf=(n,mediumAt)=>n>=mediumAt?'medium':'low';
 
 // Each returns {priceManwon, count, confidence, basis} or null. `dong` / `lawd` are the subject's
 // 법정동 sales and its whole 시군구 sales of the matching MOLIT dataset, already date-filtered.
-export function landPrice({area,zone,jimok,dong=[],lawd=[]}){
+// A land ㎡ price far from the parcel's own 개별공시지가 means the comparables are a different kind
+// of land (e.g. forest next to development plots). Market prices sit around 0.5–4× 공시지가.
+export function plausibleLand(priceManwon,area,officialPerM2){
+ if(!(officialPerM2>0))return true;
+ const ratio=priceManwon*10000/area/officialPerM2;
+ return ratio>=0.5&&ratio<=4;
+}
+
+export function landPrice({area,zone,jimok,dong=[],lawd=[],officialPerM2=null}){
  if(!(area>0))return null;
  const z=normalizeZone(zone),g=jimokGroup(jimok);
  const fit=t=>valid(t)&&t.land_area>0&&t.land_area>=area*0.3&&t.land_area<=area*3&&(!z||normalizeZone(t.zone)===z)&&(!g||jimokGroup(t.use_type)===g);
  const near=dong.filter(fit);
- if(near.length>=5)return {priceManwon:priceOf(near,t=>t.land_area,area),count:near.length,confidence:conf(near.length,10),basis:'land-dong'};
- const wide=lawd.filter(fit);
- if(wide.length>=8)return {priceManwon:priceOf(wide,t=>t.land_area,area),count:wide.length,confidence:'low',basis:'land-sigungu'};
+ const ok=r=>plausibleLand(r.priceManwon,area,officialPerM2)?r:null;
+ if(near.length>=5)return ok({priceManwon:priceOf(near,t=>t.land_area,area),count:near.length,confidence:conf(near.length,10),basis:'land-dong'});
+ // Without a known zone the 시군구 mixes too many kinds of land.
+ const wide=z?lawd.filter(fit):[];
+ if(wide.length>=8)return ok({priceManwon:priceOf(wide,t=>t.land_area,area),count:wide.length,confidence:'low',basis:'land-sigungu'});
  return null;
 }
 

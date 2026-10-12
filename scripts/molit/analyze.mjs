@@ -132,7 +132,7 @@ for(let from=0;;from+=1000){
  if(error)throw Error(error.message);commercialProps.push(...data);if(data.length<1000)break;
 }
 const parcels=new Map();
-for(let from=0;;from+=1000){const {data,error}=await supa.from('parcel_info').select('pnu,zone,plot_area').range(from,from+999);if(error)throw Error(error.message);data.forEach(r=>parcels.set(r.pnu,r));if(data.length<1000)break;}
+for(let from=0;;from+=1000){const {data,error}=await supa.from('parcel_info').select('pnu,zone,plot_area,land_price_per_m2').range(from,from+999);if(error)throw Error(error.message);data.forEach(r=>parcels.set(r.pnu,r));if(data.length<1000)break;}
 const KIND={land:'land',house:'sh',unit:'nrg',building:'nrg'},MONTHS={land:24,house:24,unit:36,building:36};
 const tradesIn=wh.prepare(`select umd,jibun,area,land_area,zone,use_type,building_type,floor,build_year,amount,dealing,cancel_date,share,deal_date
  from trades where kind=? and lawd=? and deal='sale' and deal_date>=?`);
@@ -153,7 +153,7 @@ for(const p of commercialProps){
  const parcel=parcels.get(p.pnu);
  const area=Number(p.exclusive_area??p.building_area);
  let market=null;
- if(ck==='land')market=landPrice({area:Number(p.land_area),zone:parcel?.zone,jimok:p.usage_type,dong:inDong,lawd:all});
+ if(ck==='land')market=landPrice({area:Number(p.land_area),zone:parcel?.zone,jimok:p.usage_type,dong:inDong,lawd:all,officialPerM2:Number(parcel?.land_price_per_m2)||null});
  else if(ck==='house')market=housePrice({landArea:Number(p.land_area),buildYear:p.build_year,dong:inDong,lawd:all});
  else if(ck==='unit')market=unitPrice({area,floor:floorClass(text),use:p.usage_type,building:jibun?inDong.filter(t=>t.jibun===jibun):[],dong:inDong});
  else market=buildingPrice({plotArea:Number(parcel?.plot_area??p.land_area),zone:parcel?.zone,dong:inDong,lawd:all});

@@ -25,6 +25,10 @@ test('landPrice prefers the dong, then the 시군구, by price per ㎡',()=>{
  assert.equal(r.basis,'land-dong');assert.equal(r.priceManwon,20000);assert.equal(r.confidence,'low');
  const lawd=[...Array(8)].map(()=>land(5000,100));
  assert.equal(landPrice({area:100,zone:'제2종일반주거지역',jimok:'대',dong:dong.slice(0,2),lawd}).basis,'land-sigungu');
+ assert.equal(landPrice({area:100,zone:null,jimok:'대',dong:dong.slice(0,2),lawd}),null);   // no zone → dong only
+ // 100만원/㎡ against a 20만원/㎡ 공시지가 is 5× → dropped; against 50만원/㎡ it is 2× → kept
+ assert.equal(landPrice({area:200,zone:'제2종일반주거지역',jimok:'대',dong,officialPerM2:200000}),null);
+ assert.equal(landPrice({area:200,zone:'제2종일반주거지역',jimok:'대',dong,officialPerM2:500000}).basis,'land-dong');
  assert.equal(landPrice({area:100,zone:'일반상업지역',jimok:'대',dong}),null);
  assert.equal(landPrice({area:100,zone:null,jimok:'대',dong:[...dong.slice(0,4),land(1,100,{share:'지분'})]}),null);
 });
