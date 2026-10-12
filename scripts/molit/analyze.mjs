@@ -7,7 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
 import {placeId} from './summary.mjs';
-import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier} from './match.mjs';
+import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore} from './match.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -38,7 +38,7 @@ function lawdsOf(address){
 const refreshed=await supa.rpc('refresh_current_rounds');if(refreshed.error)throw Error(refreshed.error.message);
 const properties=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('properties').select('id,source,usage_type,section,address,sido,dong,pnu,exclusive_area,building_area,minimum_bid_price,appraisal_price')
+ const {data,error}=await supa.from('properties').select('id,source,usage_type,section,address,sido,dong,pnu,exclusive_area,building_area,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
   .eq('section','apartment').eq('is_current',true).in('sido',['서울특별시','경기도','인천광역시']).order('id').range(from,from+999);
  if(error)throw Error(error.message);properties.push(...data);if(data.length<1000)break;
 }
@@ -74,15 +74,18 @@ for(const p of properties){
  const marketWon=market?market.priceManwon*10000:null;
  const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
  if(market)stats.priced++,stats.confidence[market.confidence]=(stats.confidence[market.confidence]??0)+1;
+ const discount=marketWon&&minimum>0?pct((1-minimum/marketWon)*100):null;
+ const confidence=market?(outlier(discount)?'low':market.confidence):null;
+ const deal=dealScore({discount,confidence,riskFlags:p.risk_flags,failedBids:p.failed_bid_count??0});
  rows.push({
-  property_id:p.id,place_id:place.id,area_type:type,confidence:market?(outlier(marketWon&&minimum>0?(1-minimum/marketWon)*100:null)?'low':market.confidence):null,
+  property_id:p.id,place_id:place.id,area_type:type,confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
   market_price:marketWon,market_price_method:market?`median-${market.window}m`:'no-recent-sales',
   appraisal_ratio:appraisal>0&&minimum>0?pct(minimum/appraisal*100):null,
   market_ratio:marketWon&&minimum>0?pct(minimum/marketWon*100):null,
-  discount_rate:marketWon&&minimum>0?pct((1-minimum/marketWon)*100):null,
+  discount_rate:discount,
   estimated_price_gap:marketWon&&minimum>0?marketWon-minimum:null,
   transaction_count_3m:count(3),transaction_count_6m:count(6),transaction_count_12m:count(12),
-  score_breakdown:{via:hit.via,window:market?.window??null,sample:market?.count??0,neighbourType:type!==areaType},
+  score_breakdown:{via:hit.via,window:market?.window??null,sample:market?.count??0,neighbourType:type!==areaType,score:deal?.breakdown??null},
   calculated_at:runAt,
  });
 }

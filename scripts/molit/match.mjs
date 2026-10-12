@@ -73,3 +73,21 @@ export function shopFloor(usage,address){
 
 // A minimum bid far above the building's sales usually means the wrong unit type was compared.
 export const outlier=discount=>discount!=null&&discount<-30;
+
+// Recommendation score (0-100) so "cheap and clean" ranks above "very cheap but troubled".
+//   discount  : up to 60 points, capped at a 50% discount (deeper cuts usually mean problems)
+//   confidence: high +20, medium +10, low 0
+//   penalties : rights warnings, repeated failed bids (5+ −20, 8+ −35), a discount over 60% (−10)
+// Grade: S >= 80, A >= 65, B >= 50, C >= 35, D below.
+export const RISK_PENALTY={지분매각:30,유치권:20,선순위:20,법정지상권:20,위반건축물:10,대지권미등기:10,토지별도등기:10};
+export function dealScore({discount,confidence,riskFlags=[],failedBids=0}){
+ if(discount==null)return null;
+ const discountPoints=Math.round(Math.max(0,Math.min(discount,50))/50*60);
+ const confidencePoints={high:20,medium:10,low:0}[confidence]??0;
+ const riskPoints=(riskFlags??[]).reduce((s,f)=>s+(RISK_PENALTY[f]??10),0);
+ const failedPoints=failedBids>=8?35:failedBids>=5?20:0;
+ const deepPoints=discount>60?10:0;   // a cut this deep is itself a sign of a hidden problem
+ const score=Math.max(0,Math.min(100,20+discountPoints+confidencePoints-riskPoints-failedPoints-deepPoints));
+ const grade=score>=80?'S':score>=65?'A':score>=50?'B':score>=35?'C':'D';
+ return {score,grade,breakdown:{base:20,discountPoints,confidencePoints,riskPoints:-riskPoints,failedPoints:-failedPoints,deepPoints:-deepPoints}};
+}

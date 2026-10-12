@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier} from './match.mjs';
+import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore} from './match.mjs';
 
 test('tradeKind maps uses to MOLIT datasets and skips 빌라 for now',()=>{
  assert.equal(tradeKind('아파트','apartment'),'apt');
@@ -56,4 +56,16 @@ test('shopFloor keeps ground-floor and basement units of the mixed category out 
  assert.ok(!shopFloor('상가,오피스텔,근린시설','경기도 하남시 학암동 661 17층1756호'));
  assert.ok(!shopFloor('오피스텔','경기도 1층101호'));
  assert.ok(outlier(-45));assert.ok(!outlier(-10));assert.ok(!outlier(null));
+});
+
+test('dealScore ranks a clean 25% discount above a troubled 90% discount',()=>{
+ const clean=dealScore({discount:25,confidence:'high',riskFlags:[],failedBids:1});
+ const troubled=dealScore({discount:90,confidence:'high',riskFlags:['선순위'],failedBids:12});
+ assert.equal(clean.score,70);assert.equal(clean.grade,'A');
+ assert.equal(troubled.score,35);assert.equal(troubled.grade,'C');
+ assert.ok(clean.score>troubled.score);
+ assert.equal(dealScore({discount:50,confidence:'high'}).score,100);
+ assert.equal(dealScore({discount:70,confidence:'high'}).score,90);
+ assert.equal(dealScore({discount:-20,confidence:'low'}).grade,'D');
+ assert.equal(dealScore({discount:null}),null);
 });
