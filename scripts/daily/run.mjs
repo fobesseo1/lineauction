@@ -94,10 +94,12 @@ try{
   const analyze=await step('analyze','scripts/molit/analyze.mjs',[],30*60_000);
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   const geo=await step('geo','scripts/geo/coords.mjs',[],3*3600_000);
+  // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
+  const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   const last=s=>String(s.result??'').slice(0,160);
-  run.summary={complex:last(complex),trades:last(trades),publish:last(publish),analyze:last(analyze),geo:last(geo)};
-  run.status=[complex,trades,publish,analyze,geo].every(s=>s.code===0)?'completed':'failed';
-  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`].join('\n');
+  run.summary={complex:last(complex),trades:last(trades),publish:last(publish),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
+  run.status=[complex,trades,publish,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`].join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
