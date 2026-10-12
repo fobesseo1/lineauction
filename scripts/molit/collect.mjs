@@ -19,7 +19,7 @@ if(apiNames.some(a=>!APIS[a]))throw Error('UNKNOWN_API');
 const root='data/molit';await mkdir(root,{recursive:true});
 if(!await singleRun(root,'scripts/molit/collect.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 // The court pipeline also spends apartment-sale calls every day, so that service keeps headroom.
-const LIMITS={aptSale:5000,aptRent:9000,offiSale:9000,offiRent:9000};
+const LIMITS={aptSale:5000,aptRent:9000,offiSale:9000,offiRent:9000,rhSale:9000,rhRent:9000};
 const RECENT_MONTHS=3,INTERVAL_MS=500,MAX_CONSECUTIVE_ERRORS=5;
 const day=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -36,10 +36,12 @@ create table if not exists trades(
 create index if not exists trades_month on trades(api,lawd,ym);
 create index if not exists trades_place on trades(lawd,umd,jibun,kind,deal);
 create table if not exists month_loads(api text, lawd text, ym text, total integer, loaded_at text, primary key(api,lawd,ym));`);
+// Columns added after the first warehouse build (빌라 land share, house type).
+for(const col of ['land_area real','house_type text']){try{db.exec(`alter table trades add column ${col}`);}catch(e){if(!/duplicate column/.test(e.message))throw e;}}
 const loadOf=db.prepare('select total,loaded_at from month_loads where api=? and lawd=? and ym=?');
 const clearMonth=db.prepare('delete from trades where api=? and lawd=? and ym=?');
-const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,raw)
- values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:raw)`);
+const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,land_area,house_type,raw)
+ values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:land_area,:house_type,:raw)`);
 const recordLoad=db.prepare('insert or replace into month_loads(api,lawd,ym,total,loaded_at) values(?,?,?,?,?)');
 
 async function call(apiName,params){
@@ -101,7 +103,9 @@ outer:for(const [i,ym] of months.entries()){
     if(loaded%100===0)console.log(`loaded ${loaded} region-months (${ym}), ${trades} trades`);
    }catch(e){
     if(['DAILY_BUDGET_EXHAUSTED','API_22'].includes(e.message)){exhausted.add(apiName);await event({api:apiName,stopped:e.message});if(exhausted.size===apiNames.length){stopped='ALL_BUDGETS_EXHAUSTED';break outer;}continue;}
-    if(['STOP_PRESENT','API_30','API_20'].includes(e.message)){stopped=e.message;break outer;}
+    // An API whose key is not approved (yet) is skipped; the others continue.
+    if(['API_30','API_20'].includes(e.message)){exhausted.add(apiName);await event({api:apiName,stopped:e.message});if(exhausted.size===apiNames.length){stopped='ALL_APIS_UNAVAILABLE';break outer;}continue;}
+    if(e.message==='STOP_PRESENT'){stopped=e.message;break outer;}
     await event({api:apiName,lawd:code,ym,error:e.message});
     if(++consecutiveErrors>=MAX_CONSECUTIVE_ERRORS){stopped=`CONSECUTIVE_ERRORS:${e.message}`;break outer;}
    }

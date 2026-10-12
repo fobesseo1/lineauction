@@ -7,6 +7,9 @@ export const APIS={
  aptRent:{kind:'apt',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent'},
  offiSale:{kind:'offi',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade'},
  offiRent:{kind:'offi',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent'},
+ // 연립·다세대 (빌라, 1.5단계). Sales carry landAr (대지권 면적) for the land-share comparison.
+ rhSale:{kind:'rh',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade'},
+ rhRent:{kind:'rh',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent'},
 };
 
 // Leaf 시군구 codes for the capital area: a city whose 구 are listed separately is not
@@ -52,12 +55,13 @@ export function toRow(apiName,lawd,ym,item){
  return {
   key:createHash('sha256').update(apiName+JSON.stringify(Object.entries(item).sort(([a],[b])=>a.localeCompare(b)))).digest('hex'),
   api:apiName,kind:api.kind,deal:api.deal,lawd,ym,
-  name:text(item.aptNm)??text(item.offiNm),umd:text(item.umdNm),jibun:text(item.jibun),
+  name:text(item.aptNm)??text(item.offiNm)??text(item.mhouseNm),umd:text(item.umdNm),jibun:text(item.jibun),
   apt_seq:text(item.aptSeq),building:text(item.aptDong),
   area:real(item.excluUseAr),floor:int(item.floor),build_year:int(item.buildYear),
   deal_date:ymd(item.dealYear,item.dealMonth,item.dealDay),
   amount:manwon(item.dealAmount),deposit:manwon(item.deposit),monthly_rent:manwon(item.monthlyRent),
   dealing:text(item.dealingGbn),cancel_date:cancelDate(item.cdealDay),contract_type:text(item.contractType),
+  land_area:real(item.landAr),house_type:text(item.houseType),
   raw:JSON.stringify(item),
  };
 }

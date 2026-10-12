@@ -39,7 +39,7 @@ const regionName=new Map(leafRegions(regionCatalog.codes).map(r=>[r.code,r.name]
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
 const places=new Map();
 for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_date) d from trades
-  where umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
+  where kind in ('apt','offi') and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
  const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
  const prev=places.get(id);
  if(prev&&prev._d>=r.d)continue;
@@ -56,7 +56,7 @@ let group=[],groupKey=null;
 const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|');
  stats.push({place_id:pid,area_type:Number(areaType),...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
-  from trades where deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
+  from trades where kind in ('apt','offi') and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
@@ -70,7 +70,7 @@ const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
 let hGroup=[],hKey=null;
 const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length)row.history=monthlyHistory(hGroup,months);hGroup=[];};
 for(const t of wh.prepare(`select kind,lawd,umd,jibun,area,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
-  from trades where deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
+  from trades where kind in ('apt','offi') and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
@@ -82,10 +82,15 @@ const matched=placeRows.filter(p=>p.kapt_code).length;
 console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, period ${start}..${end}`);
 if(dryRun){wh.close();process.exit(0);}
 
+// Batches of 500 with up to 3 tries: a busy free-tier DB occasionally times out one batch.
 async function upsert(table,rows,onConflict){
- for(let i=0;i<rows.length;i+=1000){
-  const {error}=await supa.from(table).upsert(rows.slice(i,i+1000),{onConflict});
-  if(error)throw Error(`${table}: ${error.message}`);
+ for(let i=0;i<rows.length;i+=500){
+  for(let attempt=1;;attempt++){
+   const {error}=await supa.from(table).upsert(rows.slice(i,i+500),{onConflict});
+   if(!error)break;
+   if(attempt>=3)throw Error(`${table}: ${error.message}`);
+   await new Promise(r=>setTimeout(r,5000*attempt));
+  }
  }
 }
 await upsert('market_places',placeRows,'id');
