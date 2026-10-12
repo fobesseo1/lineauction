@@ -3,6 +3,7 @@
 // Rows are upserted with this run's refreshed_at, then rows from earlier runs are deleted,
 // so screens never see an empty table mid-run.
 import {DatabaseSync} from 'node:sqlite';
+import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
@@ -31,6 +32,8 @@ for(let from=0;;from+=1000){
  }
  if(data.length<1000)break;
 }
+// The vworld 법정동 table (scripts/geo/dongs.mjs) is the main source; K-APT dong names fill gaps.
+try{for(const [lawd,map] of Object.entries(JSON.parse(await readFile('data/geo/dongs.json','utf8')).table))for(const [umd,bjd] of Object.entries(map))bjdByDong.set(`${lawd}:${umd}`,bjd);}catch(e){if(e.code!=='ENOENT')throw e;}
 const regionName=new Map(leafRegions(regionCatalog.codes).map(r=>[r.code,r.name]));
 
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
