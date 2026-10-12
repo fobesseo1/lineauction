@@ -81,3 +81,15 @@ test('villaPrice scales the building or dong price per ㎡ to the unit area',()=
  assert.equal(d.basis,'dong');assert.equal(d.count,5);assert.equal(d.confidence,'low');
  assert.equal(villaPrice({area:45,dong:dong.slice(0,3),since12}),null);
 });
+
+test('villaPrice narrows the dong comparison to similar land share when known',()=>{
+ const s=(d,amount,area,land_area)=>({deal_date:d,amount,area,land_area,build_year:2015});
+ const since12='2025-10-12';
+ // 8 units with land share ~0.5 per ㎡ at ~600/㎡, 5 with ~0.15 at ~300/㎡
+ const rich=[1,2,3,4,5,6,7,8].map(i=>s('2026-0'+(i%9||1)+'-01',600*45,45,22.5));
+ const poor=[1,2,3,4,5].map(i=>s('2026-0'+i+'-02',300*45,45,6.75));
+ const r=villaPrice({area:45,landArea:22,dong:[...rich,...poor],since12});
+ assert.equal(r.basis,'dong-land');assert.equal(r.confidence,'medium');assert.equal(r.priceManwon,600*45);
+ const unknown=villaPrice({area:45,dong:[...rich,...poor],since12});
+ assert.equal(unknown.basis,'dong');assert.equal(unknown.confidence,'low');
+});

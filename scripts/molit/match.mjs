@@ -95,15 +95,23 @@ export function dealScore({discount,confidence,riskFlags=[],failedBids=0}){
 
 // 빌라 (연립·다세대) use the building methodology: villas rarely repeat a sale in the same building
 // and size, so price per ㎡ is compared and scaled to the unit's area.
-//   building: same lot, area within ±3㎡, last 12 months (3+ → medium, 1-2 → low)
-//   dong    : same 법정동, build year within ±5 (when known), area within ±30%, 5+ sales → low
+//   building : same lot, area within ±3㎡, last 12 months (3+ → medium, 1-2 → low)
+//   dong-land: same 법정동, build year ±5 (when known), area ±30%, and land share per ㎡ of floor
+//              (대지권 면적 ÷ 전용면적) within ±25% of the unit's — 8+ → medium, 5-7 → low
+//   dong     : the same without the land-share filter when the unit's land share is unknown
+//              or too few matches remain, 5+ → low
 export const VILLA_USES=/^(다세대|다세대주택|연립주택|연립주택,다세대,빌라|빌라)$/;
-export function villaPrice({area,building=[],dong=[],buildYear=null,since12}){
+export function villaPrice({area,landArea=null,building=[],dong=[],buildYear=null,since12}){
  const perM2=list=>median(list.map(s=>s.amount/s.area));
  const recent=list=>list.filter(s=>s.deal_date>=since12&&s.area>0);
  const same=recent(building).filter(s=>Math.abs(s.area-area)<=3);
  if(same.length)return {priceManwon:Math.round(perM2(same)*area),window:12,count:same.length,confidence:same.length>=3?'medium':'low',basis:'building'};
  const near=recent(dong).filter(s=>Math.abs(s.area-area)<=area*0.3&&(buildYear==null||s.build_year==null||Math.abs(s.build_year-buildYear)<=5));
+ if(landArea>0){
+  const ratio=landArea/area;
+  const similar=near.filter(s=>s.land_area>0&&Math.abs(s.land_area/s.area-ratio)<=ratio*0.25);
+  if(similar.length>=5)return {priceManwon:Math.round(perM2(similar)*area),window:12,count:similar.length,confidence:similar.length>=8?'medium':'low',basis:'dong-land'};
+ }
  if(near.length>=5)return {priceManwon:Math.round(perM2(near)*area),window:12,count:near.length,confidence:'low',basis:'dong'};
  return null;
 }

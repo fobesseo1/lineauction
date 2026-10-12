@@ -28,9 +28,9 @@ const salesOf=wh.prepare(`select deal_date,amount,area from trades where kind=? 
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
 
 // 빌라: same-building sales and, per 시군구, all villa sales for the dong comparison.
-const villaBuilding=wh.prepare(`select deal_date,amount,area,build_year from trades where kind='rh' and lawd=? and umd=? and jibun=? and deal='sale'
+const villaBuilding=wh.prepare(`select deal_date,amount,area,build_year,land_area from trades where kind='rh' and lawd=? and umd=? and jibun=? and deal='sale'
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
-const villaLawd=wh.prepare(`select umd,deal_date,amount,area,build_year from trades where kind='rh' and lawd=? and deal='sale'
+const villaLawd=wh.prepare(`select umd,deal_date,amount,area,build_year,land_area from trades where kind='rh' and lawd=? and deal='sale'
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
 const villaLawdCache=new Map();
 const villaSalesIn=lawd=>{if(!villaLawdCache.has(lawd))villaLawdCache.set(lawd,villaLawd.all(lawd,since[12]));return villaLawdCache.get(lawd);};
@@ -46,7 +46,7 @@ function lawdsOf(address){
 const refreshed=await supa.rpc('refresh_current_rounds');if(refreshed.error)throw Error(refreshed.error.message);
 const properties=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('properties').select('id,source,usage_type,section,address,sido,dong,pnu,exclusive_area,building_area,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
+ const {data,error}=await supa.from('properties').select('id,source,usage_type,section,address,sido,dong,pnu,exclusive_area,building_area,land_area,build_year,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
   .eq('section','apartment').eq('is_current',true).in('sido',['서울특별시','경기도','인천광역시']).order('id').range(from,from+999);
  if(error)throw Error(error.message);properties.push(...data);if(data.length<1000)break;
 }
@@ -71,7 +71,7 @@ for(const p of properties){
   const dong=hit?.place.umd??(p.source==='onbid'?p.dong:courtAddress(p.address).dong);
   if(!lawd||!dong)continue;
   const building=hit?villaBuilding.all(lawd,hit.place.umd,hit.place.jibun,since[12]):[];
-  const market=villaPrice({area,building,dong:villaSalesIn(lawd).filter(s=>sameDong(s.umd,dong)),buildYear:building[0]?.build_year??null,since12:since[12]});
+  const market=villaPrice({area,landArea:Number(p.land_area)||null,building,dong:villaSalesIn(lawd).filter(s=>sameDong(s.umd,dong)),buildYear:p.build_year??building[0]?.build_year??null,since12:since[12]});
   if(!market)continue;
   stats.linked++;stats.priced++;stats.villa=(stats.villa??0)+1;
   const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
