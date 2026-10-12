@@ -136,5 +136,7 @@ for(;;){
  if(error)throw Error(error.message);if(!data.length)break;
  const del=await supa.from('property_analysis').delete().in('id',data.map(r=>r.id));if(del.error)throw Error(del.error.message);
 }
-console.log(`ANALYZED ${rows.length}`);
+// Linked apartments/officetels without a register year take their building's 건축연도.
+const filled=await supa.rpc('fill_build_year_from_places');if(filled.error)throw Error(filled.error.message);
+console.log(`ANALYZED ${rows.length}, build years filled ${filled.data}`);
 wh.close();
