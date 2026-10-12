@@ -10,11 +10,11 @@
 
 ## 텔레그램 알림 발송 (봇 준비되면)
 
-lineestate의 ··를 service role로 읽어 보낸다. 규칙(lineestate/docs/data-factory-requests.md 참고):
-- 대상은 만.
--  조건은 로 판단하되, 가 이거나 이면 만족하지 않는 것으로 본다.
-- 상가·건물·토지 참고 시세(가 , , , 로 시작)는 할인율 알림에서 제외한다.
-- 봇 로 chat id 연결, 으로 해제.
+lineestate의 `app.alert_rules`·`app.watchlist`·`app.notification_channels`를 service role로 읽어 보낸다. 규칙(lineestate/docs/data-factory-requests.md 참고):
+- 대상은 `properties.is_current = true`만.
+- `min_discount_rate` 조건은 `property_analysis.discount_rate`로 판단하되, `market_price_method`가 `no-recent-sales`이거나 `confidence = low`이면 만족하지 않는 것으로 본다.
+- 상가·건물·토지 참고 시세(`market_price_method`가 `land-`, `house-`, `unit-`, `building-`로 시작)는 할인율 알림에서 제외한다.
+- 봇 `/start 코드`로 chat id 연결, `/stop`으로 해제.
 
 ## 온비드 실행 요일 조정
 
