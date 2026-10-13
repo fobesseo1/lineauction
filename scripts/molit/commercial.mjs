@@ -12,7 +12,8 @@ const SHOP=/^(근린시설|상가|상가,오피스텔,근린시설|근린생활�
 export function commercialKind(usage,text=''){
  const u=String(usage??'').trim();
  if(LAND.test(u))return 'land';
- if(HOUSE.test(u))return 'house';
+ // Courts sometimes file a unit in a large building as 단독주택: a 호 means it is not a house.
+ if(HOUSE.test(u))return /\d+\s*호/.test(text)?null:'house';
  if(SHOP.test(u))return u==='상업용빌딩'?'building':/\d+\s*호/.test(text)?'unit':'building';
  return null;
 }

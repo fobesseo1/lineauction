@@ -166,8 +166,11 @@ for(const p of commercialProps){
  else if(ck==='unit')market=unitPrice({area,floor:floorClass(text),use:p.usage_type,building:jibun?inDong.filter(t=>t.jibun===jibun):[],dong:inDong});
  else market=buildingPrice({plotArea:Number(parcel?.plot_area??p.land_area),zone:parcel?.zone,dong:inDong,lawd:all});
  if(!market)continue;
- stats.commercial.priced++;stats.commercial.basis[market.basis]=(stats.commercial.basis[market.basis]??0)+1;
  const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
+ // A reference price far from the court/Onbid appraisal (outside 0.3–3×) is almost always a
+ // matching error (wrong area, a unit priced as a whole building), so it is dropped.
+ if(appraisal>0&&(marketWon>appraisal*3||marketWon<appraisal*0.3)){stats.commercial.rejected=(stats.commercial.rejected??0)+1;continue;}
+ stats.commercial.priced++;stats.commercial.basis[market.basis]=(stats.commercial.basis[market.basis]??0)+1;
  const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
  const discount=minimum>0?pct((1-minimum/marketWon)*100):null;
  // v1: land, houses, shops and buildings vary too much for a comparable set to be more than a
