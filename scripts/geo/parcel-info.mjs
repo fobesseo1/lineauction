@@ -52,7 +52,7 @@ async function building(pnu){
  if(!b)return null;
  const n=v=>{const x=Number(v);return Number.isFinite(x)&&x>0?x:null;};
  return {building_name:b.bldNm?.trim()||null,main_use:b.mainPurpsCdNm||null,use_approved_year:n(String(b.useAprDay??'').slice(0,4)),
-  floor_area_ratio:n(b.vlRat),coverage_ratio:n(b.bcRat),total_floor_area:n(b.totArea),plot_area:n(b.platArea),floors_above:n(b.grndFlrCnt),floors_below:Number(b.ugrndFlrCnt)||0};
+  floor_area_ratio:n(b.vlRat),coverage_ratio:n(b.bcRat),total_floor_area:n(b.totArea),plot_area:n(b.platArea),floors_above:n(b.grndFlrCnt),floors_below:Number(b.ugrndFlrCnt)||0,structure:b.strctCdNm?.trim()||null};
 }
 
 const pnus=new Set();
@@ -63,7 +63,13 @@ for(let from=0;;from+=1000){
 let fetched=0,stopped=null;
 for(const pnu of pnus){
  if(fetched>=limit)break;
- if(cache[pnu]?.year>=year)continue;
+ // Parcels cached before 주구조 was kept get only the building register again.
+ if(cache[pnu]?.year>=year){
+  if(!cache[pnu].building_name&&!cache[pnu].main_use||'structure' in cache[pnu])continue;
+  try{const b=await building(pnu);cache[pnu]={...cache[pnu],structure:b?.structure??null};fetched++;if(fetched%100===0)await writeJson(cachePath,cache);}
+  catch(e){stopped=e.message;break;}
+  continue;
+ }
  try{
   const [lp,lu]=[await landPrice(pnu),await landUse(pnu)];
   const b=await building(pnu);
@@ -73,6 +79,6 @@ for(const pnu of pnus){
 }
 await writeJson(cachePath,cache);
 const runAt=new Date().toISOString();
-const rows=[...pnus].filter(p=>cache[p]).map(p=>{const {year:_,...v}=cache[p];return {pnu:p,building_name:null,main_use:null,use_approved_year:null,floor_area_ratio:null,coverage_ratio:null,total_floor_area:null,plot_area:null,floors_above:null,floors_below:null,...v,checked_at:runAt};});
+const rows=[...pnus].filter(p=>cache[p]).map(p=>{const {year:_,...v}=cache[p];return {pnu:p,building_name:null,main_use:null,use_approved_year:null,floor_area_ratio:null,coverage_ratio:null,total_floor_area:null,plot_area:null,floors_above:null,floors_below:null,structure:null,...v,checked_at:runAt};});
 for(let i=0;i<rows.length;i+=500){const {error}=await supa.from('parcel_info').upsert(rows.slice(i,i+500),{onConflict:'pnu'});if(error)throw Error(error.message);}
 console.log(JSON.stringify({pnus:pnus.size,fetched,stored:rows.length,stopped}));

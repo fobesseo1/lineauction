@@ -26,6 +26,7 @@ export function areaStats(trades){
  const sales=trades.filter(validSale).sort((a,b)=>a.deal_date.localeCompare(b.deal_date));
  const amounts=sales.map(t=>t.amount);
  const jeonse=trades.filter(isJeonse).map(t=>t.deposit);
+ const wolse=trades.filter(t=>t.deal==='rent'&&(t.monthly_rent??0)>0);
  const last=sales.at(-1);
  const saleMedian=median(amounts),jeonseMedian=median(jeonse);
  return {
@@ -33,7 +34,8 @@ export function areaStats(trades){
   sale_min:amounts.length?Math.min(...amounts):null,sale_max:amounts.length?Math.max(...amounts):null,
   sale_last_amount:last?.amount??null,sale_last_date:last?.deal_date??null,sale_last_floor:last?.floor??null,
   jeonse_count:jeonse.length,jeonse_median:jeonseMedian,
-  wolse_count:trades.filter(t=>t.deal==='rent'&&(t.monthly_rent??0)>0).length,
+  // 월세 보증금·월세 medians (만원) feed the price calculator's income approach.
+  wolse_count:wolse.length,wolse_deposit_median:median(wolse.map(t=>t.deposit??0)),wolse_rent_median:median(wolse.map(t=>t.monthly_rent)),
   jeonse_ratio:saleMedian&&jeonseMedian?Math.round(jeonseMedian/saleMedian*1000)/10:null,
  };
 }

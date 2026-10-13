@@ -91,6 +91,8 @@ try{
   const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
   const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
+  // 시군구 전월세 전환율 for the price calculator (local trades only, a few seconds).
+  await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
   // Daily lookup limits keep the job to ~1–2 hours so the 10:00 Onbid job is not held up; backlogs
   // (e.g. after a PNU fix) are spread over several days.

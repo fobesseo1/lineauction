@@ -24,7 +24,7 @@ test('areaStats excludes cancelled and 직거래 sales and computes the jeonse r
  ];
  const s=areaStats(t);
  assert.equal(s.sale_count,2);assert.equal(s.sale_median,105000);assert.equal(s.sale_last_amount,110000);assert.equal(s.sale_last_floor,9);
- assert.equal(s.jeonse_count,2);assert.equal(s.jeonse_median,55000);assert.equal(s.wolse_count,1);assert.equal(s.jeonse_ratio,52.4);
+ assert.equal(s.jeonse_count,2);assert.equal(s.jeonse_median,55000);assert.equal(s.wolse_count,1);assert.equal(s.wolse_deposit_median,10000);assert.equal(s.wolse_rent_median,150);assert.equal(s.jeonse_ratio,52.4);
 });
 
 test('periodStart is one year back in KST and placeId is stable',()=>{
