@@ -96,7 +96,8 @@ try{
   // 시군구 전월세 전환율 for the price calculator (local trades only, a few seconds).
   await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
   // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
-  if(kstWeekday()===1)await step('r-one','scripts/calc/r-one.mjs',[],20*60_000);
+  // 상권 map points are cached; only new 상권 names are looked up.
+  if(kstWeekday()===1){await step('r-one','scripts/calc/r-one.mjs',[],20*60_000);await step('commercial-areas','scripts/calc/commercial-areas.mjs',[],20*60_000);}
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
   // Daily lookup limits keep the job to ~1–2 hours so the 10:00 Onbid job is not held up; backlogs
   // (e.g. after a PNU fix) are spread over several days.
