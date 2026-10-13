@@ -1,8 +1,9 @@
 // Rebuild the Supabase market_* summary tables from the local trade warehouse.
 //   node scripts/molit/publish.mjs [--dry-run]
-// Rows are upserted with this run's refreshed_at, then rows from earlier runs are deleted,
+// Only new or changed rows are written (content digest) and vanished rows deleted,
 // so screens never see an empty table mid-run.
 import {DatabaseSync} from 'node:sqlite';
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {regionCatalog} from '../court/regions.mjs';
@@ -93,8 +94,39 @@ async function upsert(table,rows,onConflict){
   }
  }
 }
-await upsert('market_places',placeRows,'id');
-await upsert('market_area_stats',stats,'place_id,area_type');
+// Places and stats change little from day to day, so only new or changed rows are written
+// (compared by a content digest) and rows that disappeared are deleted. Rewriting every row
+// daily doubled these tables on the free-tier DB.
+// The rolling window dates change daily for every row, so they stay out of the digest.
+const digestOf=row=>{const {refreshed_at:_r,period_start:_s,period_end:_e,...rest}=row;return createHash('sha1').update(JSON.stringify(rest)).digest('hex').slice(0,16);};
+async function existingDigests(table,cols){
+ const out=new Map();
+ for(let from=0;;from+=1000){
+  const {data,error}=await supa.from(table).select([...cols,'digest'].join(',')).order(cols[0]).order(cols.at(-1)).range(from,from+999);
+  if(error)throw Error(`${table} digests: ${error.message}`);
+  for(const r of data)out.set(cols.map(c=>r[c]).join('|'),r.digest);
+  if(data.length<1000)break;
+ }
+ return out;
+}
+async function syncTable(table,rows,cols){
+ const have=await existingDigests(table,cols);
+ const keyOf=r=>cols.map(c=>r[c]).join('|');
+ const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
+ await upsert(table,changed,cols.join(','));
+ const current=new Set(rows.map(keyOf));
+ const gone=[...have.keys()].filter(k=>!current.has(k));
+ for(let i=0;i<gone.length;i+=200){
+  const batch=gone.slice(i,i+200).map(k=>k.split('|'));
+  const del=cols.length===1?supa.from(table).delete().in(cols[0],batch.map(b=>b[0]))
+   :supa.from(table).delete().or(batch.map(([pid,t])=>`and(place_id.eq."${pid}",area_type.eq.${t})`).join(','));
+  const {error}=await del;if(error)throw Error(`${table} delete: ${error.message}`);
+ }
+ console.log(`${table}: ${changed.length} written, ${gone.length} removed, ${rows.length-changed.length} unchanged`);
+}
+await syncTable('market_places',placeRows,['id']);
+await syncTable('market_area_stats',stats,['place_id','area_type']);
+{const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
 
 // Sales are immutable (id = content hash), so sync them by difference: rewriting 300k unchanged
 // rows every run only bloats the free-tier DB.
@@ -111,22 +143,5 @@ for(let i=0;i<added.length;i+=1000){const {error}=await supa.from('market_trades
 for(let i=0;i<gone.length;i+=300){const {error}=await supa.from('market_trades').delete().in('id',gone.slice(i,i+300));if(error)throw Error(`market_trades delete: ${error.message}`);}
 console.log(`market_trades: +${added.length} -${gone.length}`);
 
-// Places and stats are rewritten each run; delete what an earlier run left behind, a page at a time.
-const keys={market_area_stats:['place_id','area_type'],market_places:['id']};
-for(const [table,cols] of Object.entries(keys)){
- let removed=0;
- for(;;){
-  const {data,error}=await supa.from(table).select(cols.join(',')).lt('refreshed_at',runAt).limit(500);
-  if(error)throw Error(`${table} cleanup: ${error.message}`);
-  if(!data.length)break;
-  const del=cols.length===1
-   ?supa.from(table).delete().in(cols[0],data.map(r=>r[cols[0]]))
-   :supa.from(table).delete().or(data.map(r=>`and(place_id.eq."${r.place_id}",area_type.eq.${r.area_type})`).join(','));
-  const {error:delError}=await del;
-  if(delError)throw Error(`${table} cleanup: ${delError.message}`);
-  removed+=data.length;
- }
- if(removed)console.log(`${table}: removed ${removed} stale rows`);
-}
 console.log('PUBLISHED');
 wh.close();
