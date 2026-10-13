@@ -22,3 +22,6 @@ export function bboxCenter(bbox){
  if(!Array.isArray(bbox)||bbox.length<4||bbox[2]<bbox[0])return null;
  return {lng:Math.round((bbox[0]+bbox[2])/2*1e6)/1e6,lat:Math.round((bbox[1]+bbox[3])/2*1e6)/1e6};
 }
+
+// Bounding box of a GeoJSON geometry when the feature has no bbox.
+export function boxOf(g){let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;const walk=c=>{if(typeof c[0]==='number'){x0=Math.min(x0,c[0]);x1=Math.max(x1,c[0]);y0=Math.min(y0,c[1]);y1=Math.max(y1,c[1]);}else c.forEach(walk);};walk(g?.coordinates??[]);return [x0,y0,x1,y1];}

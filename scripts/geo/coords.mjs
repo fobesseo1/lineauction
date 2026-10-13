@@ -11,7 +11,7 @@ import {regionCode} from '../court/regions.mjs';
 import {singleRun} from '../single-run.mjs';
 import {jibunPnu,placeId} from '../molit/summary.mjs';
 import {courtAddress,sameDong} from '../molit/match.mjs';
-import {vworldFeatures,bboxCenter} from './vworld.mjs';
+import {vworldFeatures,bboxCenter,boxOf} from './vworld.mjs';
 process.loadEnvFile('.env.local');
 
 const plan=process.argv.includes('--plan');
@@ -81,7 +81,6 @@ for(const pnu of missing){
 }
 for(const k of dirty)await writeJson(`${root}/parcels/${k}.json`,shards.get(k));
 // The data API returns no per-feature bbox, so the polygon's own extent is used.
-function boxOf(g){let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;const walk=c=>{if(typeof c[0]==='number'){x0=Math.min(x0,c[0]);x1=Math.max(x1,c[0]);y0=Math.min(y0,c[1]);y1=Math.max(y1,c[1]);}else c.forEach(walk);};walk(g?.coordinates??[]);return [x0,y0,x1,y1];}
 
 // 3. Write coordinates for everything whose parcel is known.
 const point=async pnu=>pnu?(await shardOf(pnu))[pnu]??null:null;
