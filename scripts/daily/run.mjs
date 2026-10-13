@@ -6,7 +6,7 @@ import {mkdir,readFile,writeFile,appendFile,open,unlink} from 'node:fs/promises'
 import {spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {sendWindowsNotification} from '../court/windows-notify.mjs';
-import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule,runsOn} from './core.mjs';
+import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule,runsOn,kstWeekday} from './core.mjs';
 
 const root='data/daily';await mkdir(root,{recursive:true});
 const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length+3);
@@ -95,6 +95,8 @@ try{
   const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
   // 시군구 전월세 전환율 for the price calculator (local trades only, a few seconds).
   await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
+  // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
+  if(kstWeekday()===1)await step('r-one','scripts/calc/r-one.mjs',[],20*60_000);
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
   // Daily lookup limits keep the job to ~1–2 hours so the 10:00 Onbid job is not held up; backlogs
   // (e.g. after a PNU fix) are spread over several days.
