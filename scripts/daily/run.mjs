@@ -92,10 +92,12 @@ try{
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
   const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
-  const years=await step('build-year','scripts/building-year.mjs',['--limit','3000'],2*3600_000);
+  // Daily lookup limits keep the job to ~1–2 hours so the 10:00 Onbid job is not held up; backlogs
+  // (e.g. after a PNU fix) are spread over several days.
+  const years=await step('build-year','scripts/building-year.mjs',['--limit','600'],2*3600_000);
   // 공시가격 for new auction units and complexes, parcel facts for the 상가·건물·토지 section.
-  const official=await step('official-price','scripts/geo/official-price.mjs',['--limit','6000'],3*3600_000);
-  const parcels=await step('parcel-info','scripts/geo/parcel-info.mjs',['--limit','2000'],2*3600_000);
+  const official=await step('official-price','scripts/geo/official-price.mjs',['--limit','3000'],3*3600_000);
+  const parcels=await step('parcel-info','scripts/geo/parcel-info.mjs',['--limit','500'],2*3600_000);
   const analyze=await step('analyze','scripts/molit/analyze.mjs',[],30*60_000);
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   const geo=await step('geo','scripts/geo/coords.mjs',[],3*3600_000);

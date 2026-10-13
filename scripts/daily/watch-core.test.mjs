@@ -39,3 +39,12 @@ test('no missed-start alert for court on weekends',()=>{
 test('the market job is reported missed after 09:30 KST',()=>{
  assert.deepEqual(evaluate({...base,history:[],now:at('2026-10-11T00:31:00Z')}).map(p=>p.key),['missed:market:2026-10-11']);
 });
+
+test('a job queued behind another running job is not reported as missed',()=>{
+ const lock={job:'market',startedAt:'2026-10-13T00:00:00Z',pid:1};
+ const now=at('2026-10-13T01:35:00Z');   // 10:35 KST, onbid would be due
+ const p=evaluate({...base,day:'2026-10-13',history:[],now,lock,lockAlive:true,activityAt:now});
+ assert.equal(p.filter(x=>x.key.startsWith('missed:onbid')).length,0);
+ const free=evaluate({...base,day:'2026-10-13',history:[market('2026-10-13')],now,lock:null});
+ assert.deepEqual(free.map(x=>x.key),['missed:onbid:2026-10-13']);
+});
