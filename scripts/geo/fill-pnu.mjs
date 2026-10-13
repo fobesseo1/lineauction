@@ -22,9 +22,15 @@ export function roadAddress(address){
 }
 // "경기도 부천시 원미구 심곡동 385 외 3필지 …" / "… 풍산동 243-32외 6필지" / "… 은행동607번지" → "… 심곡동 385"
 export function lotAddress(text){
- const m=String(text??'').match(new RegExp(`^(.*?\\S(?:동|리|가|읍|면))\\s*(${NUM})(?=번지|외|[\\s,(]|$)`));
+ const t=String(text??'');
+ // Usually the text starts with the address; Onbid titles may carry it in brackets instead
+ // ("고덕강일지구 근린생활시설용지7-2(서울특별시 강동구 강일동 산22-1 일원)").
+ const from=t.search(/(서울특별시|경기도|인천광역시)\s/);
+ const m=t.slice(Math.max(from,0)).match(new RegExp(`^(.*?\\S(?:동|리|가|읍|면))\\s*(${NUM})(?=번지|외|일원|[\\s,()]|$)`));
  return m?`${m[1].trim()} ${m[2].replace(/\s+/g,'')}`:null;
 }
+// "경기도 화성시 오산동 982-1" → "화성시" (the 시 or 군 right after the 시도).
+export const cityOf=full=>String(full??'').split(/\s+/)[1]??'';
 // The 시도 is dropped and only the last part kept, for addresses whose 시군구 was renamed
 // (화성시 → 화성시 동탄구, 인천 중구 → 영종구): "경기도 화성시 오산동 982-1" → "오산동 982-1".
 export function shortAddress(full){
@@ -80,6 +86,7 @@ if(import.meta.url===`file:///${(process.argv[1]??'').replace(/\\/g,'/')}`){
   const {data,error}=await q;if(error)throw Error(error.message);rows.push(...data);if(data.length<1000)break;
  }
  const stats={properties:rows.length,searched:0,found:0,noAddress:0,noParcel:0};
+ const stale=new Date(Date.now()-30*86400e3).toISOString();
  const found=[];
  for(const p of rows){
   const text=p.source==='court'?p.address:p.address??p.title;
@@ -90,13 +97,19 @@ if(import.meta.url===`file:///${(process.argv[1]??'').replace(/\\/g,'/')}`){
    lot&&[`parcel:${lot}`,()=>byAddress(lot,'parcel',p.sido)],
    road&&[`road~:${road}`,()=>byAddress(shortAddress(road),'road',p.sido,shortAddress(road))],
    lot&&[`parcel~:${lot}`,()=>byAddress(shortAddress(lot),'parcel',p.sido,shortAddress(lot))],
+   // Common 동 names ("오산동") need the city or 시도 in the query to reach the top results.
+   lot&&[`parcel~city:${lot}`,()=>byAddress(`${cityOf(lot)} ${shortAddress(lot)}`,'parcel',p.sido,shortAddress(lot))],
+   lot&&[`parcel~sido:${lot}`,()=>byAddress(`${p.sido} ${shortAddress(lot)}`,'parcel',p.sido,shortAddress(lot))],
+   road&&[`road~sido:${road}`,()=>byAddress(`${p.sido} ${shortAddress(road)}`,'road',p.sido,shortAddress(road))],
    building&&[`place:${p.sigungu} ${building}`,()=>byPlace(building,p.sido,p.sigungu??'')],
   ].filter(Boolean);
   if(recheck){const key=tries.map(([k])=>k).find(k=>cache[k]===p.pnu);if(key)found.push({p,pnu:p.pnu});continue;}
   if(!tries.length||!p.sido){stats.noAddress++;continue;}
   let pnu=null;
   for(const [key,lookup] of tries){
-   if(!(key in cache)){if(stats.searched>=limit)break;cache[key]=await lookup();stats.searched++;if(stats.searched%100===0)await writeJson(cachePath,cache);}
+   // Misses are retried after 30 days: vworld is still catching up with the 2026 구 changes (화성·인천).
+   const due=!(key in cache)||(cache[key]===null&&!(cache[`${key}@`]>stale));
+   if(due){if(stats.searched>=limit)break;cache[key]=await lookup();cache[`${key}@`]=new Date().toISOString();stats.searched++;if(stats.searched%100===0)await writeJson(cachePath,cache);}
    pnu=cache[key];if(pnu)break;
   }
   if(pnu)found.push({p,pnu});

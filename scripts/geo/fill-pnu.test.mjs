@@ -29,3 +29,7 @@ test('shortAddress and blockBuilding',async()=>{
  assert.equal(blockBuilding('경기도 고양시 일산동구 식사동 식사2도시개발구역5블록1로트 베네하임2차 1층101호'),'베네하임2차');
  assert.equal(blockBuilding('경기도 여주시 세종대왕면 신지리 능서역세권지구 A26블록 5로트 대지'),null);
 });
+
+test('lotAddress finds an address in brackets',()=>{
+ assert.equal(lotAddress('고덕강일지구 근린생활시설용지7-2(서울특별시 강동구 강일동 산22-1 일원)'),'서울특별시 강동구 강일동 산22-1');
+});
