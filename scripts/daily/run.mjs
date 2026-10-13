@@ -108,6 +108,8 @@ try{
   const official=await step('official-price','scripts/geo/official-price.mjs',['--limit','3000'],3*3600_000);
   const parcels=await step('parcel-info','scripts/geo/parcel-info.mjs',['--limit','500'],2*3600_000);
   const analyze=await step('analyze','scripts/molit/analyze.mjs',[],30*60_000);
+  // 매물화 신호 per building (auctions linked by analyze, 입주 연차, 거래 급증).
+  await step('sale-signals','scripts/signals/sale-signals.mjs',[],20*60_000);
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   const geo=await step('geo','scripts/geo/coords.mjs',[],3*3600_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
