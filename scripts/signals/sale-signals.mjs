@@ -48,7 +48,11 @@ for(const p of places){
  for(const x of s.signals)types[x.type]=(types[x.type]??0)+1;
  rows.push({place_id:p.id,score:s.score,signals:s.signals,refreshed_at});
 }
-for(let i=0;i<rows.length;i+=500){const {error}=await supa.from('sale_signals').upsert(rows.slice(i,i+500),{onConflict:'place_id'});if(error)throw Error(error.message);}
-// Buildings whose signals ended.
-const {error}=await supa.from('sale_signals').delete().lt('refreshed_at',refreshed_at);if(error)throw Error(error.message);
+// sale_signals (with reasons) is broker-only; sale_signal_summary (score and names) is public.
+const summary=rows.map(r=>({place_id:r.place_id,score:r.score,types:r.signals.map(s=>s.type),labels:r.signals.map(s=>s.label),refreshed_at}));
+for(const [table,list] of [['sale_signals',rows],['sale_signal_summary',summary]]){
+ for(let i=0;i<list.length;i+=500){const {error}=await supa.from(table).upsert(list.slice(i,i+500),{onConflict:'place_id'});if(error)throw Error(error.message);}
+ // Buildings whose signals ended.
+ const {error}=await supa.from(table).delete().lt('refreshed_at',refreshed_at);if(error)throw Error(error.message);
+}
 console.log(JSON.stringify({places:places.length,known:known.size,withSignals:rows.length,types,top:rows.filter(r=>r.score>=50).length}));
