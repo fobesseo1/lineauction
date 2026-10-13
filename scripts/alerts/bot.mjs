@@ -25,7 +25,12 @@ async function link(chat,username,code){
  const now=new Date().toISOString();
  const {data:row,error}=await app.from('notification_channels').select('user_id').eq('link_code',code.toUpperCase()).gt('link_code_expires_at',now).maybeSingle();
  if(error)throw Error(error.message);
- if(!row)return '코드가 틀렸거나 만료됐습니다. 선자산 사이트의 알림 설정에서 새 코드를 받아 주세요.';
+ if(!row){
+  // The START button and a typed "/start CODE" arrive together; the second finds the code used.
+  const linked=await app.from('notification_channels').select('user_id').eq('telegram_chat_id',chat).maybeSingle();
+  if(linked.data)return '이미 연결돼 있습니다. 알림을 끄려면 /stop 을 보내세요.';
+  return '코드가 틀렸거나 만료됐습니다. 선자산 사이트의 알림 설정에서 새 코드를 받아 주세요.';
+ }
  // One chat belongs to one member: a chat linked elsewhere moves to this member.
  const moved=await app.from('notification_channels').update({telegram_chat_id:null,telegram_username:null,telegram_linked_at:null}).eq('telegram_chat_id',chat).neq('user_id',row.user_id);
  if(moved.error)throw Error(moved.error.message);
