@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice} from './match.mjs';
+import {tradeKind,sameDong,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,offAppraisal,dealScore,villaPrice} from './match.mjs';
 
 test('tradeKind maps uses to MOLIT datasets',()=>{
  assert.equal(tradeKind('아파트','apartment'),'apt');
@@ -92,4 +92,11 @@ test('villaPrice narrows the dong comparison to similar land share when known',(
  assert.equal(r.basis,'dong-land');assert.equal(r.confidence,'medium');assert.equal(r.priceManwon,600*45);
  const unknown=villaPrice({area:45,dong:[...rich,...poor],since12});
  assert.equal(unknown.basis,'dong');assert.equal(unknown.confidence,'low');
+});
+
+test('offAppraisal drops prices outside 0.3–3× the appraisal',()=>{
+ assert.equal(offAppraisal(5e8,4e8),false);
+ assert.equal(offAppraisal(13e8,4e8),true);
+ assert.equal(offAppraisal(1e8,4e8),true);
+ assert.equal(offAppraisal(1e8,0),false);
 });

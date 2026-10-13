@@ -7,7 +7,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
 import {placeId} from './summary.mjs';
-import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,dealScore,villaPrice,sameDong} from './match.mjs';
+import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,offAppraisal,dealScore,villaPrice,sameDong} from './match.mjs';
 import {commercialKind,floorClass,landPrice,housePrice,unitPrice,buildingPrice,houseIncome} from './commercial.mjs';
 process.loadEnvFile('.env.local');
 
@@ -74,8 +74,9 @@ for(const p of properties){
   const building=hit?villaBuilding.all(lawd,hit.place.umd,hit.place.jibun,since[12]):[];
   const market=villaPrice({area,landArea:Number(p.land_area)||null,building,dong:villaSalesIn(lawd).filter(s=>sameDong(s.umd,dong)),buildYear:p.build_year??building[0]?.build_year??null,since12:since[12]});
   if(!market)continue;
-  stats.linked++;stats.priced++;stats.villa=(stats.villa??0)+1;
   const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
+  if(offAppraisal(marketWon,appraisal)){stats.offAppraisal=(stats.offAppraisal??0)+1;continue;}
+  stats.linked++;stats.priced++;stats.villa=(stats.villa??0)+1;
   const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
   const discount=minimum>0?pct((1-minimum/marketWon)*100):null;
   const confidence=outlier(discount)?'low':market.confidence;
@@ -97,7 +98,7 @@ for(const p of properties){
  const {place}=hit,areaType=Math.floor(area);
  const all=salesOf.all(place.kind,place.lawd,place.umd,place.jibun,since[12]);
  const byType=new Map();for(const s of all){const t=Math.floor(s.area);byType.set(t,[...(byType.get(t)??[]),s]);}
- let type=areaType,market=marketPrice(byType.get(areaType)??[],{since6:since[6],since12:since[12]});
+ let mismatch=false,type=areaType,market=marketPrice(byType.get(areaType)??[],{since6:since[6],since12:since[12]});
  if(!market){
   // Same building, neighbouring 평형 type (±1㎡) with the most sales.
   const near=[areaType-1,areaType+1].filter(t=>byType.get(t)?.length).sort((a,b)=>byType.get(b).length-byType.get(a).length)[0];
@@ -106,6 +107,8 @@ for(const p of properties){
  const typeSales=byType.get(type)??[];
  const count=m=>typeSales.filter(s=>s.deal_date>=since[m]).length;
  const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price);
+ // Keep the building link but drop the price when it disagrees with the appraisal.
+ if(market&&offAppraisal(market.priceManwon*10000,appraisal)){stats.offAppraisal=(stats.offAppraisal??0)+1;market=null;mismatch=true;}
  const marketWon=market?market.priceManwon*10000:null;
  const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
  if(market)stats.priced++,stats.confidence[market.confidence]=(stats.confidence[market.confidence]??0)+1;
@@ -114,7 +117,7 @@ for(const p of properties){
  const deal=dealScore({discount,confidence,riskFlags:p.risk_flags,failedBids:p.failed_bid_count??0});
  rows.push({
   property_id:p.id,place_id:place.id,area_type:type,confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
-  market_price:marketWon,market_price_method:market?`median-${market.window}m`:'no-recent-sales',
+  market_price:marketWon,market_price_method:market?`median-${market.window}m`:mismatch?'appraisal-mismatch':'no-recent-sales',
   appraisal_ratio:appraisal>0&&minimum>0?pct(minimum/appraisal*100):null,
   market_ratio:marketWon&&minimum>0?pct(minimum/marketWon*100):null,
   discount_rate:discount,
@@ -167,9 +170,7 @@ for(const p of commercialProps){
  else market=buildingPrice({plotArea:Number(parcel?.plot_area??p.land_area),zone:parcel?.zone,dong:inDong,lawd:all});
  if(!market)continue;
  const minimum=Number(p.minimum_bid_price),appraisal=Number(p.appraisal_price),marketWon=market.priceManwon*10000;
- // A reference price far from the court/Onbid appraisal (outside 0.3–3×) is almost always a
- // matching error (wrong area, a unit priced as a whole building), so it is dropped.
- if(appraisal>0&&(marketWon>appraisal*3||marketWon<appraisal*0.3)){stats.commercial.rejected=(stats.commercial.rejected??0)+1;continue;}
+ if(offAppraisal(marketWon,appraisal)){stats.commercial.rejected=(stats.commercial.rejected??0)+1;continue;}
  stats.commercial.priced++;stats.commercial.basis[market.basis]=(stats.commercial.basis[market.basis]??0)+1;
  const pct=v=>v==null||!Number.isFinite(v)?null:Math.round(v*10)/10;
  const discount=minimum>0?pct((1-minimum/marketWon)*100):null;

@@ -74,6 +74,9 @@ export function shopFloor(usage,address){
 
 // A minimum bid far above the building's sales usually means the wrong unit type was compared.
 export const outlier=discount=>discount!=null&&discount<-30;
+// A market price outside 0.3–3× the court/Onbid appraisal is almost always a matching error
+// (wrong building, wrong area, a unit priced as a whole building). Every section drops it.
+export const offAppraisal=(marketWon,appraisal)=>appraisal>0&&marketWon>0&&(marketWon>appraisal*3||marketWon<appraisal*0.3);
 
 // Recommendation score (0-100) so "cheap and clean" ranks above "very cheap but troubled".
 //   discount  : up to 60 points, capped at a 50% discount (deeper cuts usually mean problems)
