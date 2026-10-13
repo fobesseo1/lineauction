@@ -8,13 +8,9 @@
 - 기능 정의서: `lineestate/docs/product-spec.md`
 - AI 계획: `lineestate/docs/ai-discoverability.md`
 
-## 텔레그램 알림 발송 (봇 준비되면)
+## 텔레그램 알림 발송 — 완료 (2026-10-13)
 
-lineestate의 `app.alert_rules`·`app.watchlist`·`app.notification_channels`를 service role로 읽어 보낸다. 규칙(lineestate/docs/data-factory-requests.md 참고):
-- 대상은 `properties.is_current = true`만.
-- `min_discount_rate` 조건은 `property_analysis.discount_rate`로 판단하되, `market_price_method`가 `no-recent-sales`이거나 `confidence = low`이면 만족하지 않는 것으로 본다.
-- 상가·건물·토지 참고 시세(`market_price_method`가 `land-`, `house-`, `unit-`, `building-`로 시작)는 할인율 알림에서 제외한다.
-- 봇 `/start 코드`로 chat id 연결, `/stop`으로 해제.
+봇 @line_estate_alert_bot. `scripts/alerts/send.mjs`가 온비드·법원·단지 작업 끝에 돌고, `scripts/alerts/bot.mjs`가 1분마다(`\LineAuction\Telegram Bot every 1min`) `/start 코드`·`/stop`을 처리한다. 보낸 기록은 `data/alerts/state.json`(지우면 다음 실행은 조용히 다시 기록만 함). 새로 저장한 조건은 첫 실행에 "지금 N건" 한 줄만 보내고, 이후 새로 맞는 물건(최저가가 바뀌면 다시)을 보낸다.
 
 ## 온비드 실행 요일 조정
 
