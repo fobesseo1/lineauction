@@ -94,7 +94,7 @@ try{
   // 실거래 대비 할인율 (property_analysis).
   const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
-  const publish=await step('publish','scripts/molit/publish.mjs',[],60*60_000);
+  const publish=await step('publish','scripts/molit/publish.mjs',['--with-villas'],60*60_000);
   // 시군구 전월세 전환율 for the price calculator (local trades only, a few seconds).
   await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
   // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
@@ -111,7 +111,8 @@ try{
   // 매물화 신호 per building (auctions linked by analyze, 입주 연차, 거래 급증).
   await step('sale-signals','scripts/signals/sale-signals.mjs',[],20*60_000);
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
-  const geo=await step('geo','scripts/geo/coords.mjs',[],3*3600_000);
+  // 빌라 buildings add ~160k parcels; a daily cap spreads the first fetch over about a week.
+  const geo=await step('geo','scripts/geo/coords.mjs',['--limit','25000'],3*3600_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // New discounts can make properties match saved 할인율 conditions.

@@ -39,7 +39,7 @@ async function fetchAll(table,columns,filter=q=>q){
 
 // 1. Targets and their PNUs.
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
-const places=[...wh.prepare("select distinct kind,lawd,umd,jibun from trades where kind in ('apt','offi') and umd is not null and jibun is not null").iterate()]
+const places=[...wh.prepare("select distinct kind,lawd,umd,jibun from trades where kind in ('apt','offi','rh') and umd is not null and jibun is not null").iterate()]
  .map(r=>({id:placeId(r.kind,r.lawd,r.umd,r.jibun),pnu:jibunPnu(bjdOf(r.lawd,r.umd),r.jibun)}));
 wh.close();
 const complexes=(await fetchAll('complexes','id,kapt_code,pnu')).filter(c=>c.pnu);
