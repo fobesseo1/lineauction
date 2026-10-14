@@ -50,6 +50,10 @@ for(const p of places){
 }
 // sale_signals (with reasons) is broker-only; sale_signal_summary (score and names) is public.
 const summary=rows.map(r=>({place_id:r.place_id,score:r.score,types:r.signals.map(s=>s.type),labels:r.signals.map(s=>s.label),refreshed_at}));
+// Daily snapshot for checking later whether signalled buildings came to market.
+const today=new Date(now.getTime()+9*3600e3).toISOString().slice(0,10);
+const history=summary.map(r=>({day:today,place_id:r.place_id,score:r.score,types:r.types}));
+for(let i=0;i<history.length;i+=500){const {error}=await supa.from('sale_signal_history').upsert(history.slice(i,i+500),{onConflict:'day,place_id'});if(error)throw Error(error.message);}
 for(const [table,list] of [['sale_signals',rows],['sale_signal_summary',summary]]){
  for(let i=0;i<list.length;i+=500){const {error}=await supa.from(table).upsert(list.slice(i,i+500),{onConflict:'place_id'});if(error)throw Error(error.message);}
  // Buildings whose signals ended.
