@@ -51,11 +51,18 @@ const HELP=`선자산 알림 봇입니다.\n사이트 알림 설정(${SITE}/me/n
 const res=await getUpdates(offset);
 if(!res.ok){console.error(res.description);process.exit(1);}
 let handled=0;
+const seenPath=`${root}/seen.json`;
+let seen={};try{seen=JSON.parse(await readFile(seenPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+let staff=[];try{staff=JSON.parse(await readFile('data/alerts/staff.json','utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
 for(const u of res.result){
  offset=u.update_id+1;
  const msg=u.message;if(!msg?.chat||msg.chat.type!=='private')continue;
+ // Who has talked to the bot, so staff (data/alerts/staff.json) can be added without a site account.
+ seen[msg.chat.id]={name:[msg.from?.first_name,msg.from?.last_name].filter(Boolean).join(' '),username:msg.from?.username??null,at:new Date().toISOString()};
+ await writeJson(seenPath,seen);
+ const isStaff=staff.some(s=>String(s.chat_id)===String(msg.chat.id));
  const cmd=parseCommand(msg.text);
- let reply=HELP;
+ let reply=isStaff?'선자산 운영자 알림이 켜져 있습니다. 수집이 끝날 때마다 조건에 맞는 새 물건을 보내 드립니다.':HELP;
  try{
   if(cmd?.command==='start'&&cmd.arg)reply=await link(msg.chat.id,msg.from?.username??null,cmd.arg);
   else if(cmd?.command==='stop')reply=await unlink(msg.chat.id);

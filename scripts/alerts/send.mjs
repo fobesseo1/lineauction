@@ -31,6 +31,13 @@ async function pages(query){const out=[];for(let from=0;;from+=1000){const rows=
 const rules=must(await app.from('alert_rules').select('*').eq('enabled',true));
 const watches=must(await app.from('watchlist').select('user_id,property_id').eq('notify_price_change',true));
 const chats=new Map(must(await app.from('notification_channels').select('user_id,telegram_chat_id').not('telegram_chat_id','is',null)).map(c=>[c.user_id,c.telegram_chat_id]));
+// Staff alerts without a site account: data/alerts/staff.json = [{name, chat_id, rules:[{name, sido:[…], min_discount_rate, …}]}]
+// (same fields as app.alert_rules). Chat ids come from data/alerts/bot/seen.json after they press START.
+let staff=[];try{staff=JSON.parse(await readFile(`${root}/staff.json`,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+for(const s of staff){
+ const user=`staff:${s.chat_id}`;chats.set(user,s.chat_id);
+ (s.rules??[]).forEach((r,i)=>rules.push({...r,id:`staff:${s.chat_id}:${i}`,user_id:user,name:r.name??s.name}));
+}
 
 const outbox=new Map(); // user_id → [{heading, lines, link}]
 const queue=(user,heading,lines,link)=>{if(!lines.length)return;if(!outbox.has(user))outbox.set(user,[]);outbox.get(user).push({heading,lines,link});};
