@@ -12,6 +12,9 @@ import {placeId,jibunPnu,areaStats,periodStart,normalizeName,monthlyHistory} fro
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
+// 빌라 buildings (kind 'rh') are published only with --with-villas until lineestate filters every
+// market_places read by kind; then the daily job turns it on.
+const KINDS=process.argv.includes('--with-villas')?"'apt','offi','rh'":"'apt','offi'";
 const runAt=new Date().toISOString();
 const start=periodStart(new Date());
 const end=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
@@ -40,7 +43,7 @@ const regionName=new Map(leafRegions(regionCatalog.codes).map(r=>[r.code,r.name]
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
 const places=new Map();
 for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_date) d from trades
-  where kind in ('apt','offi') and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
+  where kind in (${KINDS}) and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
  const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
  const prev=places.get(id);
  if(prev&&prev._d>=r.d)continue;
@@ -51,17 +54,17 @@ for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_d
   name:r.name,build_year:r.build_year,kapt_code:r.kind==='apt'?(pnu&&kaptByPnu.get(pnu))||(bjd&&kaptByName.get(`${bjd}:${normalizeName(r.name)}`))||null:null,refreshed_at:runAt,_d:r.d});
 }
 
-// Stats and recent sales over the last 12 months, streamed in building+area order.
-const stats=[],sales=[];
+// Stats and 전월세 contracts over the last 12 months, streamed in building+area order.
+const stats=[],sales=[],rents=[];
 let group=[],groupKey=null;
 const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|');
  stats.push({place_id:pid,area_type:Number(areaType),...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
-for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
-  from trades where kind in ('apt','offi') and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
+for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
+  from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
- if(t.deal==='sale'&&t.amount!=null)sales.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
+ if(t.deal==='rent')rents.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});
 }
 flush();
 
@@ -70,17 +73,31 @@ const months=Array.from({length:36},(_,i)=>{const d=new Date(Date.now()+9*360000
 const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
 let hGroup=[],hKey=null;
 const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length)row.history=monthlyHistory(hGroup,months);hGroup=[];};
-for(const t of wh.prepare(`select kind,lawd,umd,jibun,area,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
-  from trades where kind in ('apt','offi') and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
+for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date
+  from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
+ // Sales list: the same 36 months as the chart.
+ if(t.deal==='sale'&&t.amount!=null)sales.push({id:t.key,place_id:key.split('|')[0],area:t.area,area_type:Math.floor(t.area),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
 }
 hFlush();
 
+// 토지·상업업무용·단독다가구 sales (36 months), by 법정동; MOLIT masks most of their lot numbers.
+const COMMERCIAL_KIND={land:'land',nrg:'commercial',sh:'house'};
+const commercial=[];
+for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,use_type,house_type,zone,land_area,building_area,total_floor_area,floor,build_year,building_type,share,deal_date,amount,dealing,cancel_date
+  from trades where kind in ('land','nrg','sh') and deal='sale' and deal_date>=? and amount is not null`).iterate(`${months[0]}-01`)){
+ const [sido,...rest]=(regionName.get(t.lawd)??'').split(' ');
+ commercial.push({id:t.key,kind:COMMERCIAL_KIND[t.kind],lawd:t.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:t.umd,jibun:t.jibun,
+  use_type:t.use_type||t.house_type||null,zone:t.zone||null,land_area:t.land_area,building_area:t.building_area,total_floor_area:t.total_floor_area,
+  floor:t.floor,build_year:t.build_year,building_type:t.building_type||null,share:t.share==='지분',deal_date:t.deal_date,amount:t.amount,
+  direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
+}
+
 const placeRows=[...places.values()].map(({_d,...p})=>p);
 const matched=placeRows.filter(p=>p.kapt_code).length;
-console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, period ${start}..${end}`);
+console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
 if(dryRun){wh.close();process.exit(0);}
 
 // Batches of 500 with up to 3 tries: a busy free-tier DB occasionally times out one batch.
@@ -128,20 +145,40 @@ await syncTable('market_places',placeRows,['id']);
 await syncTable('market_area_stats',stats,['place_id','area_type']);
 {const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
 
-// Sales are immutable (id = content hash), so sync them by difference: rewriting 300k unchanged
-// rows every run only bloats the free-tier DB.
-const existing=new Set();
-for(let after='';;){
- const {data,error}=await supa.from('market_trades').select('id').gt('id',after).order('id').limit(1000);
- if(error)throw Error(`market_trades ids: ${error.message}`);
- for(const r of data)existing.add(r.id);
- if(data.length<1000)break;after=data.at(-1).id;
+// Trade rows are immutable (id = content hash), so they are synced by difference. Daily runs only
+// compare the months MOLIT reloads (recent RECHECK_MONTHS) and drop rows that left the window;
+// --full compares everything (first load, or after changing a window).
+const full=process.argv.includes('--full');
+const RECHECK_MONTHS=6;
+const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-RECHECK_MONTHS);return d.toISOString().slice(0,10);})();
+async function syncById(table,rows,windowStart){
+ const from=full?windowStart:recheckFrom;
+ const existing=new Set();
+ for(let after='';;){
+  const {data,error}=await supa.from(table).select('id').gte('deal_date',from).gt('id',after).order('id').limit(1000);
+  if(error)throw Error(`${table} ids: ${error.message}`);
+  for(const r of data)existing.add(r.id);
+  if(data.length<1000)break;after=data.at(-1).id;
+ }
+ const mine=rows.filter(r=>r.deal_date>=from);
+ const current=new Set(mine.map(r=>r.id));
+ const added=mine.filter(r=>!existing.has(r.id)),gone=[...existing].filter(id=>!current.has(id));
+ for(let i=0;i<added.length;i+=1000){
+  for(let attempt=1;;attempt++){
+   const {error}=await supa.from(table).upsert(added.slice(i,i+1000),{onConflict:'id',ignoreDuplicates:true});
+   if(!error)break;
+   if(attempt>=3)throw Error(`${table} insert: ${error.message}`);
+   await new Promise(r=>setTimeout(r,5000*attempt));
+  }
+ }
+ for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
+ const {error,count}=await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
+ console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
-const current=new Set(sales.map(s=>s.id));
-const added=sales.filter(s=>!existing.has(s.id)),gone=[...existing].filter(id=>!current.has(id));
-for(let i=0;i<added.length;i+=1000){const {error}=await supa.from('market_trades').insert(added.slice(i,i+1000));if(error)throw Error(`market_trades insert: ${error.message}`);}
-for(let i=0;i<gone.length;i+=300){const {error}=await supa.from('market_trades').delete().in('id',gone.slice(i,i+300));if(error)throw Error(`market_trades delete: ${error.message}`);}
-console.log(`market_trades: +${added.length} -${gone.length}`);
+const salesStart=`${months[0]}-01`;
+await syncById('market_trades',sales,salesStart);
+await syncById('market_rents',rents,start);
+await syncById('market_commercial_trades',commercial,salesStart);
 
 console.log('PUBLISHED');
 wh.close();
