@@ -58,7 +58,9 @@ for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_d
 const stats=[],sales=[],rents=[];
 let group=[],groupKey=null;
 const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|');
- stats.push({place_id:pid,area_type:Number(areaType),...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
+ // kind and region copied from the place so screens can filter without a join.
+ const place=places.get(pid);
+ stats.push({place_id:pid,area_type:Number(areaType),kind:place?.kind??null,sido:place?.sido??null,sigungu:place?.sigungu??null,...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
