@@ -134,9 +134,18 @@ try{
    if(stop)return 'stop';
    try{await readFile(`${root}/STOP`);stop=true;return 'stop';}catch(e){if(e.code!=='ENOENT')throw e;}
    await goPage(number);
-   const observedRows=await stableRows();
-   const snapshot={court,page:number,displayedTotal:total,rows:observedRows,observedAt:new Date().toISOString(),sourceUrl:page.url()};
-   const items=parseList(snapshot);
+   let observedRows=await stableRows();
+   let snapshot={court,page:number,displayedTotal:total,rows:observedRows,observedAt:new Date().toISOString(),sourceUrl:page.url()};
+   // A half-drawn table once stopped a whole run ("Unrecognized identity at row 24"): read the page
+   // again after a pause; a layout that still fails stops the run and is kept for fixing the parser.
+   let items;
+   try{items=parseList(snapshot);}
+   catch(first){
+    await atomic(`${root}/last-bad-page.json`,{error:first.message,...snapshot});
+    await page.waitForTimeout(5000);await goPage(number);observedRows=await stableRows();
+    snapshot={...snapshot,rows:observedRows,observedAt:new Date().toISOString()};
+    items=parseList(snapshot);
+   }
    const base={schemaVersion:1,court,pageSize:40,pages:[snapshot],details:{},detailJobs:[],errors:[],pagination:{startPage:number,reachedLastPage:false,nextPage:number+1}};
    await saveRun(base);
    let state=await load('data/court/current.json',{});
