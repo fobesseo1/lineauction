@@ -60,7 +60,7 @@ const missing=[];for(const pnu of wanted)if(!((pnu) in await shardOf(pnu)))missi
 console.log(`places ${places.length} (pnu ${places.filter(p=>p.pnu).length}), complexes ${complexes.length}, properties ${properties.length} (court pnu ${courtPnu.size}); parcels wanted ${wanted.size}, to fetch ${missing.length}`);
 if(plan)process.exit(0);
 
-let fetched=0,timeouts=0,stopped=null;const dirty=new Set();
+let fetched=0,timeouts=0,stopped=null;const dirty=new Set();const runStartedAt=new Date().toISOString();
 for(const pnu of missing){
  if(fetched>=limit)break;
  if(await access(`${root}/STOP`).then(()=>true,()=>false)){stopped='STOP_PRESENT';break;}
@@ -76,6 +76,8 @@ for(const pnu of missing){
   const shard=await shardOf(pnu);shard[pnu]=f?bboxCenter(f.bbox??boxOf(f.geometry)):null;dirty.add(pnu.slice(0,10));
   fetched++;
  }catch(e){stopped=e.message;break;}
+ // Progress for the status window and the watchdog (the parcel shards alone don't show activity).
+ if(fetched%100===0)await writeJson(`${root}/coords-progress.json`,{fetched,target:Math.min(limit,missing.length),startedAt:runStartedAt,updatedAt:new Date().toISOString()});
  if(fetched%500===0){for(const k of dirty)await writeJson(`${root}/parcels/${k}.json`,shards.get(k));dirty.clear();console.log(`parcels fetched ${fetched}`);}
  await sleep(150);
 }

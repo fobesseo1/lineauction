@@ -70,9 +70,12 @@ function jobLines(current,last,extra){
   let note;
   if(d)note=d.code===0?`${dur(d.seconds)} 걸림`:`실패 (${String(d.result??'').slice(0,40)})`;
   else if(key===running){
-   const t=typical.get(key);
-   note=`진행 중 ${dur(runningFor)}${Number.isFinite(t)?` · 보통 ${dur(t)}`:''}`;
-   if(Number.isFinite(t))remaining+=Math.max(0,t-runningFor);else unknown=true;
+   const t=typical.get(key),left=extra.remaining?.[key];
+   note=`진행 중 ${dur(runningFor)}${Number.isFinite(left)?` · 약 ${dur(left)} 남음`:Number.isFinite(t)?` · 보통 ${dur(t)}`:''}`;
+   // A step that reports its own progress is estimated from its pace, not from the last run.
+   if(Number.isFinite(left))remaining+=left;
+   else if(Number.isFinite(t)&&runningFor<=t)remaining+=t-runningFor;
+   else{unknown=true;if(Number.isFinite(t))note+=' (보통보다 오래 걸리는 중)';}
   }else{
    const t=typical.get(key);
    note=Number.isFinite(t)?`보통 ${dur(t)}`:'';
@@ -84,14 +87,16 @@ function jobLines(current,last,extra){
  });
  const doneCount=steps.filter(([k])=>done.has(k)).length;
  lines.push('');
- lines.push(`  진행: ${doneCount} / ${steps.length} 단계 완료 · 남은 시간 약 ${dur(remaining)}${unknown?' 이상':''} · 예상 종료 ${time(Date.now()+remaining*1000)}`);
+ lines.push(unknown
+  ?`  진행: ${doneCount} / ${steps.length} 단계 완료 · 지금 단계가 평소보다 길어 끝나는 시각은 계산하지 못함 (나머지 단계는 약 ${dur(remaining)})`
+  :`  진행: ${doneCount} / ${steps.length} 단계 완료 · 남은 시간 약 ${dur(remaining)} · 예상 종료 ${time(Date.now()+remaining*1000)}`);
  lines.push('  (예상 시간은 지난번 같은 작업 기준이라 그날 자료 양에 따라 달라집니다)');
  return lines;
 }
 
 async function render(){
  const day=koreanDay();
- const [current,lastOnbid,lastCourt,lastMarket,health,onbid,detail,budget,court,molit]=await Promise.all(['data/daily/current.json','data/daily/last-onbid.json','data/daily/last-court.json','data/daily/last-market.json','data/daily/health.json','data/onbid/progress.json','data/onbid/detail-progress.json','data/onbid/budget.json','data/court/standalone/progress.json','data/court/pipeline/molit-request-budget.json'].map(readJson));
+ const [current,lastOnbid,lastCourt,lastMarket,health,onbid,detail,budget,court,molit,coords]=await Promise.all(['data/daily/current.json','data/daily/last-onbid.json','data/daily/last-court.json','data/daily/last-market.json','data/daily/health.json','data/onbid/progress.json','data/onbid/detail-progress.json','data/onbid/budget.json','data/court/standalone/progress.json','data/court/pipeline/molit-request-budget.json','data/geo/coords-progress.json'].map(readJson));
  const lines=[`선경매 진행 상황  ·  ${new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}  (5초마다 갱신, 창을 닫아도 수집은 계속됩니다)`,''];
  const lock=await readJson('data/daily/running.lock');
  if(current&&lock){
@@ -99,7 +104,11 @@ async function render(){
    'onbid-list':onbid&&`구간 ${n(onbid.partition)}/12 · ${n(onbid.pages)}쪽 · 마지막 진행 ${time(onbid.updatedAt)}${ago(onbid.updatedAt)}`,
    'onbid-detail':detail&&`${n(detail.processed)} / ${n(detail.total)} (남음 ${n(detail.remaining)}) · 마지막 진행 ${time(detail.updatedAt)}${ago(detail.updatedAt)}`,
    'court-list':court&&`${court.current?.court??'—'} ${court.current?.page?`${court.current.page}쪽`:''} · 확인 ${n(court.attempted)}건 (실패 ${n(court.failed)}) · 새 사진 ${n(court.photos)}장`,
+   geo:coords&&Date.parse(coords.startedAt)>=Date.parse(current.startedAt)&&`필지 ${n(coords.fetched)} / ${n(coords.target)} · 마지막 진행 ${time(coords.updatedAt)}${ago(coords.updatedAt)}`,
+   remaining:{},
   };
+  // 지도 좌표 reports how many parcels it has fetched, so its remaining time follows its own pace.
+  if(extra.geo&&coords.fetched>0){const spent=(Date.parse(coords.updatedAt)-Date.parse(coords.startedAt))/1000;extra.remaining.geo=spent/coords.fetched*Math.max(0,coords.target-coords.fetched);}
   lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra));
  }else lines.push('■ 지금 실행 중인 작업 없음');
  lines.push('');

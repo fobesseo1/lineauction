@@ -21,7 +21,7 @@ const activityAt=Math.max(...await Promise.all([
  `${root}/current.json`,'data/court/standalone/events.jsonl','data/court/standalone/progress.json',
  'data/onbid/events.jsonl','data/onbid/progress.json','data/onbid/detail-progress.json',...pipelineFiles,
  'data/complex/budget.json','data/molit/budget.json',   // both rewritten on every API call
- 'data/building/years.json','data/geo/official/complexes.json','data/geo/parcels-info.json','data/geo/run.log',
+ 'data/building/years.json','data/geo/official/complexes.json','data/geo/parcels-info.json','data/geo/run.log','data/geo/coords-progress.json','data/geo/parcels','data/alerts/state.json','data/molit/publish-full.log',
 ].map(mtime)));
 
 // Consecutive KST days on which a provider refused requests.
