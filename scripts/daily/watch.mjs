@@ -2,6 +2,8 @@
 // it only notices stalls, crashes, missed starts, failed runs and repeated API refusals, and
 // sends throttled Windows notifications. State lives in data/daily/watch-state.json.
 import {readFile,writeFile,stat,readdir,mkdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {sendWindowsNotification} from '../court/windows-notify.mjs';
 import {koreanDay} from './core.mjs';
 import {evaluate,due} from './watch-core.mjs';
@@ -10,6 +12,18 @@ const root='data/daily';await mkdir(root,{recursive:true});
 const readJson=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf8'));}catch{return fallback;}};
 const mtime=async path=>{try{return (await stat(path)).mtimeMs;}catch{return 0;}};
 const alive=pid=>{try{process.kill(pid,0);return true;}catch(e){return e.code==='EPERM';}};
+// Total CPU time (100ns units) of every process below pid, or null when it can't be read.
+async function descendantCpu(pid){
+ try{
+  const {stdout}=await promisify(execFile)('powershell.exe',['-NoProfile','-Command',
+   'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,UserModeTime,KernelModeTime | ConvertTo-Json -Compress'],{windowsHide:true,timeout:60000,maxBuffer:16*1024*1024});
+  const rows=[].concat(JSON.parse(stdout));
+  const children=new Map();for(const r of rows){if(!children.has(r.ParentProcessId))children.set(r.ParentProcessId,[]);children.get(r.ParentProcessId).push(r);}
+  let total=0;const queue=[...(children.get(pid)??[])];
+  while(queue.length){const r=queue.pop();total+=Number(r.UserModeTime??0)+Number(r.KernelModeTime??0);queue.push(...(children.get(r.ProcessId)??[]));}
+  return total;
+ }catch{return null;}
+}
 const now=Date.now(),day=koreanDay(new Date(now));
 
 const lock=await readJson(`${root}/running.lock`,null);
@@ -26,6 +40,18 @@ const activityAt=Math.max(...await Promise.all([
 
 // Consecutive KST days on which a provider refused requests.
 const state=await readJson(`${root}/watch-state.json`,{sent:{},blockedDays:{}});
+
+// The surest sign of work: the runner's child processes (collectors, browsers) keep using CPU.
+// Files alone missed steps that write elsewhere and raised false "멈춤" alarms.
+let cpuActiveAt=state.cpu?.activeAt??0;
+if(lock&&alive(lock.pid)){
+ const total=await descendantCpu(lock.pid);
+ if(total!=null){
+  if(state.cpu?.pid!==lock.pid||total>state.cpu.total)cpuActiveAt=now;
+  state.cpu={pid:lock.pid,total,activeAt:cpuActiveAt};
+ }
+}
+const workAt=Math.max(activityAt,cpuActiveAt);
 const onbidPause=await readJson('data/onbid/access-paused.json',{}),molitPause=await readJson('data/court/pipeline/molit-access-paused.json',null);
 const blockedToday={onbid:[onbidPause.detail?.blockedDay,onbidPause.list?.day].includes(day),molit:!!molitPause&&(molitPause.day??koreanDay(new Date(molitPause.pausedAt??0)))===day};
 const blockedStreaks={};
@@ -36,7 +62,7 @@ for(const [service,blocked] of Object.entries(blockedToday)){
  blockedStreaks[service]=streak;
 }
 
-const problems=evaluate({now,day,lock,lockAlive:lock?alive(lock.pid):false,activityAt,history,blockedStreaks});
+const problems=evaluate({now,day,lock,lockAlive:lock?alive(lock.pid):false,activityAt:workAt,history,blockedStreaks});
 // Failures the runner already announced start their repeat clock without a duplicate notice.
 for(const p of problems)if(p.initialSent&&state.sent[p.key]===undefined)state.sent[p.key]=now;
 for(const p of due(problems,state.sent,now)){
@@ -47,6 +73,6 @@ for(const p of due(problems,state.sent,now)){
 const active=new Set(problems.map(p=>p.key));
 for(const key of Object.keys(state.sent))if(!active.has(key))delete state.sent[key];
 await writeFile(`${root}/watch-state.json`,JSON.stringify(state,null,2));
-const health={checkedAt:new Date(now).toISOString(),ok:!problems.length,running:lock?{job:lock.job,trigger:lock.trigger,startedAt:lock.startedAt,alive:alive(lock.pid)}:null,lastActivityAt:activityAt?new Date(activityAt).toISOString():null,problems:problems.map(({key,title,message})=>({key,title,message}))};
+const health={checkedAt:new Date(now).toISOString(),ok:!problems.length,running:lock?{job:lock.job,trigger:lock.trigger,startedAt:lock.startedAt,alive:alive(lock.pid)}:null,lastActivityAt:workAt?new Date(workAt).toISOString():null,problems:problems.map(({key,title,message})=>({key,title,message}))};
 await writeFile(`${root}/health.json`,JSON.stringify(health,null,2));
 console.log(JSON.stringify({ok:health.ok,problems:health.problems.map(p=>p.title)}));
