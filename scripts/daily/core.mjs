@@ -19,7 +19,8 @@ export function scheduledSkip(history, job, day) {
   const done = history.filter(run => run.job === job && run.day === day && run.status !== 'failed' && run.status !== 'skipped');
   const manual = done.find(run => run.trigger === 'manual');
   if (manual) return { skip: true, reason: 'manual-today', at: manual.finishedAt };
-  if (done.some(run => run.trigger === 'schedule')) return { skip: true, reason: 'scheduled-today' };
+  // 'chain' = started right after the previous job (court after Onbid); it counts like a scheduled run.
+  if (done.some(run => run.trigger === 'schedule' || run.trigger === 'chain')) return { skip: true, reason: 'scheduled-today' };
   return { skip: false };
 }
 

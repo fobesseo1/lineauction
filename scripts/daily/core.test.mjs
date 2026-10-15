@@ -12,6 +12,7 @@ test('failed or skipped runs do not suppress the scheduled run; a finished sched
  assert.equal(scheduledSkip([{job:'onbid',trigger:'manual',day:'d',status:'failed'}],'onbid','d').skip,false);
  assert.equal(scheduledSkip([{job:'onbid',trigger:'schedule',day:'d',status:'skipped'}],'onbid','d').skip,false);
  assert.deepEqual(scheduledSkip([{job:'onbid',trigger:'schedule',day:'d',status:'completed'}],'onbid','d'),{skip:true,reason:'scheduled-today'});
+ assert.deepEqual(scheduledSkip([{job:'court',trigger:'chain',day:'d',status:'completed'}],'court','d'),{skip:true,reason:'scheduled-today'});
 });
 test('lock is busy only while its process is alive',()=>{
  assert.equal(lockState(null,()=>true),'free');

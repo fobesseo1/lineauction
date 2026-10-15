@@ -12,7 +12,7 @@ const root='data/daily';await mkdir(root,{recursive:true});
 const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length+3);
 const job=arg('job'),trigger=arg('trigger')??'manual';
 if(!JOBS.includes(job))throw Error(`--job must be one of ${JOBS.join(', ')}`);
-if(!['schedule','manual'].includes(trigger))throw Error('--trigger must be schedule or manual');
+if(!['schedule','manual','chain'].includes(trigger))throw Error('--trigger must be schedule, manual or chain');
 const LABELS={onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'};
 const label=LABELS[job];
 const day=koreanDay();
@@ -25,8 +25,11 @@ const alive=pid=>{try{process.kill(pid,0);return true;}catch(e){return e.code===
 
 // 1. Scheduled starts (daily time, missed-run catch-up, or logon) wait for the job's hour and skip
 //    when the job already ran today. Manual runs always proceed.
+// 'chain' starts (court right after Onbid) skip the hour check but otherwise behave like scheduled ones;
+// the 15:00 task stays as a fallback and skips itself once the chained run has finished.
 if(trigger==='schedule'&&(!runsOn(job)||beforeSchedule(job)))process.exit(0);
-if(trigger==='schedule'){
+if(trigger==='chain'&&!runsOn(job))process.exit(0);
+if(trigger!=='manual'){
  const skip=scheduledSkip(await history(),job,day);
  if(skip.skip){
   await record({job,trigger,day,status:'skipped',reason:skip.reason,at:new Date().toISOString()});
@@ -47,6 +50,8 @@ for(const started=Date.now();;){
  if(Date.now()-started>8*3600_000){await record({job,trigger,day,status:'failed',reason:'lock-timeout',at:new Date().toISOString()});await notify(`${label} 시작 실패`,'다른 작업이 8시간 넘게 끝나지 않았습니다. 설정 화면을 확인해 주세요.');process.exit(1);}
  await delay(60_000);
 }
+// A scheduled and a chained start can both queue for the lock; the second one to get it skips.
+if(trigger!=='manual'&&scheduledSkip(await history(),job,day).skip){await lock.close();await unlink(lockPath).catch(()=>{});process.exit(0);}
 const run={job,trigger,day,startedAt:new Date().toISOString(),pid:process.pid,steps:[]};
 await lock.writeFile(JSON.stringify({job,trigger,pid:process.pid,startedAt:run.startedAt}));
 await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
@@ -158,4 +163,12 @@ finally{
  await unlink(`${root}/current.json`).catch(()=>{});await lock.close();await unlink(lockPath).catch(()=>{});
  console.log(JSON.stringify({job,trigger,status:run.status,steps:run.steps.map(s=>({name:s.name,code:s.code,seconds:s.seconds}))}));
  process.exitCode=run.status==='completed'?0:1;
+}
+// Court follows Onbid on its run days after a 3-minute pause instead of waiting for 15:00.
+if(job==='onbid'&&trigger!=='manual'&&runsOn('court')&&!scheduledSkip(await history(),'court',day).skip){
+ await delay(3*60_000);
+ const {openSync}=await import('node:fs');
+ const out=openSync(`${root}/court.log`,'a');
+ spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain'],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
+ console.log('court chained');
 }

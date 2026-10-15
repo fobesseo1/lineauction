@@ -113,7 +113,7 @@ async function render(){
  }else lines.push('■ 지금 실행 중인 작업 없음');
  lines.push('');
  lines.push('── 매일 일정 ──');
- for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 9시'],['온비드 공매',lastOnbid,'매일 오전 10시 (앞 작업이 끝나면 바로)'],['법원 경매',lastCourt,'평일 오후 3시']])
+ for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 9시'],['온비드 공매',lastOnbid,'매일 오전 10시 (앞 작업이 끝나면 바로)'],['법원 경매',lastCourt,'평일, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']])
   lines.push(`  ${label.padEnd(6,'　')} ${hour}  ·  최근: ${run?`${statusKo[run.status]??run.status} ${when(run.finishedAt)}`:'기록 없음'}`);
  lines.push('');
  const usage=budget?.serviceDays?.[day]??{list:0,detail:0};
