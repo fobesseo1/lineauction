@@ -35,6 +35,14 @@ test('일괄 토지·건물은 1건, 동일 사건 물건번호는 별개, 중�
   assert.deepEqual(items[0].relatedCases, ['2023타경117390']);
   assert.notEqual(items[0].key, items[1].key);
 });
+test('일괄매각 이어지는 줄에 같은 사건번호가 반복돼도 같은 물건의 자산', () => {
+  const repeat = cells(['', `${court}\n2023타경113350\n2023타경117390(중복)`, '', '관악구 토지\n[토지 대 42㎡]', '지도', '', '', '']);
+  const items = parseList(page([header(), price(), repeat, cells(['', '', '']), header('2'), price()]));
+  assert.equal(items.length, 2);
+  assert.equal(items[0].assets.length, 2);
+  const other = cells(['', `${court}\n2024타경1`, '', '다른 사건', '지도', '', '', '']);
+  assert.throws(() => parseList(page([header(), price(), other])), /Unrecognized identity/);
+});
 test('페이지 반복이나 알 수 없는 표 구조를 조용히 수용하지 않음', () => {
   const r = run(); r.pages.push({ ...page(), page: 2 });
   assert.throws(() => reconcile(null, r), /Duplicate item/);

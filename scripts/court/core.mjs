@@ -42,7 +42,9 @@ export function parseList(snapshot) {
           sourceUrl: snapshot.sourceUrl, observedAt: snapshot.observedAt, page: snapshot.page,
         };
         items.push(pending);
-      } else if (cases.length || numberText || !pending) {
+      } else if ((cases.length && cases[0] !== pending?.caseNumber) || numberText || !pending) {
+        // 일괄매각 continuation rows repeat the item's case numbers with no item number; those are
+        // further assets of the pending item. A different case without a number is unknown.
         throw new Error(`Unrecognized identity at row ${rowIndex}`);
       }
       if (clean(cells[3].text)) pending.assets.push({
