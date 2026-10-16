@@ -144,7 +144,20 @@ try{
     await atomic(`${root}/last-bad-page.json`,{error:first.message,...snapshot});
     await page.waitForTimeout(5000);await goPage(number);observedRows=await stableRows();
     snapshot={...snapshot,rows:observedRows,observedAt:new Date().toISOString()};
-    items=parseList(snapshot);
+    // Still unreadable: record the page and go on with the rest; the run reports it at the end.
+    try{items=parseList(snapshot);}
+    catch(second){
+     progress.badPages=(progress.badPages??0)+1;
+     await appendFile(`${root}/odd-rows.jsonl`,JSON.stringify({at:new Date().toISOString(),court,page:number,error:second.message})+'\n');
+     await atomic(`${root}/last-bad-page.json`,{error:second.message,...snapshot});
+     continue;
+    }
+   }
+   // Rows the parser didn't recognise were skipped; keep them for review.
+   if(items.problems?.length){
+    progress.oddRows=(progress.oddRows??0)+items.problems.length;
+    for(const p of items.problems)await appendFile(`${root}/odd-rows.jsonl`,JSON.stringify({at:new Date().toISOString(),court,page:number,...p})+'\n');
+    await atomic(`${root}/last-bad-page.json`,{error:items.problems.map(p=>p.reason).join(','),...snapshot});
    }
    const base={schemaVersion:1,court,pageSize:40,pages:[snapshot],details:{},detailJobs:[],errors:[],pagination:{startPage:number,reachedLastPage:false,nextPage:number+1}};
    await saveRun(base);
@@ -222,7 +235,7 @@ try{
   }});
   if(outcome==='stop')break outer;
  }
- progress.status=stop?'stopped':progress.attempted>=limit?'limit-reached':progress.failed?'pass-finished-with-errors':'pass-finished';
+ progress.status=stop?'stopped':progress.attempted>=limit?'limit-reached':(progress.failed||progress.oddRows||progress.badPages)?'pass-finished-with-errors':'pass-finished';
  if(syncEvery&&(repairPass||progress.succeeded%syncEvery!==0))await sync();
  if(repairPass){
   const audit=repairAudit(await load('data/court/current.json',{}),{media:await load('data/court/media/manifest.json',[]),checks,seen:[...seen],courts,completedCourts:Object.entries(checkpoint.courts).filter(([,v])=>v.complete).map(([k])=>k),run:progress.id,startedAt:progress.startedAt,finishedAt:new Date().toISOString()});

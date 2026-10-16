@@ -150,6 +150,7 @@ try{
    run.status=listOk&&pipelineOk?'completed':'failed';
    const p=latest.properties??{};
    const message=[`목록·상세 확인 ${collector.attempted??0}건 (성공 ${collector.succeeded??0} · 실패 ${collector.failed??0}) · 새 사진 ${collector.photos??0}장`,
+    ...((collector.oddRows||collector.badPages)?[`읽지 못하고 건너뛴 줄 ${collector.oddRows??0}개 · 페이지 ${collector.badPages??0}개 (data/court/standalone/odd-rows.jsonl)`]:[]),
     `DB 신규 ${p.created??0} · 변경 ${p.updated??0} · 재확인 필요 ${latest.lifecycle?.['needs-recheck']??0} · 종결 ${latest.lifecycle?.closed??0}`,
     `실거래 연결 ${latest.matchedProperties??0}건 · 국토부 요청 ${run.summary.molit.used}/${run.summary.molit.limit??10000}`].join('\n');
    const failure=[!listOk&&`목록·사진: ${collector.error??collector.status??list.result}`,!pipelineOk&&`DB·실거래: ${latest.errors?.[0]?.message??latest.status??pipeline.result}`].filter(Boolean).join('\n');

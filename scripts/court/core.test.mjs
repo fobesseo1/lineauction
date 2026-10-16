@@ -40,13 +40,20 @@ test('일괄매각 이어지는 줄에 같은 사건번호가 반복돼도 같�
   const items = parseList(page([header(), price(), repeat, cells(['', '', '']), header('2'), price()]));
   assert.equal(items.length, 2);
   assert.equal(items[0].assets.length, 2);
+  // A different case without an item number is skipped and recorded; the items around it stay.
   const other = cells(['', `${court}\n2024타경1`, '', '다른 사건', '지도', '', '', '']);
-  assert.throws(() => parseList(page([header(), price(), other])), /Unrecognized identity/);
+  const odd = parseList(page([header(), price(), other, cells(['', '', '']), header('2'), price()]));
+  assert.equal(odd.length, 2);
+  assert.equal(odd.problems.length, 1);
+  assert.equal(odd.problems[0].reason, 'unrecognized-identity');
 });
 test('페이지 반복이나 알 수 없는 표 구조를 조용히 수용하지 않음', () => {
   const r = run(); r.pages.push({ ...page(), page: 2 });
   assert.throws(() => reconcile(null, r), /Duplicate item/);
-  assert.throws(() => parseList(page([cells(['unexpected'])])), /layout/);
+  // An unknown row layout is recorded, not accepted silently; a page with nothing readable still fails.
+  const changed = parseList(page([header(), price(), cells(['unexpected'])]));
+  assert.equal(changed.problems[0].reason, 'layout-1-cells');
+  assert.throws(() => parseList(page([cells(['unexpected'])])), /Empty/);
   assert.throws(() => parseList(page([])), /Empty/);
 });
 test('부분 수집에서 안 보인 물건을 취하로 바꾸지 않음', () => {

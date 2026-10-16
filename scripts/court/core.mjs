@@ -21,8 +21,11 @@ export function date(value) {
 }
 export function parseList(snapshot) {
   if (!snapshot.court || !Array.isArray(snapshot.rows)) throw new Error('Invalid court snapshot');
-  const items = [];
-  let pending;
+  // Rows we don't recognise are recorded in items.problems and skipped (with the rows that belong
+  // to them) so one odd listing never stops the collection; the run reports them at the end.
+  const items = [], problems = [];
+  const skip = (rowIndex, cells, reason) => { problems.push({ row: rowIndex, reason, text: cells.map(c => clean(c.text)).join(' | ').slice(0, 300) }); pending = null; skipping = true; };
+  let pending, skipping = false;
   for (const [rowIndex, cells] of snapshot.rows.entries()) {
     if (!Array.isArray(cells) || cells.some(c => typeof c.text !== 'string')) throw new Error('Invalid cells');
     if (!cells.length) continue;
@@ -42,24 +45,30 @@ export function parseList(snapshot) {
           sourceUrl: snapshot.sourceUrl, observedAt: snapshot.observedAt, page: snapshot.page,
         };
         items.push(pending);
+        skipping = false;
+      } else if (skipping) {
+        continue;
       } else if ((cases.length && cases[0] !== pending?.caseNumber) || numberText || !pending) {
         // 일괄매각 continuation rows repeat the item's case numbers with no item number; those are
         // further assets of the pending item. A different case without a number is unknown.
-        throw new Error(`Unrecognized identity at row ${rowIndex}`);
+        skip(rowIndex, cells, 'unrecognized-identity');
+        continue;
       }
       if (clean(cells[3].text)) pending.assets.push({
         address: clean(cells[3].links?.[0]) || clean(cells[3].text.split('\n')[0]),
         raw: clean(cells[3].text),
       });
+    } else if (cells.length === 3 && skipping) {
+      continue;
     } else if (cells.length === 3 && pending) {
       if (cells.every(c => !clean(c.text))) continue; // Empty bundled-asset continuation.
-      if (pending.use !== null) throw new Error('Unexpected second price row');
+      if (pending.use !== null) { items.pop(); skip(rowIndex, cells, 'second-price-row'); continue; }
       pending.use = clean(cells[0].text);
       pending.minimumBidWon = money(cells[1].text);
       pending.status = clean(cells[2].text);
     } else {
-      // Do not silently accept a changed table layout and mark the run successful.
-      throw new Error(`Unsupported court row layout: ${cells.length}`);
+      // A changed layout is not accepted silently: it is recorded and the run reports it.
+      skip(rowIndex, cells, `layout-${cells.length}-cells`);
     }
   }
   if (!items.length && snapshot.displayedTotal !== 0) throw new Error('Empty/unloaded result page');
@@ -71,6 +80,7 @@ export function parseList(snapshot) {
     ].filter(Boolean);
     item.assetCategory = /자동차|중기|선박/.test(item.use ?? '') ? 'non-real-estate' : item.use === '기타' ? 'needs-classification' : 'real-estate';
   }
+  items.problems = problems;
   return items;
 }
 
