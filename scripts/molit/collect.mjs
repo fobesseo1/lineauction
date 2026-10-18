@@ -96,7 +96,9 @@ outer:for(const [i,ym] of months.entries()){
   for(const apiName of apiNames){
    if(exhausted.has(apiName))continue;
    const prev=loadOf.get(apiName,code,ym);
-   const fresh=prev&&(i>=RECENT_MONTHS||Date.now()-Date.parse(prev.loaded_at)<86400000);
+   // Recent months count as fresh for 20 hours, not 24: a daily job that starts a little earlier
+   // than yesterday's must still reload them, or the reload runs only every other day.
+   const fresh=prev&&(i>=RECENT_MONTHS||Date.now()-Date.parse(prev.loaded_at)<20*3600000);
    if(fresh)continue;
    try{
     trades+=await loadMonth(apiName,code,ym);loaded++;consecutiveErrors=0;
