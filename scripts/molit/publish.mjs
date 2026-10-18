@@ -6,6 +6,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
+import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
 import {placeId,jibunPnu,areaStats,periodStart,normalizeName,monthlyHistory} from './summary.mjs';
@@ -128,8 +129,15 @@ async function existingDigests(table,cols){
  }
  return out;
 }
+// What was last published is kept locally, so a daily run doesn't read ~430k digests back from the
+// DB just to compare; --full (or a missing cache file) reads them from the DB instead.
+const digestCachePath=table=>`data/molit/published-${table}.json`;
+async function knownDigests(table,cols){
+ if(!process.argv.includes('--full')){try{return new Map(Object.entries(JSON.parse(await readFile(digestCachePath(table),'utf8'))));}catch(e){if(e.code!=='ENOENT')throw e;}}
+ return existingDigests(table,cols);
+}
 async function syncTable(table,rows,cols){
- const have=await existingDigests(table,cols);
+ const have=await knownDigests(table,cols);
  const keyOf=r=>cols.map(c=>r[c]).join('|');
  const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
  await upsert(table,changed,cols.join(','));
@@ -141,6 +149,7 @@ async function syncTable(table,rows,cols){
    :supa.from(table).delete().or(batch.map(([pid,t])=>`and(place_id.eq."${pid}",area_type.eq.${t})`).join(','));
   const {error}=await del;if(error)throw Error(`${table} delete: ${error.message}`);
  }
+ await writeJson(digestCachePath(table),Object.fromEntries(rows.map(r=>[keyOf(r),digestOf(r)])));
  console.log(`${table}: ${changed.length} written, ${gone.length} removed, ${rows.length-changed.length} unchanged`);
 }
 await syncTable('market_places',placeRows,['id']);
@@ -151,7 +160,7 @@ await syncTable('market_area_stats',stats,['place_id','area_type']);
 // compare the months MOLIT reloads (recent RECHECK_MONTHS) and drop rows that left the window;
 // --full compares everything (first load, or after changing a window).
 const full=process.argv.includes('--full');
-const RECHECK_MONTHS=6;
+const RECHECK_MONTHS=3;   // MOLIT reloads at most the last 3 months
 const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-RECHECK_MONTHS);return d.toISOString().slice(0,10);})();
 async function syncById(table,rows,windowStart){
  const from=full?windowStart:recheckFrom;

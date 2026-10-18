@@ -100,8 +100,8 @@ try{
   const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
   const publish=await step('publish','scripts/molit/publish.mjs',['--with-villas'],60*60_000);
-  // 시군구 전월세 전환율 for the price calculator (local trades only, a few seconds).
-  await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
+  // 시군구 전월세 전환율 for the price calculator; rates move slowly, so Mondays only.
+  if(kstWeekday()===1)await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
   // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
   // 상권 map points are cached; only new 상권 names are looked up.
   if(kstWeekday()===1){await step('r-one','scripts/calc/r-one.mjs',[],20*60_000);await step('commercial-areas','scripts/calc/commercial-areas.mjs',[],20*60_000);}

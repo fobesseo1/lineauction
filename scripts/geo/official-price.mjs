@@ -53,9 +53,16 @@ async function propertiesPart(){
  const onbidAddr=new Map();
  const onbidIds=props.filter(p=>p.source==='onbid').map(p=>p.id);
  for(let i=0;i<onbidIds.length;i+=300){const {data,error}=await supa.from('onbid_observations').select('property_id,list_payload,detail_payload').in('property_id',onbidIds.slice(i,i+300));if(error)throw Error(error.message);for(const o of data){const d={...o.list_payload,...o.detail_payload};onbidAddr.set(o.property_id,d.zadrNm||d.cltrRadr||null);}}
- const rows=[];let looked=0,missing=0;
+ // Units with no price (not yet assessed, or a 동·호 the register doesn't match) were looked up
+ // again every day and used up the daily calls, so complexes never progressed. They are now
+ // retried after 30 days.
+ const missPath=`${root}/property-misses.json`;
+ let misses={};try{misses=JSON.parse(await readFile(missPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ const retryAfter=new Date(Date.now()-30*86400e3).toISOString();
+ const rows=[];let looked=0,missing=0,skipped=0;
  for(const p of props){
   if(!COMMUNAL.test(p.usage_type)||done.has(p.id))continue;
+  if(misses[p.id]>retryAfter){skipped++;continue;}
   const {dong,ho}=unitOf(p.source==='onbid'?onbidAddr.get(p.id):p.address);
   if(!ho)continue;
   let r;try{r=await latest({pnu:p.pnu,hoNm:ho,...(dong?{dongNm:dong}:{})});}catch(e){if(e.message==='DAILY_LIMIT')break;throw e;}
@@ -63,12 +70,14 @@ async function propertiesPart(){
   // Without a 동 the 호 must be unique on the lot.
   const hits=r.rows.filter(x=>String(x.hoNm)===ho&&(!dong||String(x.dongNm)===dong));
   const units=new Set(hits.map(x=>`${x.dongNm}|${x.hoNm}`));
-  if(!hits.length||units.size>1){missing++;continue;}
+  if(!hits.length||units.size>1){missing++;misses[p.id]=runAt;continue;}
+  delete misses[p.id];
   const h=hits[0];
   rows.push({property_id:p.id,price:Number(h.pblntfPc),year:r.year,dong_name:h.dongNm||null,ho_name:h.hoNm,area:Number(h.prvuseAr)||null,checked_at:runAt});
  }
  for(let i=0;i<rows.length;i+=500){const {error}=await supa.from('property_official_prices').upsert(rows.slice(i,i+500),{onConflict:'property_id'});if(error)throw Error(error.message);}
- return {looked,found:rows.length,missing};
+ await writeJson(missPath,misses);
+ return {looked,found:rows.length,missing,skipped};
 }
 
 async function complexesPart(){

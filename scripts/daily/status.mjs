@@ -19,9 +19,9 @@ const JOB_KO={onbid:'온비드 공매',court:'법원 경매',market:'단지·실
 const STEPS={
  market:[
   ['complex','단지 정보','K-APT 아파트 단지 목록·세대수·주차 등 (하루 한도까지)'],
-  ['molit','국토부 실거래 받기','최근 3개월 매매·전월세·토지·상가 실거래를 다시 받음'],
+  ['molit','국토부 실거래 받기','이번 달·지난달 실거래를 다시 받음 (일요일은 3개월)'],
   ['publish','실거래 올리기','시세 요약·거래 목록을 사이트 DB에 반영'],
-  ['conversion-rate','전월세 전환율','시군구별 전환율 계산 (계산기용)'],
+  ['conversion-rate','전월세 전환율','시군구별 전환율 계산 (계산기용, 월요일만)'],
   ['r-one','상가 임대동향','한국부동산원 임대료·수익률 (월요일만)'],
   ['commercial-areas','상권 위치','한국부동산원 상권 지점 (월요일만)'],
   ['build-year','준공연도','새 물건 건물의 사용승인 연도 조회'],
@@ -51,7 +51,7 @@ const STEPS={
  ],
 };
 // The Monday-only market steps are hidden on other days.
-const stepsFor=(job,now)=>(STEPS[job]??[]).filter(([k])=>!['r-one','commercial-areas'].includes(k)||(job==='market'&&kstWeekday(now)===1));
+const stepsFor=(job,now)=>(STEPS[job]??[]).filter(([k])=>!['r-one','commercial-areas','conversion-rate'].includes(k)||(job==='market'&&kstWeekday(now)===1));
 
 function jobLines(current,last,extra){
  const now=new Date();

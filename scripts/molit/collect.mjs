@@ -96,9 +96,11 @@ outer:for(const [i,ym] of months.entries()){
   for(const apiName of apiNames){
    if(exhausted.has(apiName))continue;
    const prev=loadOf.get(apiName,code,ym);
-   // Recent months count as fresh for 20 hours, not 24: a daily job that starts a little earlier
-   // than yesterday's must still reload them, or the reload runs only every other day.
-   const fresh=prev&&(i>=RECENT_MONTHS||Date.now()-Date.parse(prev.loaded_at)<20*3600000);
+   // Late filings (30-day deadline) land in this and last month, so those two are reloaded daily;
+   // the month before (cancellations, corrections) only on Sundays. Recent months count as fresh
+   // for 20 hours, not 24, so a job starting a little earlier than yesterday's still reloads them.
+   const reloadMonths=new Date(Date.now()+9*3600000).getUTCDay()===0?RECENT_MONTHS:2;
+   const fresh=prev&&(i>=reloadMonths||Date.now()-Date.parse(prev.loaded_at)<20*3600000);
    if(fresh)continue;
    try{
     trades+=await loadMonth(apiName,code,ym);loaded++;consecutiveErrors=0;
