@@ -69,6 +69,14 @@ function step(name,script,args,timeoutMs){
  });
 }
 
+// Right after boot the network may not be up yet; a first step that fails on that is lost for the
+// day. Wait up to 15 minutes for the public-data gateway to answer before starting.
+for(const started=Date.now();;){
+ const online=await fetch('https://apis.data.go.kr/',{method:'HEAD',signal:AbortSignal.timeout(10000)}).then(()=>true,()=>false);
+ if(online)break;
+ if(Date.now()-started>15*60_000){await notify(`${label} 인터넷 연결 없음`,'15분 동안 인터넷에 연결되지 않아 그대로 시작합니다. 실패한 단계는 다음 실행 때 이어받습니다.');break;}
+ await delay(30_000);
+}
 await notify(`${label} ${trigger==='manual'?'수동':'자동'} 실행 시작`,'진행 상황은 바탕화면 "선경매 진행 상황 보기"에서 볼 수 있습니다.\n끝나면 결과를 알려드립니다.');
 try{
  if(job==='onbid'){
