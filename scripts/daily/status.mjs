@@ -53,7 +53,7 @@ const STEPS={
 // The Monday-only market steps are hidden on other days.
 const stepsFor=(job,now)=>(STEPS[job]??[]).filter(([k])=>!['r-one','commercial-areas','conversion-rate'].includes(k)||(job==='market'&&kstWeekday(now)===1));
 
-function jobLines(current,last,extra){
+function jobLines(current,last,extra,reruns=[]){
  const now=new Date();
  const steps=stepsFor(current.job,now);
  const done=new Map(current.steps.map(s=>[s.name,s]));
@@ -66,9 +66,12 @@ function jobLines(current,last,extra){
  let remaining=0,unknown=false;
  steps.forEach(([key,name,what],i)=>{
   const d=done.get(key);
-  const mark=d?(d.code===0?'✔':'✖'):key===running?'▶':'·';
+  // A failed step that was run again by hand afterwards (data/daily/reruns.jsonl) shows as done.
+  const rerun=d&&d.code!==0?reruns.find(r=>r.job===current.job&&r.step===key&&r.ok&&r.at>=current.startedAt):null;
+  const mark=d?(d.code===0||rerun?'✔':'✖'):key===running?'▶':'·';
   let note;
-  if(d)note=d.code===0?`${dur(d.seconds)} 걸림`:`실패 (${String(d.result??'').slice(0,40)})`;
+  if(rerun)note=`처음엔 실패 → ${time(rerun.at)}에 따로 다시 실행해 완료`;
+  else if(d)note=d.code===0?`${dur(d.seconds)} 걸림`:`실패 (${String(d.result??'').slice(0,40)})`;
   else if(key===running){
    const t=typical.get(key),left=extra.remaining?.[key];
    note=`진행 중 ${dur(runningFor)}${Number.isFinite(left)?` · 약 ${dur(left)} 남음`:Number.isFinite(t)?` · 보통 ${dur(t)}`:''}`;
@@ -109,7 +112,8 @@ async function render(){
   };
   // 지도 좌표 reports how many parcels it has fetched, so its remaining time follows its own pace.
   if(extra.geo&&coords.fetched>0){const spent=(Date.parse(coords.updatedAt)-Date.parse(coords.startedAt))/1000;extra.remaining.geo=spent/coords.fetched*Math.max(0,coords.target-coords.fetched);}
-  lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra));
+  const reruns=(await readFile('data/daily/reruns.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
+  lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra,reruns));
  }else lines.push('■ 지금 실행 중인 작업 없음');
  lines.push('');
  lines.push('── 매일 일정 ──');
