@@ -63,31 +63,40 @@ async function request(service,endpoint,params){
  }
 }
 
+// Rows carry the raw API answers, so batches stay small and a dropped connection is retried.
 async function upsert(rows){
- for(let i=0;i<rows.length;i+=500){
-  const chunk=rows.slice(i,i+500).map(r=>({...r,updated_at:new Date().toISOString()}));
-  const {error}=await db.from('complexes').upsert(chunk,{onConflict:'kapt_code'});
-  if(error)throw Error(`DB_${error.code}:${error.message}`);
+ for(let i=0;i<rows.length;i+=200){
+  const chunk=rows.slice(i,i+200).map(r=>({...r,updated_at:new Date().toISOString()}));
+  for(let attempt=1;;attempt++){
+   const {error}=await db.from('complexes').upsert(chunk,{onConflict:'kapt_code'});
+   if(!error)break;
+   if(attempt>=3)throw Error(`DB_${error.code}:${error.message}`);
+   await sleep(5000*attempt);
+  }
  }
 }
+// Without --full only what changed in this run is written; rewriting all ~10k complexes (with raw
+// answers) every day was slow and failed on flaky connections.
+const fullWrite=process.argv.includes('--full');
 
 // ---- list: all complexes per 시도. Cached per KST day so a refresh never reuses an old list.
 async function collectList(){
  const listDay=refreshList?day():(await readJson(`${root}/list-day.json`,null))?.day??day();
  const dir=`${root}/raw/list/${listDay}`;await mkdir(dir,{recursive:true});
+ let listFetched=0;
  for(const sido of Object.keys(SIDO)){
   for(let page=1;;page++){
    const file=`${dir}/${sido}-${page}.json`;
    let raw;
    if(await exists(file))raw=await readFile(file,'utf8');
-   else{raw=await request('list',LIST_ENDPOINT,{sidoCode:sido,pageNo:String(page),numOfRows:String(LIST_PAGE_SIZE)});await writeJson(file,JSON.parse(raw));raw=await readFile(file,'utf8');}
+   else{raw=await request('list',LIST_ENDPOINT,{sidoCode:sido,pageNo:String(page),numOfRows:String(LIST_PAGE_SIZE)});await writeJson(file,JSON.parse(raw));raw=await readFile(file,'utf8');listFetched++;}
    const body=decode(raw);
    if(page*LIST_PAGE_SIZE>=Number(body.totalCount))break;
   }
  }
  await writeJson(`${root}/list-day.json`,{day:listDay,completedAt:new Date().toISOString()});
  const rows=await listRows();
- await upsert([...rows.values()]);
+ if(listFetched||fullWrite)await upsert([...rows.values()]);
  await event({phase:'list',day:listDay,complexes:rows.size});
  console.log(`LIST ${listDay}: ${rows.size} complexes`);
 }
@@ -109,7 +118,7 @@ async function collectPer(kind){
  const endpoint=kind==='basis'?BASIS_ENDPOINT:DETAIL_ENDPOINT;
  const map=kind==='basis'?fromBasis:fromDetail;
  const list=await listRows();
- let fetched=0,stopped=null,consecutiveErrors=0;
+ let fetched=0,stopped=null,consecutiveErrors=0;const fetchedNow=new Set();
  for(const kapt of list.keys()){
   if(fetched>=limit)break;
   const file=`${root}/raw/${kind}/${kapt}.json`;
@@ -118,7 +127,7 @@ async function collectPer(kind){
    const raw=await request('basis',endpoint,{kaptCode:kapt});
    const item=decode(raw).item;
    await writeJson(file,{fetchedAt:new Date().toISOString(),item:item??null});
-   fetched++;consecutiveErrors=0;
+   fetched++;consecutiveErrors=0;fetchedNow.add(kapt);
    if(fetched%200===0)console.log(`${kind}: fetched ${fetched}`);
   }catch(e){
    if(['DAILY_BUDGET_EXHAUSTED','STOP_PRESENT','API_22','API_23','API_30'].includes(e.message)){stopped=e.message;break;}
@@ -130,10 +139,12 @@ async function collectPer(kind){
  // Rebuild DB rows from every cached response (also picks up responses cached by earlier runs).
  // An upsert only overwrites the columns it sends, so detail rows send identity + detail columns
  // (name and sido are included only because the insert path checks NOT NULL before the conflict).
- const rows=[];
+ const rows=[];let cachedCount=0;
  for(const [kapt,base] of list){
   const cached=await readJson(`${root}/raw/${kind}/${kapt}.json`,null);
   if(!cached?.item)continue;
+  cachedCount++;
+  if(!fullWrite&&!fetchedNow.has(kapt))continue;
   const mapped=map(cached.item,cached.fetchedAt);
   if(kind==='basis')rows.push({...base,...mapped,name:mapped.name??base.name,bjd_code:mapped.bjd_code??base.bjd_code});
   else{
@@ -142,9 +153,9 @@ async function collectPer(kind){
   }
  }
  await upsert(rows);
- const remaining=list.size-rows.length;
- await event({phase:kind,fetched,cachedRows:rows.length,remaining,stopped});
- console.log(`${kind.toUpperCase()}: fetched ${fetched} now, ${rows.length} in DB, ${remaining} remaining${stopped?` (stopped: ${stopped})`:''}`);
+ const remaining=list.size-cachedCount;
+ await event({phase:kind,fetched,written:rows.length,cachedRows:cachedCount,remaining,stopped});
+ console.log(`${kind.toUpperCase()}: fetched ${fetched} now, ${cachedCount} in DB, ${remaining} remaining${stopped?` (stopped: ${stopped})`:''}`);
 }
 
 try{
