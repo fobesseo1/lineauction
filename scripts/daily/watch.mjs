@@ -62,7 +62,8 @@ for(const [service,blocked] of Object.entries(blockedToday)){
  blockedStreaks[service]=streak;
 }
 
-const problems=evaluate({now,day,lock,lockAlive:lock?alive(lock.pid):false,activityAt:workAt,history,blockedStreaks});
+const reruns=(await readFile(`${root}/reruns.jsonl`,'utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
+const problems=evaluate({now,day,lock,lockAlive:lock?alive(lock.pid):false,activityAt:workAt,history,blockedStreaks,reruns});
 // Failures the runner already announced start their repeat clock without a duplicate notice.
 for(const p of problems)if(p.initialSent&&state.sent[p.key]===undefined)state.sent[p.key]=now;
 for(const p of due(problems,state.sent,now)){

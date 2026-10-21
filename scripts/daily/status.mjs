@@ -5,6 +5,7 @@
 import {readFile} from 'node:fs/promises';
 import {setTimeout as delay} from 'node:timers/promises';
 import {koreanDay,kstWeekday} from './core.mjs';
+import {resolvedByRerun} from './watch-core.mjs';
 
 const readJson=async path=>{try{return JSON.parse(await readFile(path,'utf8'));}catch{return null;}};
 const time=v=>v?new Date(v).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'}):'—';
@@ -118,9 +119,12 @@ async function render(){
   lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra,reruns));
  }else lines.push('■ 지금 실행 중인 작업 없음');
  lines.push('');
+ const allReruns=(await readFile('data/daily/reruns.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
  lines.push('── 매일 일정 ──');
- for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 9시'],['온비드 공매',lastOnbid,'매일 오전 10시 (앞 작업이 끝나면 바로)'],['법원 경매',lastCourt,'평일, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']])
-  lines.push(`  ${label.padEnd(6,'　')} ${hour}  ·  최근: ${run?`${statusKo[run.status]??run.status} ${when(run.finishedAt)}`:'기록 없음'}`);
+ for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 9시'],['온비드 공매',lastOnbid,'매일 오전 10시 (앞 작업이 끝나면 바로)'],['법원 경매',lastCourt,'평일, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']]){
+  const fixed=resolvedByRerun(run,allReruns);
+  lines.push(`  ${label.padEnd(6,'　')} ${hour}  ·  최근: ${run?`${fixed?'완료 (실패한 단계는 따로 다시 실행해 완료)':statusKo[run.status]??run.status} ${when(run.finishedAt)}`:'기록 없음'}`);
+ }
  lines.push('');
  const usage=budget?.serviceDays?.[day]??{list:0,detail:0};
  lines.push(`오늘 API 사용량  온비드 목록 ${n(usage.list)}/1,000 · 온비드 상세 ${n(usage.detail)}/1,000 · 국토부 ${n(molit?.day===day?molit.requests:0)}/${n(molit?.limit??10000)}`);

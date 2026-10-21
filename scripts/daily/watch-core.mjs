@@ -8,7 +8,17 @@ export const STALL_MINUTES = 25;
 const kstMinutes = now => { const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).split(':').map(Number); return h * 60 + m; };
 
 // Each problem has a stable key so repeats can be throttled (repeatMinutes) and cleared when it ends.
-export function evaluate({ now, day, lock, lockAlive, activityAt, history, blockedStreaks = {} }) {
+// A failed run whose failed steps were all run again successfully afterwards (by hand, recorded in
+// data/daily/reruns.jsonl) is effectively complete.
+export function resolvedByRerun(run, reruns = []) {
+  if (!run || run.status !== 'failed') return false;
+  const failed = (run.steps ?? []).filter(s => s.code !== 0).map(s => s.name);
+  if (!failed.length) return false;
+  const start = run.startedAt ?? run.at ?? '';
+  return failed.every(name => reruns.some(r => r.job === run.job && r.step === name && r.ok && r.at >= start));
+}
+
+export function evaluate({ now, day, lock, lockAlive, activityAt, history, blockedStreaks = {}, reruns = [] }) {
   const problems = [];
   const label = job => SCHEDULE[job]?.label ?? job;
   if (lock && !lockAlive) problems.push({ key: `crashed:${lock.job}:${lock.startedAt}`, repeatMinutes: 30, title: `${label(lock.job)} 비정상 종료`, message: '실행 중에 프로세스가 사라졌습니다. 다음 실행 때 이어서 진행하며, 지금 다시 하려면 바로가기나 설정 화면에서 실행해 주세요.' });
@@ -25,7 +35,7 @@ export function evaluate({ now, day, lock, lockAlive, activityAt, history, block
     if (!running && !waiting && !runs.length && runsOn(job, new Date(now)) && kstMinutes(now) >= hour * 60 + 30)
       problems.push({ key: `missed:${job}:${day}`, repeatMinutes: 30, title: `${label(job)} 자동 실행 안 됨`, message: `오늘 ${hour}시 실행이 시작되지 않았습니다. 바로가기나 설정 화면에서 직접 실행할 수 있습니다.` });
     const last = runs.filter(run => run.status !== 'skipped').at(-1);
-    if (!running && last?.status === 'failed')
+    if (!running && last?.status === 'failed' && !resolvedByRerun(last, reruns))
       problems.push({ key: `failed:${job}:${last.startedAt ?? last.at}`, repeatMinutes: 180, initialSent: true, title: `${label(job)} 실패 상태`, message: `오늘 실행이 실패로 끝났습니다${last.error ? ` (${last.error})` : ''}. 원인을 확인한 뒤 다시 실행해 주세요.` });
   }
   for (const [service, days] of Object.entries(blockedStreaks))
