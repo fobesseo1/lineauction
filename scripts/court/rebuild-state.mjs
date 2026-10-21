@@ -14,7 +14,9 @@ for(const [i,name] of dirs.entries()){
  let run;
  try{run=JSON.parse(await readFile(`data/court/runs/${name}/raw.json`,'utf8'));}catch{skipped++;continue;}
  try{const report=JSON.parse(await readFile(`data/court/runs/${name}/report.json`,'utf8'));if(report.status==='rejected'){rejected++;continue;}}catch{}
- try{state=reconcile(state,run).state;applied++;}catch{failed++;}
+ // In place: copying the whole growing state for each of ~16k runs took hours. A run that fails
+ // validation partway may leave partial changes, as the collectors' rejected runs never got here.
+ try{state=reconcile(state,run,{inPlace:true}).state;applied++;}catch{failed++;}
  if(i%1000===0)console.log(`${i}/${dirs.length} applied ${applied}`);
 }
 const items=Object.keys(state?.items??{}).length;

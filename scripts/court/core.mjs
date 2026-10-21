@@ -110,7 +110,8 @@ export function parseDetail(raw, item) {
 }
 
 const tracked = ['appraisalWon', 'minimumBidWon', 'auctionDate', 'status', 'use', 'assets', 'note', 'relatedCases'];
-export function reconcile(previous, run) {
+// inPlace: update `previous` itself instead of a copy (only for rebuild-state.mjs, which owns the state).
+export function reconcile(previous, run, { inPlace = false } = {}) {
   if (run.schemaVersion !== 1 || !run.court || !Array.isArray(run.pages) || !run.pages.length) throw new Error('Invalid run');
   const items = new Map();
   const pageNumbers = new Set();
@@ -156,7 +157,7 @@ export function reconcile(previous, run) {
   const pagesComplete = !lastPage || (pageNumbers.size === lastPage && Array.from({ length: lastPage }, (_, i) => i + 1).every(p => pageNumbers.has(p)));
   const complete = items.size === total && pagesComplete && [...items.values()].every(i => !i.validationIssues.length)
     && !listErrors.length;
-  const state = structuredClone(previous ?? { schemaVersion: 1, items: {} });
+  const state = inPlace ? (previous ?? { schemaVersion: 1, items: {} }) : structuredClone(previous ?? { schemaVersion: 1, items: {} });
   state.detailQueue ??= {};
   for (const job of run.detailJobs ?? []) {
     if (!items.has(job.key) || !['pending', 'succeeded', 'failed'].includes(job.state)) throw new Error('Invalid detail job');
