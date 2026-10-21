@@ -34,6 +34,8 @@ const budget=await read('budget.json',{days:{}});
 const event=async e=>appendFile(`${root}/events.jsonl`,JSON.stringify({at:new Date().toISOString(),...e})+'\n');
 async function publish(){state.updatedAt=new Date().toISOString();state.total=groups.size;state.processed=[...groups.keys()].filter(m=>state.completed[m]).length;state.remaining=state.total-state.processed;state.pid=process.pid;await save('detail-progress.json',state);}
 let lastRequest=0;
+// A lock left by a process that no longer exists (killed run) is taken over instead of blocking every day.
+{const held=JSON.parse(await readFile(`${root}/running.lock`,'utf8').catch(()=>'null'));if(held?.pid&&(()=>{try{process.kill(held.pid,0);return false;}catch(e){return e.code!=='EPERM';}})())await unlink(`${root}/running.lock`).catch(()=>{});}
 const lock=await open(`${root}/running.lock`,'wx');await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),command:'scripts/onbid/detail.mjs'}));
 try{
  state.status='running';state.errors=[];await publish();

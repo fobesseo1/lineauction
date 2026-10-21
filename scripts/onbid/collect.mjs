@@ -24,6 +24,8 @@ if(state.status==='list_completed'){
 // Refresh passes keep their raw pages apart so an earlier day's response is never reused.
 const rawDir=state.refresh?`${root}/raw/${state.runDay}`:`${root}/raw`;await mkdir(rawDir,{recursive:true});
 if(await exists(`${root}/STOP`))throw Error('STOP_PRESENT');
+// A lock left by a process that no longer exists (killed run) is taken over instead of blocking every day.
+{const held=JSON.parse(await readFile(`${root}/running.lock`,'utf8').catch(()=>'null'));if(held?.pid&&(()=>{try{process.kill(held.pid,0);return false;}catch(e){return e.code!=='EPERM';}})())await unlink(`${root}/running.lock`).catch(()=>{});}
 const lock=await open(`${root}/running.lock`,'wx');
 await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),command:'scripts/onbid/collect.mjs'}));
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
