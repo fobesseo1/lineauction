@@ -162,14 +162,22 @@ await syncTable('market_area_stats',stats,['place_id','area_type']);
 const full=process.argv.includes('--full');
 const RECHECK_MONTHS=3;   // MOLIT reloads at most the last 3 months
 const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-RECHECK_MONTHS);return d.toISOString().slice(0,10);})();
+// The ids published for the recheck window are kept locally ({id: deal_date}), so a daily run
+// doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
+// seconds and made the site's queries time out). --full or a missing cache reads the DB.
 async function syncById(table,rows,windowStart){
  const from=full?windowStart:recheckFrom;
- const existing=new Set();
- for(let after='';;){
-  const {data,error}=await supa.from(table).select('id').gte('deal_date',from).gt('id',after).order('id').limit(1000);
-  if(error)throw Error(`${table} ids: ${error.message}`);
-  for(const r of data)existing.add(r.id);
-  if(data.length<1000)break;after=data.at(-1).id;
+ const idCachePath=`data/molit/published-ids-${table}.json`;
+ let existing=null;
+ if(!full){try{const cached=JSON.parse(await readFile(idCachePath,'utf8'));existing=new Set(Object.entries(cached).filter(([,d])=>d>=from).map(([id])=>id));}catch(e){if(e.code!=='ENOENT')throw e;}}
+ if(!existing){
+  existing=new Set();
+  for(let after='';;){
+   const {data,error}=await supa.from(table).select('id').gte('deal_date',from).gt('id',after).order('id').limit(1000);
+   if(error)throw Error(`${table} ids: ${error.message}`);
+   for(const r of data)existing.add(r.id);
+   if(data.length<1000)break;after=data.at(-1).id;
+  }
  }
  const mine=rows.filter(r=>r.deal_date>=from);
  const current=new Set(mine.map(r=>r.id));
@@ -184,6 +192,7 @@ async function syncById(table,rows,windowStart){
  }
  for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
  const {error,count}=await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
+ await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
  console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
 const salesStart=`${months[0]}-01`;
