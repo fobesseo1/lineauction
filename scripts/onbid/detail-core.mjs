@@ -1,5 +1,6 @@
 import {identity,safeOfficialUrl} from './core.mjs';
-export const validManagement=value=>typeof value==='string'&&value.length<=50&&/^\d+(?:-\d+)+$/.test(value);
+// Onbid added numbers with a letter prefix in 2026-10 ("RQ2026101612426964-7396392").
+export const validManagement=value=>typeof value==='string'&&value.length<=50&&/^[A-Z]{0,4}\d+(?:-\d+)+$/.test(value);
 export function entries(v){if(Array.isArray(v))return v;if(v?.item)return entries(v.item);return v&&typeof v==='object'?[v]:[];}
 export function evidence(r){
  const urls=key=>[...new Set(entries(r[key]).map(v=>safeOfficialUrl(v.urlAdr)).filter(Boolean))];

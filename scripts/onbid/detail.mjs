@@ -22,9 +22,12 @@ if(pause.detail?.requiresUserApproval||pause.detail?.blockedDay===day())throw Er
 // Share the collector lock: budget.json and DB writes have a single owner.
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const targets=await read('targets.json',{}),byManagement=new Map();
-for(const r of Object.values(targets)){if(!validManagement(r.cltrMngNo))throw Error('INVALID_MANAGEMENT_NUMBER');const g=byManagement.get(r.cltrMngNo)??[];g.push(r);byManagement.set(r.cltrMngNo,g);}
+// A management number in an unknown format skips that listing (logged) instead of the whole run.
+const oddNumbers=[];
+for(const r of Object.values(targets)){if(!validManagement(r.cltrMngNo)){oddNumbers.push(r.cltrMngNo);continue;}const g=byManagement.get(r.cltrMngNo)??[];g.push(r);byManagement.set(r.cltrMngNo,g);}
+if(oddNumbers.length)console.error(`skipped ${oddNumbers.length} listings with unknown management numbers: ${oddNumbers.slice(0,5).join(', ')}`);
 // Soonest bid deadline first, so the daily quota goes to listings that close soonest.
-const deadline=g=>Math.min(...g.map(r=>{const d=String(r.cltrBidEndDt??'').replace(/D/g,'');return /^d{8}/.test(d)&&!d.startsWith('2999')?Number(d.slice(0,12).padEnd(12,'0')):Infinity;}));
+const deadline=g=>Math.min(...g.map(r=>{const d=String(r.cltrBidEndDt??'').replace(/\D/g,'');return /^\d{8}/.test(d)&&!d.startsWith('2999')?Number(d.slice(0,12).padEnd(12,'0')):Infinity;}));
 const groups=new Map([...byManagement].sort(([,a],[,b])=>deadline(a)-deadline(b)));
 if(state.status==='completed'&&[...groups.keys()].every(m=>state.completed[m])){console.log('DETAIL_ALREADY_COMPLETED');process.exit(0);}
 const budget=await read('budget.json',{days:{}});

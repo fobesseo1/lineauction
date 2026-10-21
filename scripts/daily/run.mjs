@@ -57,7 +57,16 @@ await lock.writeFile(JSON.stringify({job,trigger,pid:process.pid,startedAt:run.s
 await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
 
 // Each step is a separate collector process with its own time limit.
+// A scheduled run after a failed one today redoes only what didn't succeed: steps that already
+// finished in an earlier run today are skipped (alerts always run).
+const doneToday=new Set(trigger==='manual'?[]:(await history()).filter(r=>r.job===job&&r.day===day&&r.status==='failed').flatMap(r=>(r.steps??[]).filter(s=>s.code===0).map(s=>s.name)));
+doneToday.delete('alerts');
 function step(name,script,args,timeoutMs){
+ if(doneToday.has(name)){
+  const entry={name,code:0,seconds:0,timedOut:false,result:'오늘 앞선 실행에서 완료',skipped:true};
+  run.steps.push(entry);void writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
+  return Promise.resolve(entry);
+ }
  return new Promise(resolve=>{
   const started=Date.now();let out='';
   const child=spawn(process.execPath,[script,...args],{windowsHide:true,stdio:['ignore','pipe','pipe']});
@@ -176,8 +185,11 @@ finally{
 // Court follows Onbid on its run days after a 3-minute pause instead of waiting for 15:00.
 if(job==='onbid'&&trigger!=='manual'&&runsOn('court')&&!scheduledSkip(await history(),'court',day).skip){
  await delay(3*60_000);
- const {openSync}=await import('node:fs');
- const out=openSync(`${root}/court.log`,'a');
- spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain'],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
- console.log('court chained');
+ // Its own log: court.log can be held open by the 15:00 task's redirect (EBUSY crashed this once).
+ try{
+  const {openSync}=await import('node:fs');
+  const out=openSync(`${root}/court-chain.log`,'a');
+  spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain'],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
+  console.log('court chained');
+ }catch(e){console.error('court chain failed; the 15:00 task will run it',e.message);}
 }

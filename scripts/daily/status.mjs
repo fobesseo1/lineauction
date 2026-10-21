@@ -71,6 +71,7 @@ function jobLines(current,last,extra,reruns=[]){
   const mark=d?(d.code===0||rerun?'✔':'✖'):key===running?'▶':'·';
   let note;
   if(rerun)note=`처음엔 실패 → ${time(rerun.at)}에 따로 다시 실행해 완료`;
+  else if(d?.skipped)note='오늘 앞선 실행에서 이미 완료 (건너뜀)';
   else if(d)note=d.code===0?`${dur(d.seconds)} 걸림`:`실패 (${String(d.result??'').slice(0,40)})`;
   else if(key===running){
    const t=typical.get(key),left=extra.remaining?.[key];
