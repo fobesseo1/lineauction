@@ -30,7 +30,7 @@ export async function saveRun(run, directory = 'data/court') {
   await writeFile(join(runPath, 'report.json'), json(report), 'utf8');
   // Keep the last valid state if validation or writing a new run fails.
   const temporary = join(directory, `${runId}.tmp`);
-  await writeFile(temporary, json(state), 'utf8');
+  await writeFile(temporary, json(state), { encoding: 'utf8', flush: true }); // on disk before the rename (power loss zero-filled it once)
   try { await replaceFile(temporary, currentPath); }
   catch(error){await writeFile(join(runPath,'report.json'),json({status:'rejected',error:`State persistence failed: ${error.message}`}),'utf8');throw error;}
   return { runPath, currentPath, ...report };

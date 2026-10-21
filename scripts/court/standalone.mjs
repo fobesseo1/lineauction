@@ -27,7 +27,7 @@ const allCourts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).s
 const selected=option('court',null);
 if(selected&&!allCourts.includes(selected))throw Error('Court outside Seoul/Gyeonggi jurisdiction scope');
 const courts=selected?[selected]:allCourts;
-const atomic=async(path,value)=>{const temporary=`${path}.${randomUUID()}.tmp`;await writeFile(temporary,JSON.stringify(value,null,2));await replaceFile(temporary,path);};
+const atomic=async(path,value)=>{const temporary=`${path}.${randomUUID()}.tmp`;await writeFile(temporary,JSON.stringify(value,null,2),{flush:true});await replaceFile(temporary,path);};
 const load=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return fallback;}};
 const lockPath=`${root}/running.lock`;
 const lock=await open(lockPath,'wx').catch(()=>{throw Error('Standalone collector lock exists; do not run two writers');});

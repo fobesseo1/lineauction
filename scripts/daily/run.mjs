@@ -61,6 +61,25 @@ await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
 // finished in an earlier run today are skipped (alerts always run).
 const doneToday=new Set(trigger==='manual'?[]:(await history()).filter(r=>r.job===job&&r.day===day&&r.status==='failed').flatMap(r=>(r.steps??[]).filter(s=>s.code===0).map(s=>s.name)));
 doneToday.delete('alerts');
+async function courtStateGuard(){
+ const {readdir,copyFile}=await import('node:fs/promises');
+ const valid=async path=>{try{const s=JSON.parse(await readFile(path,'utf8'));return !!s&&typeof s.items==='object';}catch{return false;}};
+ const dir='data/court/backups';await mkdir(dir,{recursive:true});
+ const backups=async()=>(await readdir(dir)).filter(n=>/^current-\d{4}-\d{2}-\d{2}\.json$/.test(n)).sort().reverse();
+ if(await valid('data/court/current.json')){
+  await copyFile('data/court/current.json',`${dir}/current-${day}.json`);
+  for(const old of (await backups()).slice(3))await unlink(`${dir}/${old}`).catch(()=>{});
+  return;
+ }
+ await copyFile('data/court/current.json',`data/court/current.corrupt-${Date.now()}.json`).catch(()=>{});
+ for(const name of await backups())if(await valid(`${dir}/${name}`)){
+  await copyFile(`${dir}/${name}`,'data/court/current.json');
+  await notify(`${label} 기록 파일 복구`,`법원 기록 파일이 깨져 있어 ${name} 백업으로 되돌렸습니다. 그 뒤 바뀐 내용은 오늘 수집에서 다시 받습니다.`);
+  return;
+ }
+ await step('court-state-rebuild','scripts/court/rebuild-state.mjs',['--write'],60*60_000);
+ await notify(`${label} 기록 파일 복구`,'법원 기록 파일이 깨져 있어 저장된 수집 기록으로 다시 만들었습니다.');
+}
 function step(name,script,args,timeoutMs){
  if(doneToday.has(name)){
   const entry={name,code:0,seconds:0,timedOut:false,result:'오늘 앞선 실행에서 완료',skipped:true};
@@ -151,6 +170,10 @@ try{
    run.status='skipped';run.reason='court-stop-file';
    await notify(`${label} 건너뜀`,'법원 수집 중지(STOP) 파일이 있어 실행하지 않았습니다.\n다시 수집하려면 data/court/standalone/STOP 파일을 지워 주세요.');
   }else{
+   // The court state file must be valid before anything reads it. A good copy is backed up daily (3 kept);
+   // a broken one (a power loss once zero-filled it mid-write) is restored from the newest good backup,
+   // or rebuilt from the saved run inputs when no backup is usable.
+   await courtStateGuard();
    // A crashed collector can leave its own lock behind; clear it only when that process is gone.
    for(const path of ['data/court/standalone/running.lock','data/court/pipeline/running.lock']){const held=await readJson(path,null);if(held&&!alive(held.pid))await unlink(path).catch(()=>{});}
    // 1) List/status refresh of all 16 courts + details/photos for new or due items, 2) DB + MOLIT.

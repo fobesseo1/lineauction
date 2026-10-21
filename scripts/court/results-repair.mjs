@@ -6,7 +6,7 @@ import{replaceFile}from'./store.mjs';import{parseResults}from'./results.mjs';imp
 import{recheckOptions}from'./recheck-options.mjs';
 const root='data/court/standalone';
 const load=async(p,f)=>{try{return JSON.parse(await readFile(p,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return f;}};
-const atomic=async(p,v)=>{const t=`${p}.${randomUUID()}.tmp`;await writeFile(t,JSON.stringify(v,null,2));await replaceFile(t,p);};
+const atomic=async(p,v)=>{const t=`${p}.${randomUUID()}.tmp`;await writeFile(t,JSON.stringify(v,null,2),{flush:true});await replaceFile(t,p);};
 const stopped=async()=>{try{await readFile(`${root}/STOP`);return true;}catch(e){if(e.code!=='ENOENT')throw e;return false;}};
 if(await stopped())throw Error('User STOP exists');
 const courts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).slice(0,16);

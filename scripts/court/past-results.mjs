@@ -15,7 +15,7 @@ import {inCapitalArea} from './scope.mjs';
 const root='data/court/standalone';
 const days=Number(process.argv.find(x=>x.startsWith('--days='))?.slice(7)??7);
 const load=async(p,f)=>{try{return JSON.parse(await readFile(p,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return f;}};
-const atomic=async(p,v)=>{const t=`${p}.${randomUUID()}.tmp`;await writeFile(t,JSON.stringify(v,null,2));await replaceFile(t,p);};
+const atomic=async(p,v)=>{const t=`${p}.${randomUUID()}.tmp`;await writeFile(t,JSON.stringify(v,null,2),{flush:true});await replaceFile(t,p);};
 const stopped=async()=>{try{await readFile(`${root}/STOP`);return true;}catch(e){if(e.code!=='ENOENT')throw e;return false;}};
 const kst=offsetDays=>new Date(Date.now()+9*3600e3-offsetDays*864e5).toISOString().slice(0,10);
 if(await stopped()){console.log(JSON.stringify({stage:'finish',status:'stopped'}));process.exit(0);}

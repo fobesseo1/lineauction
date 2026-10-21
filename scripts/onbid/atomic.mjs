@@ -9,6 +9,6 @@ export async function replaceWithRetry(from,to,{replace=rename,sleep=ms=>new Pro
 }
 export async function writeJson(path,value){
  const temp=`${path}.${process.pid}.tmp`;
- await writeFile(temp,JSON.stringify(value,null,2));
+ await writeFile(temp,JSON.stringify(value,null,2),{flush:true});
  await replaceWithRetry(temp,path);
 }
