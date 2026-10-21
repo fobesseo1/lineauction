@@ -96,6 +96,8 @@ try{
   const lifecycle=listed?await step('onbid-lifecycle','scripts/onbid/lifecycle-sync.mjs',[],10*60_000):null;
   const detail=await step('onbid-detail','scripts/onbid/detail.mjs',[],4*3600_000);
   await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
+  // Photos of current listings from the saved detail answers (originals, shrunk to webp).
+  await step('onbid-photos','scripts/onbid/photos.mjs',[],3*3600_000);
   // PNU and map point for new listings that came without them (address search; cached).
   await step('fill-pnu','scripts/geo/fill-pnu.mjs',[],30*60_000);
   // Member alerts (saved conditions, watched properties) for what changed in this run.
