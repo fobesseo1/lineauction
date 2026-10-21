@@ -92,7 +92,9 @@ function step(name,script,args,timeoutMs){
   child.stdout.on('data',d=>{out=(out+d).slice(-4000);});child.stderr.on('data',d=>{out=(out+d).slice(-4000);});
   const timer=setTimeout(()=>child.kill(),timeoutMs);
   child.on('exit',code=>{clearTimeout(timer);const last=out.trim().split('\n').at(-1)??'';let result=null;try{result=JSON.parse(last);}catch{}
-   const entry={name,code,seconds:Math.round((Date.now()-started)/1000),timedOut:Date.now()-started>=timeoutMs,result:result??last.slice(0,300)};
+   // A crash ends with Node's version line; keep the actual error line instead so failures are explainable.
+   const errorLine=code!==0&&!result?out.split('\n').map(l=>l.trim()).filter(l=>/(Error|error:|ERR_|failed)/.test(l)&&!/^at /.test(l)).at(-1):null;
+   const entry={name,code,seconds:Math.round((Date.now()-started)/1000),timedOut:Date.now()-started>=timeoutMs,result:result??(errorLine??last).slice(0,300)};
    run.steps.push(entry);void writeFile(`${root}/current.json`,JSON.stringify(run,null,2));resolve(entry);});
  });
 }
