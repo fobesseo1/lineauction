@@ -73,11 +73,18 @@ export function fromBasis(b,fetchedAt){
  };
 }
 
+// welfareFacility is a comma list from a fixed checklist: "관리사무소, 노인정, 어린이놀이터".
+export function facilityList(v){
+ const items=[...new Set((text(v)??'').split(',').map(s=>s.trim()).filter(Boolean))];
+ return items.length?items:null;
+}
+
 export function fromDetail(d,fetchedAt){
  return {
   structure:text(d.codeStr),parking_ground:int(d.kaptdPcnt),parking_underground:int(d.kaptdPcntu),elevators:int(d.kaptdEcnt),
   ev_chargers_ground:int(d.groundElChargerCnt),ev_chargers_underground:int(d.undergroundElChargerCnt),
   subway_line:text(d.subwayLine),subway_station:text(d.subwayStation),subway_walk:text(d.kaptdWtimesub),bus_walk:text(d.kaptdWtimebus),
+  welfare_facilities:facilityList(d.welfareFacility),convenience_facilities:text(d.convenientFacility),education_facilities:text(d.educationFacility),
   detail_fetched_at:fetchedAt,
  };
 }

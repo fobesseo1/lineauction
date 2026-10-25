@@ -39,6 +39,9 @@ test('row mappers keep identity and parse numbers',()=>{
  assert.equal(b.households,217);assert.equal(b.dong_count,1);assert.equal(b.approved_on,'2023-08-02');assert.equal(b.private_area,5805.5371);assert.equal(b.pnu,'1171010100101870010');
  const d=fromDetail({kaptdPcnt:'70',kaptdPcntu:'66',kaptdEcnt:4,subwayLine:'2호선',subwayStation:null},'t');
  assert.equal(d.parking_underground,66);assert.equal(d.subway_station,null);
+ const f=fromDetail({welfareFacility:'관리사무소, 노인정, 보육시설, ',convenientFacility:'',educationFacility:'중학교(진현중)'},'t');
+ assert.deepEqual(f.welfare_facilities,['관리사무소','노인정','보육시설']);assert.equal(f.convenience_facilities,null);assert.equal(f.education_facilities,'중학교(진현중)');
+ assert.equal(fromDetail({welfareFacility:null},'t').welfare_facilities,null);
  assert.equal(fromBasis({kaptdaCnt:0,hoCnt:230},'t').households,230);
  assert.equal(fromBasis({kaptdaCnt:0,hoCnt:0},'t').households,null);
 });
