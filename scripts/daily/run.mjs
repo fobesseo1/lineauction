@@ -161,6 +161,8 @@ try{
   // Nearest two 전철역 and 업무지구 commute estimates per complex (OSM stations refetched weekly;
   // both passes are local).
   await step('stations','scripts/geo/stations.mjs',[],20*60_000);
+  // 배정 초등학교 per complex (통학구역 from vworld, school points from OSM; sources refetched monthly).
+  await step('schools','scripts/geo/schools.mjs',[],30*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // New discounts can make properties match saved 할인율 conditions.
