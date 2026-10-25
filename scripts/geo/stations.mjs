@@ -1,12 +1,14 @@
-// 수도권 전철역 from OpenStreetMap (Overpass) → public.rail_stations, then each complex's nearest two.
+// 수도권 전철역 from OpenStreetMap (Overpass) → public.rail_stations, then each complex's nearest two
+// and its 업무지구 commute estimates (public.complex_commutes).
 //   node scripts/geo/stations.mjs [--refresh]
 // The Overpass answer is cached in data/stations/raw/overpass.json and refetched when older than
-// 7 days (or with --refresh); the nearest-station pass is local and writes only changed complexes.
+// 7 days (or with --refresh); both passes are local and write only what changed.
 import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
-import {OVERPASS_URL,OVERPASS_QUERY,buildStations,nearestStations} from './stations-core.mjs';
+import {OVERPASS_URL,OVERPASS_QUERY,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
+import {DESTINATIONS,buildGraph,fromDestination,commuteFor} from './commute-core.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/stations';await mkdir(`${root}/raw`,{recursive:true});
@@ -50,7 +52,7 @@ try{
  let refreshed=false;
  if(process.argv.includes('--refresh')||await ageDays(cache)>7){await writeJson(cache,await fetchOverpass());refreshed=true;}
  const osm=JSON.parse(await readFile(cache,'utf8'));
- const {stations,unmatchedStops}=buildStations(osm.elements);
+ const {stations,routes,unmatchedStops}=buildStations(osm.elements);
  // A broken answer must never empty the table: the capital area has 600+ stations.
  if(stations.length<500)throw Error(`TOO_FEW_STATIONS:${stations.length}`);
  if(refreshed){
@@ -72,7 +74,31 @@ try{
   changed.push({kapt_code:c.kapt_code,name:c.name,sido:c.sido,...next,stations_computed_at:now});
  }
  await write('complexes',changed,'kapt_code');
- console.log(`STATIONS ${stations.length}${refreshed?' (refreshed)':''}, unmatched stops ${unmatchedStops}; complexes updated ${changed.length}`);
+ // Commutes: one shortest-path run per destination covers every station.
+ const graph=buildGraph(stations,routes);const nameOf=new Map(stations.map(s=>[s.id,s.name]));
+ const rides=Object.entries(DESTINATIONS).map(([d,names])=>[d,fromDestination(graph,stations,new Set(stations.filter(s=>names.includes(s.name)).map(s=>s.id)))]);
+ const commutes=new Map();
+ for(const c of complexes){
+  if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
+  const origins=rankStations({lat:c.latitude,lon:c.longitude},stations).map(r=>({id:r.s.id,m:r.m}));
+  for(const [d,perStation] of rides){
+   const r=commuteFor(origins,perStation,walkMinutes);
+   if(r)commutes.set(`${c.kapt_code}|${d}`,{kapt_code:c.kapt_code,destination:d,minutes:r.minutes,transfers:r.transfers,from_station:nameOf.get(r.from)});
+  }
+ }
+ // What was last written is kept locally, so a quiet day reads nothing back from the 94k-row table.
+ const digestPath=`${root}/commutes-written.json`;
+ let written={};try{written=JSON.parse(await readFile(digestPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ const sig=r=>`${r.minutes}|${r.transfers}|${r.from_station}`;
+ const upserts=[...commutes].filter(([k,r])=>written[k]!==sig(r)).map(([,r])=>({...r,computed_at:now}));
+ const removed=Object.keys(written).filter(k=>!commutes.has(k));
+ await write('complex_commutes',upserts,'kapt_code,destination');
+ for(const d of Object.keys(DESTINATIONS)){
+  const codes=removed.filter(k=>k.endsWith(`|${d}`)).map(k=>k.slice(0,k.lastIndexOf('|')));
+  for(let i=0;i<codes.length;i+=200){const {error}=await supa.from('complex_commutes').delete().eq('destination',d).in('kapt_code',codes.slice(i,i+200));if(error)throw Error(`DB_${error.code}:${error.message}`);}
+ }
+ await writeJson(digestPath,Object.fromEntries([...commutes].map(([k,r])=>[k,sig(r)])));
+ console.log(`STATIONS ${stations.length}${refreshed?' (refreshed)':''}, unmatched stops ${unmatchedStops}; complexes updated ${changed.length}; commutes ${commutes.size} (written ${upserts.length}, removed ${removed.length})`);
 }catch(e){
  console.error('FAILED',e.message);
  process.exitCode=1;

@@ -38,10 +38,11 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
  const isStation=t=>t&&(t.railway==='station'||t.public_transport==='station')&&stationName(t);
  const stationNodes=[...nodes.values()].filter(n=>isStation(n.tags)).map(n=>({...n,key:`node/${n.id}`}));
  for(const e of elements)if(e.type!=='node'&&e.center&&isStation(e.tags))stationNodes.push({...e,key:`${e.type}/${e.id}`,lat:e.center.lat,lon:e.center.lon});
- const linesOf=new Map();let unmatchedStops=0;
+ const linesOf=new Map(),sequences=[];let unmatchedStops=0;
  for(const r of elements){
   if(r.type!=='relation')continue;
   const line=lineOf(r.tags);if(!line)continue;
+  const seq=[];sequences.push({line,keys:seq});
   for(const m of r.members??[]){
    if(m.type!=='node'||!/^stop/.test(m.role))continue;
    const stop=nodes.get(m.ref);if(!stop)continue;
@@ -50,6 +51,7 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
    if(!best||bd>stopRadius){unmatchedStops++;continue;}
    if(!linesOf.has(best.key))linesOf.set(best.key,new Set());
    linesOf.get(best.key).add(line);
+   seq.push(best.key);
   }
  }
  const clusters=[];
@@ -59,6 +61,7 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
   if(c){c.nodes.push(n);for(const l of linesOf.get(n.key))c.lines.add(l);}
   else clusters.push({name,nodes:[n],lines:new Set(linesOf.get(n.key))});
  }
+ const clusterOf=new Map(clusters.flatMap(c=>c.nodes.map(n=>[n.key,`osm:${c.nodes[0].key}`])));
  const order=Object.values(LINE_BY_REF);
  const stations=clusters.map(c=>({
   id:`osm:${c.nodes[0].key}`,name:c.name,
@@ -67,12 +70,15 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
   longitude:+(c.nodes.reduce((s,n)=>s+n.lon,0)/c.nodes.length).toFixed(7),
   points:c.nodes.map(n=>({lat:n.lat,lon:n.lon})),osm_ids:c.nodes.map(n=>n.key),
  }));
- return {stations,unmatchedStops};
+ // Each route's stops in order, as station ids (a stop repeated by platform+stop collapses).
+ const routes=sequences.map(({line,keys})=>({line,stations:keys.map(k=>clusterOf.get(k)).filter((id,i,a)=>id&&id!==a[i-1])})).filter(r=>r.stations.length>1);
+ return {stations,routes,unmatchedStops};
 }
 
-// The two nearest distinct stations; distance is to the closest node of a 환승역.
+// The nearest distinct stations; distance is to the closest node of a 환승역.
+export const rankStations=(point,stations,n=2)=>stations.map(s=>({s,m:Math.min(...s.points.map(p=>distanceM(point,p)))})).sort((a,b)=>a.m-b.m).slice(0,n);
 export function nearestStations(point,stations){
- const ranked=stations.map(s=>({s,m:Math.min(...s.points.map(p=>distanceM(point,p)))})).sort((a,b)=>a.m-b.m).slice(0,2);
+ const ranked=rankStations(point,stations);
  const pick=r=>r?{name:r.s.name,lines:r.s.lines,m:Math.round(r.m),walk:walkMinutes(r.m)}:null;
  const [a,b]=ranked.map(pick);
  return {
