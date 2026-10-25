@@ -158,6 +158,8 @@ try{
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   // 빌라 buildings add ~160k parcels; a daily cap spreads the first fetch over about a week.
   const geo=await step('geo','scripts/geo/coords.mjs',['--limit','25000'],3*3600_000);
+  // Nearest two 전철역 per complex (OSM stations refetched weekly; the pass itself is local).
+  await step('stations','scripts/geo/stations.mjs',[],20*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // New discounts can make properties match saved 할인율 conditions.
