@@ -1,5 +1,5 @@
 // 수도권 전철역 from OpenStreetMap (Overpass) → public.rail_stations, then each complex's nearest two
-// and its 업무지구 commute estimates (public.complex_commutes).
+// and its 업무지구 commute estimates (public.complex_commutes) plus 역↔역 minutes (public.station_to_station_minutes).
 //   node scripts/geo/stations.mjs [--refresh]
 // The Overpass answer is cached in data/stations/raw/overpass.json and refetched when older than
 // 7 days (or with --refresh); both passes are local and write only what changed.
@@ -8,7 +8,7 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {OVERPASS_URL,OVERPASS_QUERY,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
-import {DESTINATIONS,buildGraph,fromDestination,commuteFor} from './commute-core.mjs';
+import {DESTINATIONS,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/stations';await mkdir(`${root}/raw`,{recursive:true});
@@ -98,7 +98,24 @@ try{
   for(let i=0;i<codes.length;i+=200){const {error}=await supa.from('complex_commutes').delete().eq('destination',d).in('kapt_code',codes.slice(i,i+200));if(error)throw Error(`DB_${error.code}:${error.message}`);}
  }
  await writeJson(digestPath,Object.fromEntries([...commutes].map(([k,r])=>[k,sig(r)])));
- console.log(`STATIONS ${stations.length}${refreshed?' (refreshed)':''}, unmatched stops ${unmatchedStops}; complexes updated ${changed.length}; commutes ${commutes.size} (written ${upserts.length}, removed ${removed.length})`);
+ // 역↔역 (~418k rows): one shortest-path run per station, both directions kept; same digest scheme.
+ const pairs=new Map();
+ for(const s of stations){
+  for(const [from,v] of fromDestination(graph,stations,new Set([s.id])))if(from!==s.id)pairs.set(`${from}|${s.id}`,`${stationMinutes(v.t)}|${v.x}`);
+ }
+ const pairPath=`${root}/pairs-written.json`;
+ let pairsWritten={};try{pairsWritten=JSON.parse(await readFile(pairPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ const pairRow=(k,v)=>{const [f,t]=k.split('|'),[m,x]=v.split('|');return {from_station_id:f,to_station_id:t,minutes:+m,transfers:+x,computed_at:now};};
+ const pairUpserts=[...pairs].filter(([k,v])=>pairsWritten[k]!==v).map(([k,v])=>pairRow(k,v));
+ const pairGone=Object.keys(pairsWritten).filter(k=>!pairs.has(k));
+ await write('station_to_station_minutes',pairUpserts,'from_station_id,to_station_id');
+ const goneByFrom=Map.groupBy(pairGone,k=>k.split('|')[0]);
+ for(const [f,keys] of goneByFrom){
+  const to=keys.map(k=>k.split('|')[1]);
+  for(let i=0;i<to.length;i+=200){const {error}=await supa.from('station_to_station_minutes').delete().eq('from_station_id',f).in('to_station_id',to.slice(i,i+200));if(error)throw Error(`DB_${error.code}:${error.message}`);}
+ }
+ await writeJson(pairPath,Object.fromEntries(pairs));
+ console.log(`STATIONS ${stations.length}${refreshed?' (refreshed)':''}, unmatched stops ${unmatchedStops}; complexes updated ${changed.length}; commutes ${commutes.size} (written ${upserts.length}, removed ${removed.length}); station pairs ${pairs.size} (written ${pairUpserts.length}, removed ${pairGone.length})`);
 }catch(e){
  console.error('FAILED',e.message);
  process.exitCode=1;

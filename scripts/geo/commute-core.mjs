@@ -56,6 +56,10 @@ export function fromDestination(edges,stations,targetIds){
  return perStation;
 }
 
+// 역↔역 (station_to_station_minutes): 첫 대기 + 역 사이 이동 + 환승, with neither walk, so lineestate
+// adds 집→역 and 역→직장 walks itself. Same rule as commuteFor, which adds both walks to this.
+export const stationMinutes=t=>t===0?0:Math.round(FIRST_WAIT+t);
+
 // origins: [{id, m}] — the complex's nearest two stations and the straight-line distance to each.
 export function commuteFor(origins,perStation,walkMinutes){
  if(!origins.length||origins[0].m>MAX_ORIGIN_M)return null;

@@ -158,11 +158,13 @@ try{
   // Map points for new buildings and properties (vworld parcels, cached once per PNU).
   // 빌라 buildings add ~160k parcels; a daily cap spreads the first fetch over about a week.
   const geo=await step('geo','scripts/geo/coords.mjs',['--limit','25000'],3*3600_000);
-  // Nearest two 전철역 and 업무지구 commute estimates per complex (OSM stations refetched weekly;
+  // Nearest two 전철역, 업무지구 commute estimates per complex and 역↔역 minutes (OSM stations refetched weekly;
   // both passes are local).
   await step('stations','scripts/geo/stations.mjs',[],20*60_000);
   // 배정 초등학교 per complex (통학구역 from vworld, school points from OSM; sources refetched monthly).
   await step('schools','scripts/geo/schools.mjs',[],30*60_000);
+  // 동네 환경: 공원·대형마트 (OSM) and 종합병원·의원·학원 (상가정보), sources refetched monthly.
+  await step('neighborhood','scripts/geo/neighborhood.mjs',[],30*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.

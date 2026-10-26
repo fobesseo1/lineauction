@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {hopMinutes,buildGraph,fromDestination,commuteFor} from './commute-core.mjs';
+import {hopMinutes,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
 
 const st=(id,lat,lon,lines)=>({id,name:id,latitude:lat,longitude:lon,lines,points:[{lat,lon}]});
 // A─B on 2호선 (~1 km), B─C on 9호선 (~1 km); B is a 환승역.
@@ -25,4 +25,10 @@ test('commuteFor adds walk, wait and last walk; empty beyond 2 km',()=>{
  assert.deepEqual(commuteFor([{id:'A',m:500}],ride,()=>7),{minutes:7+3+10+5,transfers:1,from:'A'});
  assert.equal(commuteFor([{id:'C',m:100}],ride,()=>2).minutes,7);
  assert.equal(commuteFor([{id:'A',m:2100}],ride,()=>40),null);
+});
+
+test('stationMinutes is commuteFor without the two walks',()=>{
+ assert.equal(stationMinutes(0),0);
+ assert.equal(stationMinutes(10.4),13);
+ assert.equal(commuteFor([{id:'A',m:500}],new Map([['A',{t:10.4,x:0}]]),()=>7).minutes,7+stationMinutes(10.4)+5);
 });
