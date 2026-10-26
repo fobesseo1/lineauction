@@ -165,6 +165,8 @@ try{
   await step('schools','scripts/geo/schools.mjs',[],30*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
+  // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
+  await step('recommend','scripts/refresh-recommend.mjs',[],10*60_000);
   // New discounts can make properties match saved 할인율 conditions.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
   const last=s=>String(s.result??'').slice(0,160);
