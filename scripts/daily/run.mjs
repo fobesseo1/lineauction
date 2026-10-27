@@ -167,6 +167,8 @@ try{
   await step('neighborhood','scripts/geo/neighborhood.mjs',[],30*60_000);
   // 은행별 주담대·전세대출 금리 (은행연합회 비교공시, monthly); only a month not yet stored is fetched.
   await step('loan-rates','scripts/finance/kfb-rates.mjs',[],10*60_000);
+  // 주담대·전세대출 상품별 금리 (금감원 금융상품한눈에 API, ~monthly); only changed rows are written.
+  await step('loan-products','scripts/finance/finlife-products.mjs',[],10*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
