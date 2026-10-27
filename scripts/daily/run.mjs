@@ -165,6 +165,8 @@ try{
   await step('schools','scripts/geo/schools.mjs',[],30*60_000);
   // 동네 환경: 공원·대형마트 (OSM) and 종합병원·의원·학원 (상가정보), sources refetched monthly.
   await step('neighborhood','scripts/geo/neighborhood.mjs',[],30*60_000);
+  // 은행별 주담대·전세대출 금리 (은행연합회 비교공시, monthly); only a month not yet stored is fetched.
+  await step('loan-rates','scripts/finance/kfb-rates.mjs',[],10*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
