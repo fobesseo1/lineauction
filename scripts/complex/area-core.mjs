@@ -1,7 +1,18 @@
 // 건축물대장 전유공용면적 → 단지 × 전용면적 타입별 공급면적·평형·세대수.
 
-export const EXTRACT_COLUMNS=['pnu','pk','dong','ho','floor_kind','kind','main_purpose_code','main_purpose','etc_purpose','area'];
+export const EXTRACT_COLUMNS=['pnu','pk','dong','ho','floor_kind','kind','main_purpose_code','main_purpose','etc_purpose','area','alt'];
 export const PYEONG=3.3058;
+
+// Rebuilt complexes often keep a pre-재건축 지번 in K-APT, so a lot no complex claims is also matched by
+// 도로명주소 or by 법정동 + 건물명. Keys drop the 시도 word, the (동) suffix, spaces, 아파트 and 101동-style suffixes.
+export function roadKey(address){
+ const s=(address??'').replace(/\(.*?\)/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(1).join(' ');
+ return /\d/.test(s)?s:null;
+}
+export function nameKey(bjd,name){
+ const n=(name??'').toLowerCase().replace(/\s+/g,'').replace(/[()·,.\-]/g,'').replace(/아파트/g,'').replace(/(제?\d+|[a-z])동$/,'');
+ return n.length>=3?`${bjd}|${n}`:null;
+}
 
 // One line of the 대용량 file (pipe-separated, 39 fields) → the fields we keep, or null.
 // 대지구분 0 = 대지, 1 = 산; the PNU uses 1 and 2.
@@ -16,6 +27,7 @@ export function exposRow(line){
   pnu:`${sigungu}${bjdong}${plat==='1'?'2':'1'}${bun}${ji}`,
   pk:f[0],dong:f[21].trim(),ho:f[22].trim(),floor_kind:f[23],kind:f[26],
   main_purpose_code:f[34],main_purpose:f[35].trim(),etc_purpose:f[36].trim().replace(/\t/g,' '),area,
+  road:f[6],building:f[7],bjd:`${sigungu}${bjdong}`,alt:'',
  };
 }
 
@@ -30,10 +42,13 @@ export function isResidentialCommon(row){
 }
 
 const round2=x=>Math.round(x*100)/100;
-// Accumulates one row into its unit (pk). Rows of a unit need not be adjacent.
+// Accumulates one row into its unit (pk). Rows of a unit need not be adjacent. The key is the numeric pk
+// (BigInt past 15 digits; some pks have 22): a string key sliced from a split line would keep the whole
+// line alive for tens of millions of rows.
 export function addUnitRow(units,r){
- let u=units.get(r.pk);
- if(!u)units.set(r.pk,u={pnu:r.pnu,exclusive:0,common:0,housing:false});
+ const key=!/^\d+$/.test(r.pk)?r.pk:r.pk.length<=15?Number(r.pk):BigInt(r.pk);
+ let u=units.get(key);
+ if(!u)units.set(key,u={pnu:r.pnu,exclusive:0,common:0,housing:false});
  if(r.kind==='1'){u.exclusive+=r.area;if(r.main_purpose_code.startsWith('02'))u.housing=true;}
  else if(isResidentialCommon(r))u.common+=r.area;
 }

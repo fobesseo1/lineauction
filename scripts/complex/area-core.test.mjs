@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {exposRow,isResidentialCommon,unitAreas,areaTypes} from './area-core.mjs';
+import {exposRow,isResidentialCommon,unitAreas,areaTypes,roadKey,nameKey} from './area-core.mjs';
 
 const line='10021100221049|2|집합|4|전유부|서울특별시 종로구 숭인동 317-48번지|서울특별시 종로구 종로56길 37 (숭인동)|헤스티아|11110|17500|0|0317|0048||||111104100356|17501|0|37|0||205|40|각층|0|2|공용|0|주건축물|각층|21|철근콘크리트구조|철근콘크리트구조|14202|오피스텔|계단,복도|4.7871|20220813';
 const row=(pk,kind,area,etc='',floor='20',code='02001')=>({pnu:'p',pk,kind,area,etc_purpose:etc,floor_kind:floor,main_purpose_code:code});
@@ -43,4 +43,13 @@ test('areaTypes picks the most common supply per 전용 type and drops types wit
   {exclusive_area:59.98,supply_area:79.5,pyeong:24,households:3,supply_share:0.667},
   {exclusive_area:84.97,supply_area:112.3,pyeong:34,households:1,supply_share:1},
  ]);
+});
+
+test('roadKey and nameKey match K-APT and 대장 spellings of the same building',()=>{
+ assert.equal(roadKey('서울특별시 송파구 송파대로 345 (가락동)'),roadKey('서울특별시 송파구 송파대로 345'));
+ assert.equal(roadKey('서울특별시 송파구 송파대로 345'),'송파구 송파대로 345');
+ assert.equal(roadKey(''),null);
+ assert.equal(nameKey('1171010700','헬리오시티 제101동'),nameKey('1171010700','헬리오시티아파트'));
+ assert.equal(nameKey('1174010200','고덕 그라시움 아파트'),'1174010200|고덕그라시움');
+ assert.equal(nameKey('1168010600','대치아파트103동'),null,'too short to be safe');
 });
