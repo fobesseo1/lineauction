@@ -11,6 +11,32 @@ export function jibunPnu(bjd,jibun){
 // Complex names differ in spacing, "아파트" suffixes and brackets between K-APT and MOLIT.
 export const normalizeName=n=>String(n??'').replace(/\(.*?\)|\[.*?\]/g,'').replace(/아파트|apt/gi,'').replace(/[\s·.,\-_]/g,'').toLowerCase();
 
+// 차수/단지 numbers in a name, brackets included: "신창비바패밀리1,2단지" → [1,2], "영덕신일1" → [1].
+export function nameOrdinals(name){
+ const s=String(name??'');
+ const out=new Set();
+ for(const m of s.matchAll(/(\d+(?:\s*,\s*\d+)*)\s*(?:차|단지)/g))m[1].split(',').forEach(n=>out.add(Number(n)));
+ const tail=s.replace(/\(.*?\)|\[.*?\]/g,'').replace(/아파트|apt/gi,'').trim().match(/(\d+)$/);
+ if(tail)out.add(Number(tail[1]));
+ return out;
+}
+
+// A MOLIT building name and a K-APT complex name that differ only by a region prefix or suffix
+// ("한솔솔파크(501,502동)" ~ "당정한솔솔파크", "DMC파크뷰자이1단지" ~ "DMC파크뷰자이아파트").
+// The shorter name must sit inside the longer one (3+ characters, not cut before a digit), and
+// 차수/단지 numbers must agree; a number on one side only is accepted only when it is 1.
+export function similarName(a,b){
+ const x=normalizeName(a),y=normalizeName(b);
+ const [s,l]=x.length<=y.length?[x,y]:[y,x];
+ if(s.length<3)return false;
+ const i=l.indexOf(s);
+ if(i<0||(/\d$/.test(s)&&/\d/.test(l[i+s.length]??'')))return false;
+ const na=nameOrdinals(a),nb=nameOrdinals(b);
+ if(na.size&&nb.size)return [...na].some(n=>nb.has(n));
+ const one=na.size?na:nb;
+ return !one.size||(one.size===1&&one.has(1));
+}
+
 export function median(values){
  if(!values.length)return null;
  const s=[...values].sort((a,b)=>a-b),mid=s.length>>1;

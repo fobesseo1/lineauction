@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals} from './summary.mjs';
+
+test('nameOrdinals reads 차수, 단지 lists and a trailing number',()=>{
+ assert.deepEqual([...nameOrdinals('동두천신창비바패밀리1,2단지')],[1,2]);
+ assert.deepEqual([...nameOrdinals('청광플러스원(큐브1차)')],[1]);
+ assert.deepEqual([...nameOrdinals('영덕신일1')],[1]);
+ assert.equal(nameOrdinals('한솔솔파크(501,502동)').size,0);
+});
+
+test('similarName accepts region prefixes and rejects other 차수',()=>{
+ assert.ok(similarName('한솔솔파크(501,502동)','당정한솔솔파크'));
+ assert.ok(similarName('DMC파크뷰자이1단지','DMC파크뷰자이아파트'));
+ assert.ok(similarName('신창비바패밀리(1단지)','동두천신창비바패밀리1,2단지'));
+ assert.ok(similarName('힐스테이트 평택 1차','힐스테이트 평택아파트'));
+ assert.ok(!similarName('청광플러스원(큐브1차)','청광플러스원큐브3차'));
+ assert.ok(!similarName('가산지웰에스테이트','가산지웰에스테이트2차'));
+ assert.ok(!similarName('신곡우성','장암우성'));
+ assert.ok(!similarName('주공1','주공12단지'));
+ assert.ok(!similarName('진주(2차)','오남진주'));
+});
 
 test('jibunPnu handles plain, sub-lot and mountain lots',()=>{
  assert.equal(jibunPnu('1168010600','316'),'1168010600103160000');

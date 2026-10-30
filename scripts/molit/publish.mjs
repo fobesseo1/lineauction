@@ -9,7 +9,7 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,monthlyHistory} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,monthlyHistory} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -25,11 +25,12 @@ const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 // 법정동 code and K-APT complex lookups from public.complexes.
 // A complex is matched by lot (PNU) first, then by the same 법정동 and normalized name, which
 // also covers complexes whose detail (and so PNU) is not collected yet.
-const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map();
+const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map(),complexList=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name').order('id').range(from,from+999);
+ const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude').order('id').range(from,from+999);
  if(error)throw Error(error.message);
  for(const c of data){
+  complexList.push(c);
   if(c.bjd_code&&c.dong)bjdByDong.set(`${c.bjd_code.slice(0,5)}:${c.dong}`,c.bjd_code);
   if(c.pnu&&!kaptByPnu.has(c.pnu))kaptByPnu.set(c.pnu,c.kapt_code);
   const key=`${c.bjd_code}:${normalizeName(c.name)}`;
@@ -40,6 +41,42 @@ for(let from=0;;from+=1000){
 // The vworld 법정동 table (scripts/geo/dongs.mjs) is the main source; K-APT dong names fill gaps.
 try{for(const [lawd,map] of Object.entries(JSON.parse(await readFile('data/geo/dongs.json','utf8')).table))for(const [umd,bjd] of Object.entries(map))bjdByDong.set(`${lawd}:${umd}`,bjd);}catch(e){if(e.code!=='ENOENT')throw e;}
 const regionName=new Map(leafRegions(regionCatalog.codes).map(r=>[r.code,r.name]));
+// Third rule: K-APT files many complexes under another lot (환지, a 대표지번) and a prefixed name
+// ("당정한솔솔파크"), so a similar name within 500 m of the building's parcel (coords.mjs) or in the
+// same 법정동 also matches when exactly one complex qualifies.
+const placePoint=new Map();
+for(let from=0;;from+=1000){
+ const {data,error}=await supa.from('market_places').select('id,latitude,longitude').eq('kind','apt').not('latitude','is',null).order('id').range(from,from+999);
+ if(error)throw Error(error.message);
+ for(const p of data)placePoint.set(p.id,p);
+ if(data.length<1000)break;
+}
+const metres=(a,b)=>111000*Math.hypot(a.latitude-b.latitude,(a.longitude-b.longitude)*Math.cos(a.latitude*Math.PI/180));
+// Complexes by ~1 km grid cell and by 법정동.
+const cellOf=(lat,lng)=>`${Math.floor(lat*100)}:${Math.floor(lng*100)}`;
+const complexByCell=new Map(),complexByBjd=new Map();
+const pushTo=(map,key,c)=>{const l=map.get(key);if(l)l.push(c);else map.set(key,[c]);};
+for(const c of complexList){
+ if(c.latitude!=null)pushTo(complexByCell,cellOf(c.latitude,c.longitude),c);
+ if(c.bjd_code)pushTo(complexByBjd,c.bjd_code,c);
+}
+function nearKapt(id,bjd,name){
+ const at=placePoint.get(id),hits=new Set();
+ if(at)for(const dy of [-1,0,1])for(const dx of [-1,0,1]){
+  for(const c of complexByCell.get(`${Math.floor(at.latitude*100)+dy}:${Math.floor(at.longitude*100)+dx}`)??[])
+   if(metres(at,c)<=500&&similarName(name,c.name))hits.add(c.kapt_code);
+ }
+ for(const c of complexByBjd.get(bjd)??[])if(similarName(name,c.name))hits.add(c.kapt_code);
+ return hits.size===1?[...hits][0]:null;
+}
+// kapt_match says which rule linked an apartment, or 'not_in_kapt' (mostly buildings under the
+// ~150-household K-APT threshold).
+function kaptLink(id,pnu,bjd,name){
+ const byPnu=pnu&&kaptByPnu.get(pnu);if(byPnu)return {kapt_code:byPnu,kapt_match:'pnu'};
+ const byName=bjd&&kaptByName.get(`${bjd}:${normalizeName(name)}`);if(byName)return {kapt_code:byName,kapt_match:'name'};
+ const near=nearKapt(id,bjd,name);if(near)return {kapt_code:near,kapt_match:'near_name'};
+ return {kapt_code:null,kapt_match:'not_in_kapt'};
+}
 
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
 const places=new Map();
@@ -52,7 +89,7 @@ for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_d
  const bjd=bjdByDong.get(`${r.lawd}:${r.umd}`)??null;
  const pnu=jibunPnu(bjd,r.jibun);
  places.set(id,{id,kind:r.kind,lawd:r.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:r.umd,jibun:r.jibun,bjd_code:bjd,pnu,
-  name:r.name,build_year:r.build_year,kapt_code:r.kind==='apt'?(pnu&&kaptByPnu.get(pnu))||(bjd&&kaptByName.get(`${bjd}:${normalizeName(r.name)}`))||null:null,refreshed_at:runAt,_d:r.d});
+  name:r.name,build_year:r.build_year,...(r.kind==='apt'?kaptLink(id,pnu,bjd,r.name):{kapt_code:null,kapt_match:null}),refreshed_at:runAt,_d:r.d});
 }
 
 // Stats and 전월세 contracts over the last 12 months, streamed in building+area order.
@@ -100,6 +137,7 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,use_type,house_type,zo
 
 const placeRows=[...places.values()].map(({_d,...p})=>p);
 const matched=placeRows.filter(p=>p.kapt_code).length;
+console.log('kapt_match',JSON.stringify(placeRows.reduce((m,p)=>(p.kapt_match&&(m[p.kapt_match]=(m[p.kapt_match]??0)+1),m),{})));
 console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
 if(dryRun){wh.close();process.exit(0);}
 

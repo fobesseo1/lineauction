@@ -19,11 +19,29 @@ const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABAS
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 
 // Buildings indexed by kind + 시군구.
-const placesBy=new Map();
+const placesBy=new Map(),placeById=new Map();
 for(const r of wh.prepare('select distinct kind,lawd,umd,jibun,name from trades where umd is not null and jibun is not null').iterate()){
  const k=`${r.kind}:${r.lawd}`;const list=placesBy.get(k)??[];
- if(!list.some(p=>p.umd===r.umd&&p.jibun===r.jibun))list.push({...r,id:placeId(r.kind,r.lawd,r.umd,r.jibun)});
+ if(!list.some(p=>p.umd===r.umd&&p.jibun===r.jibun)){const place={...r,id:placeId(r.kind,r.lawd,r.umd,r.jibun)};list.push(place);placeById.set(place.id,place);}
  placesBy.set(k,list);
+}
+// Last fallback: the K-APT complex on the property's lot, then a building publish.mjs linked to it
+// (K-APT and MOLIT often file one complex under different lots).
+const kaptByPnu=new Map(),placesByKapt=new Map();
+for(let from=0;;from+=1000){
+ const {data,error}=await supa.from('complexes').select('kapt_code,pnu').not('pnu','is',null).order('id').range(from,from+999);
+ if(error)throw Error(error.message);for(const c of data)if(!kaptByPnu.has(c.pnu))kaptByPnu.set(c.pnu,c.kapt_code);if(data.length<1000)break;
+}
+for(let from=0;;from+=1000){
+ const {data,error}=await supa.from('market_places').select('id,kapt_code').not('kapt_code','is',null).order('id').range(from,from+999);
+ if(error)throw Error(error.message);
+ for(const r of data){const place=placeById.get(r.id);if(place)placesByKapt.set(r.kapt_code,[...(placesByKapt.get(r.kapt_code)??[]),place]);}
+ if(data.length<1000)break;
+}
+function kaptPlace(pnu,kind){
+ const kapt=kaptByPnu.get(pnu);
+ const list=(placesByKapt.get(kapt)??[]).filter(p=>p.kind===kind);
+ return list.length?{place:list.sort((a,b)=>a.id<b.id?-1:1)[0],via:'kapt_pnu'}:null;
 }
 const salesOf=wh.prepare(`select deal_date,amount,area from trades where kind=? and lawd=? and umd=? and jibun=? and deal='sale'
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
@@ -56,16 +74,16 @@ const rows=[],stats={properties:properties.length,eligible:0,linked:0,priced:0,v
 for(const p of properties){
  const kind=tradeKind(p.usage_type,p.section);if(!kind||shopFloor(p.usage_type,p.address))continue;
  const area=Number(p.exclusive_area??p.building_area);
- if(!(area>0))continue;
+ // Apartments without a 전용면적 still get their building (no price); villas need the area.
+ if(!(area>0)&&kind==='rh')continue;
  stats.eligible++;
+ // The lot in the PNU first (court PNUs come from fill-pnu), then the court address, then K-APT.
  let hit=null;
- if(p.source==='onbid'){
-  const lot=pnuLot(p.pnu);
-  if(lot)hit=findPlace(placesBy.get(`${kind}:${lot.lawd}`)??[],{lawd:lot.lawd,dong:p.dong,jibun:lot.jibun,kind});
- }else{
-  const a=courtAddress(p.address);
-  for(const lawd of lawdsOf(p.address)){hit=findPlace(placesBy.get(`${kind}:${lawd}`)??[],{lawd,...a,kind});if(hit)break;}
- }
+ const a=p.source==='onbid'?{dong:p.dong,name:null}:courtAddress(p.address);
+ const lot=pnuLot(p.pnu);
+ if(lot){hit=findPlace(placesBy.get(`${kind}:${lot.lawd}`)??[],{lawd:lot.lawd,dong:a.dong,jibun:lot.jibun,name:a.name,kind});if(hit&&hit.via==='lot')hit.via='pnu';}
+ if(!hit&&p.source!=='onbid')for(const lawd of lawdsOf(p.address)){hit=findPlace(placesBy.get(`${kind}:${lawd}`)??[],{lawd,...a,kind});if(hit)break;}
+ if(!hit&&p.pnu&&kind!=='rh')hit=kaptPlace(p.pnu,kind);
  if(kind==='rh'){
   // Building methodology: same building first, else the same 법정동 by price per ㎡.
   const lawd=p.source==='onbid'?pnuLot(p.pnu)?.lawd:(hit?.place.lawd??lawdsOf(p.address)[0]);
@@ -96,6 +114,12 @@ for(const p of properties){
  if(!hit)continue;
  stats.linked++;stats.via[hit.via]=(stats.via[hit.via]??0)+1;
  const {place}=hit,areaType=Math.floor(area);
+ if(!(area>0)){
+  rows.push({property_id:p.id,place_id:place.id,place_match_method:hit.via,area_type:null,confidence:null,deal_score:null,deal_grade:null,
+   market_price:null,market_price_method:'no-area',appraisal_ratio:null,market_ratio:null,discount_rate:null,estimated_price_gap:null,
+   transaction_count_3m:null,transaction_count_6m:null,transaction_count_12m:null,score_breakdown:{via:hit.via},calculated_at:runAt});
+  continue;
+ }
  const all=salesOf.all(place.kind,place.lawd,place.umd,place.jibun,since[12]);
  const byType=new Map();for(const s of all){const t=Math.floor(s.area);byType.set(t,[...(byType.get(t)??[]),s]);}
  let mismatch=false,type=areaType,market=marketPrice(byType.get(areaType)??[],{since6:since[6],since12:since[12]});
@@ -116,7 +140,7 @@ for(const p of properties){
  const confidence=market?(outlier(discount)?'low':market.confidence):null;
  const deal=dealScore({discount,confidence,riskFlags:p.risk_flags,failedBids:p.failed_bid_count??0});
  rows.push({
-  property_id:p.id,place_id:place.id,area_type:type,confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
+  property_id:p.id,place_id:place.id,place_match_method:hit.via,area_type:type,confidence,deal_score:deal?.score??null,deal_grade:deal?.grade??null,
   market_price:marketWon,market_price_method:market?`median-${market.window}m`:mismatch?'appraisal-mismatch':'no-recent-sales',
   appraisal_ratio:appraisal>0&&minimum>0?pct(minimum/appraisal*100):null,
   market_ratio:marketWon&&minimum>0?pct(minimum/marketWon*100):null,
