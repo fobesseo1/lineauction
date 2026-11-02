@@ -8,8 +8,20 @@ export function jibunPnu(bjd,jibun){
  return m?bjd+(m[1]?'2':'1')+m[2].padStart(4,'0')+(m[3]??'0').padStart(4,'0'):null;
 }
 
-// Complex names differ in spacing, "아파트" suffixes and brackets between K-APT and MOLIT.
-export const normalizeName=n=>String(n??'').replace(/\(.*?\)|\[.*?\]/g,'').replace(/아파트|apt/gi,'').replace(/[\s·.,\-_]/g,'').toLowerCase();
+// Brand spellings K-APT and MOLIT use for the same name ("SKVIEW" = "에스케이뷰" = "SK뷰"),
+// applied after lowercasing and in this order (longer forms first).
+const BRANDS=[
+ [/skview|에스케이뷰|sk뷰/g,'sk뷰'],[/에스케이|sk/g,'sk'],
+ [/ipark|아이파크/g,'아이파크'],[/이편한세상|e편한세상|e-편한세상/g,'e편한세상'],
+ [/prugio|푸르지오/g,'푸르지오'],[/xi|자이/g,'자이'],[/thesharp|the#|더#|더샵/g,'더샵'],
+ [/hillstate|힐스테이트/g,'힐스테이트'],[/raemian|래미안/g,'래미안'],[/lottecastle|롯데캐슬/g,'롯데캐슬'],
+ [/s클래스|에스클래스/g,'s클래스'],[/엘에이치|lh/g,'lh'],[/케이씨씨|kcc/g,'kcc'],[/지에스|gs/g,'gs'],
+ [/dmc|디엠씨/g,'dmc'],[/위브|weve/g,'위브'],[/센트럴|central/g,'센트럴'],
+ [/park/g,'파크'],[/view/g,'뷰'],[/city/g,'시티'],[/맨숀/g,'맨션'],
+];
+// Complex names differ in spacing, "아파트" suffixes, brackets and brand spellings between K-APT and MOLIT.
+export const normalizeName=n=>BRANDS.reduce((s,[re,to])=>s.replace(re,to),
+ String(n??'').replace(/\(.*?\)|\[.*?\]/g,'').replace(/아파트|apt/gi,'').replace(/[\s·.,\-_&]/g,'').toLowerCase());
 
 // 차수/단지 numbers in a name, brackets included: "신창비바패밀리1,2단지" → [1,2], "영덕신일1" → [1].
 export function nameOrdinals(name){
@@ -35,6 +47,17 @@ export function similarName(a,b){
  if(na.size&&nb.size)return [...na].some(n=>nb.has(n));
  const one=na.size?na:nb;
  return !one.size||(one.size===1&&one.has(1));
+}
+
+// MOLIT often files several complexes on one lot under a combined name ("한국1,동아,팬더",
+// "양지마을(6단지)(금호,청구)", "태산,대진.정광아파트"). For a building on the complex's own spot,
+// a 2+ character part of that name (numbers and generic words dropped) found in the complex name
+// is enough: "갈산 팬더 아파트" ~ "한국1,동아,팬더", "하계한신" ~ "한신1".
+const GENERIC=new Set(['마을','주공','시영','단지','아파트','타운','빌라','맨션','파크','하이츠','그린','e편한세상','자이','푸르지오','래미안','아이파크','더샵','힐스테이트','롯데캐슬','위브','lh']);
+export function sharesNamePart(molitName,complexName){
+ const target=normalizeName(complexName);
+ return String(molitName??'').split(/[,.()[\]·\s]+/).map(p=>normalizeName(p).replace(/\d+(차|단지|동)?/g,''))
+  .some(p=>p.length>=2&&!GENERIC.has(p)&&!/마을$/.test(p)&&target.includes(p));   // "양지마을" names a neighbourhood, not a complex
 }
 
 export function median(values){

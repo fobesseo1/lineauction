@@ -9,7 +9,7 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,monthlyHistory} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -27,7 +27,7 @@ const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 // also covers complexes whose detail (and so PNU) is not collected yet.
 const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map(),complexList=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude').order('id').range(from,from+999);
+ const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type').order('id').range(from,from+999);
  if(error)throw Error(error.message);
  for(const c of data){
   complexList.push(c);
@@ -79,10 +79,12 @@ function kaptLink(id,pnu,bjd,name){
 }
 
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
-const places=new Map();
+// placeNames keeps every name MOLIT used at the lot, for the complex-side pass below.
+const places=new Map(),placeNames=new Map();
 for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_date) d from trades
   where kind in (${KINDS}) and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
  const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
+ if(r.kind==='apt')(placeNames.get(id)??placeNames.set(id,new Set()).get(id)).add(r.name);
  const prev=places.get(id);
  if(prev&&prev._d>=r.d)continue;
  const [sido,...rest]=(regionName.get(r.lawd)??'').split(' ');
@@ -91,6 +93,40 @@ for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_d
  places.set(id,{id,kind:r.kind,lawd:r.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:r.umd,jibun:r.jibun,bjd_code:bjd,pnu,
   name:r.name,build_year:r.build_year,...(r.kind==='apt'?kaptLink(id,pnu,bjd,r.name):{kapt_code:null,kapt_match:null}),refreshed_at:runAt,_d:r.d});
 }
+
+// Complex-side pass for complexes no building linked to. Buildings within 50 m of the complex
+// (or on its lot) are candidates:
+// - one whose MOLIT names include a similar name links to it; when that building already has
+//   another kapt_code, K-APT has split one estate into two codes (신당남산타운(분양) ~ 남산타운)
+//   or MOLIT files several complexes under one combined name, so the building gets an extra link
+//   in market_place_complexes ('split'; a shared name part is enough there, see sharesNamePart);
+// - otherwise, if exactly one candidate has no kapt_code, it is linked ('same_point').
+// A building two complexes claim this way is left alone.
+const SAME_POINT_M=50;
+const placeCell=new Map(),placeByPnu=new Map();
+for(const p of places.values()){
+ if(p.kind!=='apt')continue;
+ const at=placePoint.get(p.id);
+ if(at)pushTo(placeCell,cellOf(at.latitude,at.longitude),p);
+ if(p.pnu)pushTo(placeByPnu,p.pnu,p);
+}
+const linkedKapt=new Set([...places.values()].map(p=>p.kapt_code).filter(Boolean));
+const primaryClaims=new Map(),extraLinks=[];
+for(const c of complexList){
+ if(linkedKapt.has(c.kapt_code))continue;
+ const near=new Set(c.pnu?placeByPnu.get(c.pnu)??[]:[]);
+ if(c.latitude!=null)for(const dy of [-1,0,1])for(const dx of [-1,0,1])
+  for(const p of placeCell.get(`${Math.floor(c.latitude*100)+dy}:${Math.floor(c.longitude*100)+dx}`)??[])
+   if(metres(placePoint.get(p.id),c)<=SAME_POINT_M)near.add(p);
+ if(!near.size)continue;
+ const names=p=>[...placeNames.get(p.id)??[]];
+ let named=[...near].filter(p=>names(p).some(n=>similarName(n,c.name)));
+ if(!named.length)named=[...near].filter(p=>p.kapt_code&&names(p).some(n=>sharesNamePart(n,c.name)));
+ const free=(named.length?named:[...near]).filter(p=>!p.kapt_code);
+ for(const p of named.filter(p=>p.kapt_code))extraLinks.push({place_id:p.id,kapt_code:c.kapt_code,kapt_match:'split'});
+ if(free.length===1)pushTo(primaryClaims,free[0].id,c.kapt_code);
+}
+for(const [id,codes] of primaryClaims)if(codes.length===1)Object.assign(places.get(id),{kapt_code:codes[0],kapt_match:'same_point'});
 
 // Stats and 전월세 contracts over the last 12 months, streamed in building+area order.
 const stats=[],sales=[],rents=[];
@@ -135,8 +171,33 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,use_type,house_type,zo
   direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
 }
 
+// 분양권·입주권 전매 (last 12 months), linked to a complex by lot, name or a nearby similar name.
+const presale=[],presaleLink=new Map();
+for(const t of wh.prepare(`select key,lawd,umd,jibun,name,area,floor,deal_date,amount,ownership,dealing,cancel_date
+  from trades where kind='silv' and deal_date>=? and amount is not null`).iterate(start)){
+ const [sido,...rest]=(regionName.get(t.lawd)??'').split(' ');
+ const bjd=bjdByDong.get(`${t.lawd}:${t.umd}`)??null,pnu=jibunPnu(bjd,t.jibun);
+ const lk=`${t.lawd}|${t.umd}|${t.jibun}|${t.name}`;
+ if(!presaleLink.has(lk)){const l=kaptLink(null,pnu,bjd,t.name);presaleLink.set(lk,l.kapt_code?l:{kapt_code:null,kapt_match:null});}
+ presale.push({id:t.key,...presaleLink.get(lk),lawd:t.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:t.umd,jibun:t.jibun,bjd_code:bjd,pnu,
+  name:t.name,area:t.area,area_type:t.area==null?null:Math.floor(t.area),floor:t.floor,deal_date:t.deal_date,amount:t.amount,
+  ownership:t.ownership==='입'?'입주권':'분양권',   // MOLIT files 입주권 as '입' and leaves 분양권 blank
+  direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
+}
+
 const placeRows=[...places.values()].map(({_d,...p})=>p);
 const matched=placeRows.filter(p=>p.kapt_code).length;
+// Every building ↔ complex link: each building's own kapt_code plus the extra 'split' links.
+const linkRows=[...placeRows.filter(p=>p.kapt_code),...extraLinks.map(l=>({id:l.place_id,...l}))]
+ .map(p=>({place_id:p.id,kapt_code:p.kapt_code,kapt_match:p.kapt_match,refreshed_at:runAt}));
+{const linked=new Set(linkRows.map(l=>l.kapt_code)),withPresale=new Set(presale.map(t=>t.kapt_code).filter(Boolean));
+ const open=complexList.filter(c=>c.sale_type!=='임대'&&!linked.has(c.kapt_code));
+ console.log(`complex links ${linkRows.length} (split ${extraLinks.length}); complexes without a building (임대 excluded) ${open.length}, of which with 분양권 trades ${open.filter(c=>withPresale.has(c.kapt_code)).length}`);
+ console.log(`presale ${presale.length} (linked ${presale.filter(t=>t.kapt_code).length})`);
+ // The open list, with the nearest apt buildings, for checking what the rules still miss.
+ await writeJson('data/molit/unlinked-complexes.json',open.map(c=>({kapt_code:c.kapt_code,name:c.name,sale_type:c.sale_type,
+  presale:withPresale.has(c.kapt_code),near:c.latitude==null?null:[...placePoint.values()].filter(p=>places.has(p.id)&&Math.abs(p.latitude-c.latitude)<0.003&&Math.abs(p.longitude-c.longitude)<0.004)
+   .map(p=>({d:Math.round(metres(p,c)),name:places.get(p.id).name,kapt:places.get(p.id).kapt_code})).sort((x,y)=>x.d-y.d).slice(0,3)})));}
 console.log('kapt_match',JSON.stringify(placeRows.reduce((m,p)=>(p.kapt_match&&(m[p.kapt_match]=(m[p.kapt_match]??0)+1),m),{})));
 console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
 if(dryRun){wh.close();process.exit(0);}
@@ -184,7 +245,7 @@ async function syncTable(table,rows,cols){
  for(let i=0;i<gone.length;i+=200){
   const batch=gone.slice(i,i+200).map(k=>k.split('|'));
   const del=cols.length===1?supa.from(table).delete().in(cols[0],batch.map(b=>b[0]))
-   :supa.from(table).delete().or(batch.map(([pid,t])=>`and(place_id.eq."${pid}",area_type.eq.${t})`).join(','));
+   :supa.from(table).delete().or(batch.map(b=>`and(${cols.map((c,j)=>`${c}.eq."${b[j]}"`).join(',')})`).join(','));
   const {error}=await del;if(error)throw Error(`${table} delete: ${error.message}`);
  }
  await writeJson(digestCachePath(table),Object.fromEntries(rows.map(r=>[keyOf(r),digestOf(r)])));
@@ -192,6 +253,7 @@ async function syncTable(table,rows,cols){
 }
 await syncTable('market_places',placeRows,['id']);
 await syncTable('market_area_stats',stats,['place_id','area_type']);
+await syncTable('market_place_complexes',linkRows,['place_id','kapt_code']);
 {const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
 
 // Trade rows are immutable (id = content hash), so they are synced by difference. Daily runs only
@@ -204,10 +266,12 @@ const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d
 // doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
 // seconds and made the site's queries time out). --full or a missing cache reads the DB.
 async function syncById(table,rows,windowStart){
- const from=full?windowStart:recheckFrom;
  const idCachePath=`data/molit/published-ids-${table}.json`;
- let existing=null;
- if(!full){try{const cached=JSON.parse(await readFile(idCachePath,'utf8'));existing=new Set(Object.entries(cached).filter(([,d])=>d>=from).map(([id])=>id));}catch(e){if(e.code!=='ENOENT')throw e;}}
+ let cached=null;
+ if(!full){try{cached=JSON.parse(await readFile(idCachePath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}}
+ // Without a cache (a new table's first load) the whole window is compared, as with --full.
+ const from=cached?recheckFrom:windowStart;
+ let existing=cached&&new Set(Object.entries(cached).filter(([,d])=>d>=from).map(([id])=>id));
  if(!existing){
   existing=new Set();
   for(let after='';;){
@@ -237,6 +301,7 @@ const salesStart=`${months[0]}-01`;
 await syncById('market_trades',sales,salesStart);
 await syncById('market_rents',rents,start);
 await syncById('market_commercial_trades',commercial,salesStart);
+await syncById('market_presale_trades',presale,start);
 
 console.log('PUBLISHED');
 wh.close();

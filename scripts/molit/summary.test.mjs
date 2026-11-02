@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart} from './summary.mjs';
 
 test('nameOrdinals reads 차수, 단지 lists and a trailing number',()=>{
  assert.deepEqual([...nameOrdinals('동두천신창비바패밀리1,2단지')],[1,2]);
@@ -19,6 +19,27 @@ test('similarName accepts region prefixes and rejects other 차수',()=>{
  assert.ok(!similarName('신곡우성','장암우성'));
  assert.ok(!similarName('주공1','주공12단지'));
  assert.ok(!similarName('진주(2차)','오남진주'));
+});
+
+test('similarName treats brand spellings as one name',()=>{
+ assert.ok(similarName('매교역푸르지오SKVIEW','매교역푸르지오SK뷰'));
+ assert.ok(similarName('고덕센트럴IPARK','고덕센트럴 아이파크'));
+ assert.ok(similarName('다산이편한세상자이','다산 e편한세상자이'));
+ assert.ok(similarName('THESHARP판교퍼스트파크','더샵판교퍼스트파크'));
+ assert.ok(similarName('SK VIEW Park','SK뷰파크'));
+ assert.ok(similarName('흑석XI','흑석자이'));
+ assert.ok(similarName('이편한세상강동에코포레','e편한세상 강동에코포레 아파트'));
+});
+
+test('sharesNamePart finds a complex inside a combined MOLIT name',()=>{
+ assert.ok(sharesNamePart('한국1,동아,팬더','갈산 팬더 아파트'));
+ assert.ok(sharesNamePart('태산,대진.정광아파트','선학정광'));
+ assert.ok(sharesNamePart('양지마을(6단지)(금호,청구)','수내양지마을청구'));
+ assert.ok(sharesNamePart('한신1','하계한신'));
+ assert.ok(!sharesNamePart('하나','갈산 동남 아파트'));
+ assert.ok(!sharesNamePart('경남','연수1차대림'));
+ assert.ok(!sharesNamePart('주공2단지','논현주공2-1단지'));
+ assert.ok(!sharesNamePart('양지마을(5단지)(한양501-514)','양지마을 금호 1단지 아파트'));
 });
 
 test('jibunPnu handles plain, sub-lot and mountain lots',()=>{

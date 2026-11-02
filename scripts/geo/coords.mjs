@@ -121,6 +121,14 @@ async function placePnu(c){
  const hit=(await search(`${c.sigungu??''} ${c.name}`,'place')).find(i=>bare(String(i.title??'').replace(/\/\d+동$/,''))===bare(c.name)&&(i.address?.parcel??'').startsWith(c.sido)&&/\d+(-\d+)?$/.test(i.address.parcel)&&!/\s0$/.test(i.address.parcel));
  return hit?searchPnu(hit.address.parcel,'parcel',c.sido):null;
 }
+async function geocodeRoad(address){
+ const u=new URL('https://api.vworld.kr/req/address');
+ for(const [k,v] of Object.entries({service:'address',request:'getcoord',version:'2.0',crs:'epsg:4326',type:'road',refine:'true',simple:'false',format:'json',key:process.env.VWORLD_API_KEY,address}))u.searchParams.set(k,v);
+ await sleep(150);
+ const j=await (await fetch(u,{signal:AbortSignal.timeout(20000)})).json();
+ const p=j.response?.status==='OK'?j.response.result?.point:null;
+ return p?{lat:Number(p.y),lng:Number(p.x)}:null;
+}
 const stats={place:0,searched:0,search:0,missing:0};
 for(const c of allComplexes){
  if(located.has(c.id))continue;
@@ -144,6 +152,13 @@ for(const c of allComplexes){
    await writeJson(`${root}/parcels/${pnu.slice(0,10)}.json`,shards.get(pnu.slice(0,10)));await sleep(150);
   }
   pt=await point(pnu);if(pt)break;
+ }
+ // Last resort: the road address geocoded to a point. New-town complexes before 환지 have only a
+ // lot-0 PNU ("…00000000"), which has no parcel, while the road address already resolves.
+ if(!pt&&road){
+  const key=`geocode:${road}`;
+  if(!(key in pnuCache)&&!plan&&stats.searched<limit){pnuCache[key]=await geocodeRoad(road);pnuCache[`${key}@`]=new Date().toISOString();stats.searched++;}
+  pt=pnuCache[key]??null;
  }
  if(pt){complexRows.push({id:c.id,lat:pt.lat,lng:pt.lng});stats.search++;}else stats.missing++;
 }

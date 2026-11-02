@@ -16,6 +16,8 @@ export const APIS={
  landSale:{kind:'land',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcLandTrade/getRTMSDataSvcLandTrade'},
  shSale:{kind:'sh',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade'},
  shRent:{kind:'sh',deal:'rent',url:'https://apis.data.go.kr/1613000/RTMSDataSvcSHRent/getRTMSDataSvcSHRent'},
+ // 아파트 분양권·입주권 전매 (new complexes before their first 매매); only the last 12 months.
+ silvSale:{kind:'silv',deal:'sale',months:12,url:'https://apis.data.go.kr/1613000/RTMSDataSvcSilvTrade/getRTMSDataSvcSilvTrade'},
 };
 
 // Leaf 시군구 codes for the capital area: a city whose 구 are listed separately is not
@@ -70,7 +72,7 @@ export function toRow(apiName,lawd,ym,item){
   land_area:real(item.landAr)??real(item.plottageAr)??real(item.dealArea),house_type:text(item.houseType),
   building_area:real(item.buildingAr),total_floor_area:real(item.totalFloorAr),
   use_type:text(item.buildingUse)??text(item.jimok),building_type:text(item.buildingType),
-  zone:text(item.landUse),share:text(item.shareDealingType),
+  zone:text(item.landUse),share:text(item.shareDealingType),ownership:text(item.ownershipGbn),
   raw:JSON.stringify(item),
  };
 }
