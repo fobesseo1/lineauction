@@ -90,6 +90,16 @@ export function areaStats(trades){
 }
 
 // 'YYYY-MM-DD' twelve months before the KST day of `now`.
+// The daily collector's warehouse starts at 2023-11; apartment 매매·전월세 from 2019-01 were added
+// once for the lineestate backtest (publish-history.mjs). Building links are decided from the
+// daily months only, so the backfill cannot move an existing link, and apartment rows from
+// HISTORY_FROM on stay in market_trades/market_rents after they leave the rolling windows.
+export const DAILY_FROM_YM='202311',HISTORY_FROM='2019-01-01';
+
+// market_trades / market_rents rows from a warehouse trade.
+export const saleRow=(t,pid)=>({id:t.key,place_id:pid,area:t.area,area_type:Math.floor(t.area),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
+export const rentRow=(t,pid)=>({id:t.key,place_id:pid,area:t.area,area_type:Math.floor(t.area),floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});
+
 export function periodStart(now){
  const d=new Date(now.getTime()+9*3600000);d.setUTCFullYear(d.getUTCFullYear()-1);
  return d.toISOString().slice(0,10);

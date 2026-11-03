@@ -9,7 +9,7 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,DAILY_FROM_YM,HISTORY_FROM,saleRow,rentRow} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -81,17 +81,21 @@ function kaptLink(id,pnu,bjd,name){
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
 // placeNames keeps every name MOLIT used at the lot, for the complex-side pass below.
 const places=new Map(),placeNames=new Map();
+function placeRow(r){
+ const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
+ const [sido,...rest]=(regionName.get(r.lawd)??'').split(' ');
+ const bjd=bjdByDong.get(`${r.lawd}:${r.umd}`)??null;
+ const pnu=jibunPnu(bjd,r.jibun);
+ return {id,kind:r.kind,lawd:r.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:r.umd,jibun:r.jibun,bjd_code:bjd,pnu,
+  name:r.name,build_year:r.build_year,...(r.kind==='apt'?kaptLink(id,pnu,bjd,r.name):{kapt_code:null,kapt_match:null}),refreshed_at:runAt,_d:r.d};
+}
 for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_date) d from trades
-  where kind in (${KINDS}) and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate()){
+  where kind in (${KINDS}) and ym>=? and umd is not null and jibun is not null group by kind,lawd,umd,jibun,name`).iterate(DAILY_FROM_YM)){
  const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
  if(r.kind==='apt')(placeNames.get(id)??placeNames.set(id,new Set()).get(id)).add(r.name);
  const prev=places.get(id);
  if(prev&&prev._d>=r.d)continue;
- const [sido,...rest]=(regionName.get(r.lawd)??'').split(' ');
- const bjd=bjdByDong.get(`${r.lawd}:${r.umd}`)??null;
- const pnu=jibunPnu(bjd,r.jibun);
- places.set(id,{id,kind:r.kind,lawd:r.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:r.umd,jibun:r.jibun,bjd_code:bjd,pnu,
-  name:r.name,build_year:r.build_year,...(r.kind==='apt'?kaptLink(id,pnu,bjd,r.name):{kapt_code:null,kapt_match:null}),refreshed_at:runAt,_d:r.d});
+ places.set(id,placeRow(r));
 }
 
 // Complex-side pass for complexes no building linked to. Buildings within 50 m of the complex
@@ -128,6 +132,17 @@ for(const c of complexList){
 }
 for(const [id,codes] of primaryClaims)if(codes.length===1)Object.assign(places.get(id),{kapt_code:codes[0],kapt_match:'same_point'});
 
+// Apartments that traded only in the 2019 backfill months (often since rebuilt or renamed) get a
+// place too, so their history rows have one; they are linked by the per-building rules only.
+const historyPlaces=new Map();
+for(const r of wh.prepare(`select kind,lawd,umd,jibun,name,build_year,max(deal_date) d from trades
+  where kind='apt' and ym<? and umd is not null and jibun is not null group by lawd,umd,jibun,name`).iterate(DAILY_FROM_YM)){
+ const id=placeId(r.kind,r.lawd,r.umd,r.jibun);
+ if(places.has(id)||(historyPlaces.get(id)?._d>=r.d))continue;
+ historyPlaces.set(id,placeRow(r));
+}
+for(const [id,p] of historyPlaces)places.set(id,p);
+
 // Stats and 전월세 contracts over the last 12 months, streamed in building+area order.
 const stats=[],sales=[],rents=[];
 let group=[],groupKey=null;
@@ -140,7 +155,7 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
- if(t.deal==='rent')rents.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});
+ if(t.deal==='rent')rents.push(rentRow(t,pid));
 }
 flush();
 
@@ -155,7 +170,7 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
  // Sales list: the same 36 months as the chart.
- if(t.deal==='sale'&&t.amount!=null)sales.push({id:t.key,place_id:key.split('|')[0],area:t.area,area_type:Math.floor(t.area),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
+ if(t.deal==='sale'&&t.amount!=null)sales.push(saleRow(t,key.split('|')[0]));
 }
 hFlush();
 
@@ -261,6 +276,7 @@ await syncTable('market_place_complexes',linkRows,['place_id','kapt_code']);
 // --full compares everything (first load, or after changing a window).
 const full=process.argv.includes('--full');
 const RECHECK_MONTHS=3;   // MOLIT reloads at most the last 3 months
+const EXPIRE_DAYS=60;
 const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-RECHECK_MONTHS);return d.toISOString().slice(0,10);})();
 // The ids published for the recheck window are kept locally ({id: deal_date}), so a daily run
 // doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
@@ -293,7 +309,11 @@ async function syncById(table,rows,windowStart){
   }
  }
  for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
- const {error,count}=await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
+ // Apartment rows from HISTORY_FROM on are kept (2019 backfill, see summary.mjs). Daily runs only
+ // look at the last EXPIRE_DAYS before the window so the kept history is not scanned each day.
+ let expire=supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart).or(`place_id.not.like.apt:*,deal_date.lt.${HISTORY_FROM}`);
+ if(!full)expire=expire.gte('deal_date',new Date(Date.parse(windowStart)-EXPIRE_DAYS*86400000).toISOString().slice(0,10));
+ const {error,count}=await expire;if(error)throw Error(`${table} expire: ${error.message}`);
  await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
  console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
