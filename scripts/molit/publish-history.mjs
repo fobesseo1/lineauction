@@ -2,7 +2,7 @@
 // publish.mjs into market_trades / market_rents, for the lineestate backtest.
 //   node scripts/molit/collect.mjs --months 95 --apis aptSale,aptRent   (warehouse, 1-2 days of quota)
 //   node scripts/molit/publish.mjs --with-villas                         (places for history-only buildings)
-//   node scripts/molit/publish-history.mjs [--dry-run]
+//   node scripts/molit/publish-history.mjs [--table market_trades] [--from 2022-01] [--to 2023-12] [--dry-run]
 // Rows are inserted month by month with ignoreDuplicates (ids are warehouse keys), so a rerun
 // resumes; months already published are listed in data/molit/history-progress.json.
 // publish.mjs keeps these rows (it no longer expires apartment rows from HISTORY_FROM on).
@@ -11,9 +11,13 @@ import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {placeId,periodStart,HISTORY_FROM,saleRow,rentRow} from './summary.mjs';
+import {regionCatalog} from '../court/regions.mjs';
+import {leafRegions} from './core.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
+const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
+const onlyTable=arg('--table',null),fromYm=arg('--from','0000-00'),toYm=arg('--to','9999-99');
 const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 const progressPath='data/molit/history-progress.json';
@@ -38,6 +42,10 @@ for(let d=new Date(`${HISTORY_FROM}T00:00:00Z`);d.toISOString().slice(0,10)<rent
 const rowsOf=wh.prepare(`select key,lawd,umd,jibun,area,floor,building,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
  from trades where kind='apt' and deal=? and deal_date>=? and deal_date<? and umd is not null and jibun is not null and area is not null`);
 
+// Only months the collector has loaded for every region go up (the backfill takes days of quota).
+const regionCount=leafRegions(regionCatalog.codes).length;
+const loadedRegions=wh.prepare('select count(*) n from month_loads where api=? and ym=?');
+
 async function insert(table,rows){
  for(let i=0;i<rows.length;i+=1000){
   for(let attempt=1;;attempt++){
@@ -50,11 +58,13 @@ async function insert(table,rows){
 }
 
 for(const [table,deal,windowStart,toRow] of [['market_trades','sale',salesStart,saleRow],['market_rents','rent',rentsStart,rentRow]]){
+ if(onlyTable&&table!==onlyTable)continue;
  const done=new Set(progress[table]??[]);
  let total=0,missingPlace=0;
  for(const ym of months){
   const from=`${ym}-01`;
-  if(from>=windowStart||done.has(ym))continue;
+  if(from>=windowStart||done.has(ym)||ym<fromYm||ym>toYm)continue;
+  if(loadedRegions.get(deal==='sale'?'aptSale':'aptRent',ym.replace('-','')).n<regionCount){console.log(`${table} ${ym} not fully collected yet`);continue;}
   const next=new Date(`${from}T00:00:00Z`);next.setUTCMonth(next.getUTCMonth()+1);
   const to=[next.toISOString().slice(0,10),windowStart].sort()[0];
   const rows=[];

@@ -281,7 +281,7 @@ const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d
 // The ids published for the recheck window are kept locally ({id: deal_date}), so a daily run
 // doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
 // seconds and made the site's queries time out). --full or a missing cache reads the DB.
-async function syncById(table,rows,windowStart){
+async function syncById(table,rows,windowStart,keepAptHistory=false){
  const idCachePath=`data/molit/published-ids-${table}.json`;
  let cached=null;
  if(!full){try{cached=JSON.parse(await readFile(idCachePath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}}
@@ -311,15 +311,16 @@ async function syncById(table,rows,windowStart){
  for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
  // Apartment rows from HISTORY_FROM on are kept (2019 backfill, see summary.mjs). Daily runs only
  // look at the last EXPIRE_DAYS before the window so the kept history is not scanned each day.
- let expire=supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart).or(`place_id.not.like.apt:*,deal_date.lt.${HISTORY_FROM}`);
+ let expire=supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);
+ if(keepAptHistory)expire=expire.or(`place_id.not.like.apt:*,deal_date.lt.${HISTORY_FROM}`);
  if(!full)expire=expire.gte('deal_date',new Date(Date.parse(windowStart)-EXPIRE_DAYS*86400000).toISOString().slice(0,10));
  const {error,count}=await expire;if(error)throw Error(`${table} expire: ${error.message}`);
  await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
  console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
 const salesStart=`${months[0]}-01`;
-await syncById('market_trades',sales,salesStart);
-await syncById('market_rents',rents,start);
+await syncById('market_trades',sales,salesStart,true);
+await syncById('market_rents',rents,start,true);
 await syncById('market_commercial_trades',commercial,salesStart);
 await syncById('market_presale_trades',presale,start);
 
