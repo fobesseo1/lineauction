@@ -5,8 +5,9 @@ import {hostname} from 'node:os';
 import {createClient} from '@supabase/supabase-js';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {SCHEDULE_HOURS,runsOn,kstMinutes,koreanDay} from './core.mjs';
+import {loadEnv} from './env.mjs';
 
-process.loadEnvFile('.env.local');
+loadEnv();
 export const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 export const machineName=arg=>arg??process.env.FACTORY_MACHINE??hostname();
 // Heartbeats every minute keep the lease; a PC that is off or frozen loses it after this long.

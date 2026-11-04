@@ -3,7 +3,8 @@
 // its latest scripts/warm.mjs, which calls /api/revalidate and then opens the sitemap's pages (~10k
 // complexes, 4 at a time; node only, no install). Site URL, clone folder and secret live in .env.local.
 import {spawnSync} from 'node:child_process';
-process.loadEnvFile('.env.local');
+import {loadEnv} from './daily/env.mjs';
+loadEnv();
 const site=process.env.LINEESTATE_SITE_URL,dir=process.env.LINEESTATE_DIR,secret=process.env.REVALIDATE_SECRET;
 if(!site||!secret){console.error('LINEESTATE_SITE_URL or REVALIDATE_SECRET missing in .env.local');process.exit(1);}
 const started=Date.now();

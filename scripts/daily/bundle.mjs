@@ -14,6 +14,7 @@ import {promisify} from 'node:util';
 import zlib from 'node:zlib';
 import {createClient} from '@supabase/supabase-js';
 import {koreanDay} from './core.mjs';
+import {loadEnv} from './env.mjs';
 
 const zstd=promisify(zlib.zstdCompress),unzstd=promisify(zlib.zstdDecompress);
 const BUCKET='factory-state',CHUNK=32<<20,BIG=8<<20,KEEP=2,PARALLEL=4;
@@ -31,7 +32,7 @@ export const BUNDLES={
 export const JOB_BUNDLES={market:['shared','market'],onbid:['shared','onbid'],court:['shared','court']};
 const localPath='data/daily/bundles.json';
 
-process.loadEnvFile('.env.local');
+loadEnv();
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const store=db.storage.from(BUCKET);
 const sha=buf=>createHash('sha256').update(buf).digest('hex');
