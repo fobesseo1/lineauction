@@ -21,8 +21,9 @@ Say '1/8 이 PC 이름과 시작 시각'
 if (-not $Machine) { $Machine = Read-Host '이 PC 이름 (영문, 예: home / office / laptop)' }
 if ($Machine -notmatch '^[A-Za-z0-9_-]{2,20}$') { throw 'PC 이름은 영문·숫자·-·_ 2~20자로 해 주세요.' }
 if ($OffsetMinutes -lt 0) { $OffsetMinutes = [int](Read-Host '시작 시각을 몇 분 늦출까요? (첫 PC 0, 둘째 30, 셋째 60)') }
-$at = { param($h) (Get-Date -Hour $h -Minute 0 -Second 0).AddMinutes($OffsetMinutes) }
-Write-Host ("  {0}: 단지·실거래 {1:HH:mm} · 온비드 {2:HH:mm} · 법원 {3:HH:mm} (평일)" -f $Machine, (& $at 9), (& $at 10), (& $at 15))
+# 단지·실거래 07:30 → 끝나면 온비드 → 끝나면 법원. 10:00·15:00은 앞 작업이 안 이어졌을 때의 예비 시각.
+$at = { param($m) (Get-Date -Hour 0 -Minute 0 -Second 0).AddMinutes($m + $OffsetMinutes) }
+Write-Host ("  {0}: 단지·실거래 {1:HH:mm} 시작 → 온비드 → 법원(평일)이 이어서. 예비 시각 온비드 {2:HH:mm} · 법원 {3:HH:mm}" -f $Machine, (& $at 450), (& $at 600), (& $at 900))
 
 Say '2/8 Node.js(24 이상)와 Git'
 Refresh-Path
@@ -64,9 +65,9 @@ Do-Step 'node scripts/daily/bundle.mjs download' { Push-Location $Folder; try { 
 Say '7/8 작업 스케줄러 등록 (\LineAuction\)'
 $vbs = "$Folder\scripts\daily\run-hidden.vbs"
 $tasks = @(
-  @{ Name = 'Market Daily'; Args = "`"$vbs`" market schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 9) } },
-  @{ Name = 'Onbid Daily'; Args = "`"$vbs`" onbid schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 10) } },
-  @{ Name = 'Court Daily'; Args = "`"$vbs`" court schedule"; Trigger = { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At (& $at 15) } },
+  @{ Name = 'Market Daily'; Args = "`"$vbs`" market schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 450) } },
+  @{ Name = 'Onbid Daily'; Args = "`"$vbs`" onbid schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 600) } },
+  @{ Name = 'Court Daily'; Args = "`"$vbs`" court schedule"; Trigger = { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At (& $at 900) } },
   @{ Name = 'Watch every 10min'; Args = "`"$Folder\scripts\daily\watch-hidden.vbs`""; Trigger = { New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 10) } }
 )
 if ($WithBot) { $tasks += @{ Name = 'Telegram Bot every 1min'; Args = "`"$Folder\scripts\alerts\bot-hidden.vbs`""; Trigger = { New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1) } } }

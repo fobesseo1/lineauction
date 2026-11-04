@@ -1,7 +1,7 @@
 import { runsOn } from './core.mjs';
 // Pure watchdog rules for the daily jobs. watch.mjs gathers the facts and sends what this returns.
 const MIN = 60_000;
-export const SCHEDULE = { onbid: { hour: 10, label: '온비드 공매' }, court: { hour: 15, label: '법원 경매' }, market: { hour: 9, label: '단지·실거래' } };
+export const SCHEDULE = { onbid: { hour: 10, label: '온비드 공매' }, court: { hour: 15, label: '법원 경매' }, market: { hour: 7.5, label: '단지·실거래' } };
 export const STALL_MINUTES = 25;
 
 // Minutes since KST midnight for a Date.
@@ -16,6 +16,19 @@ export function resolvedByRerun(run, reruns = []) {
   if (!failed.length) return false;
   const start = run.startedAt ?? run.at ?? '';
   return failed.every(name => reruns.some(r => r.job === run.job && r.step === name && r.ok && r.at >= start));
+}
+
+// Plain-language reason for a failed run: which steps failed and, when recognisable, why.
+const STEP_LABELS = { 'court-list': '목록·사진 수집', 'court-past-results': '매각결과 수집', 'court-pipeline': 'DB 반영', 'refresh-current': '현재목록 갱신', 'fill-pnu': '지번 채우기', alerts: '알림 발송' };
+export function failureReason(run) {
+  if (run?.error) return run.error;
+  const failed = (run?.steps ?? []).filter(s => s.code !== 0);
+  if (!failed.length) return '';
+  const raw = failed.map(s => (typeof s.result === 'object' ? s.result?.error : s.result) ?? '').join(' ');
+  const why = /Timeout|timed? ?out/i.test(raw) ? ' — 사이트 화면이 제때 뜨지 않음(응답 지연·점검 가능성)'
+    : /ECONNRESET|ENOTFOUND|ECONNREFUSED|net::/i.test(raw) ? ' — 사이트 연결 실패'
+    : raw.trim() ? ` — ${raw.replace(/\u001b\[\d+m/g, '').split('\n')[0].slice(0, 120)}` : '';
+  return `${failed.map(s => STEP_LABELS[s.name] ?? s.name).join('·')} 실패${why}`;
 }
 
 export function evaluate({ now, day, lock, lockAlive, activityAt, history, blockedStreaks = {}, reruns = [] }) {
@@ -36,7 +49,7 @@ export function evaluate({ now, day, lock, lockAlive, activityAt, history, block
       problems.push({ key: `missed:${job}:${day}`, repeatMinutes: 30, title: `${label(job)} 자동 실행 안 됨`, message: `오늘 ${hour}시 실행이 시작되지 않았습니다. 바로가기나 설정 화면에서 직접 실행할 수 있습니다.` });
     const last = runs.filter(run => run.status !== 'skipped').at(-1);
     if (!running && last?.status === 'failed' && !resolvedByRerun(last, reruns))
-      problems.push({ key: `failed:${job}:${last.startedAt ?? last.at}`, repeatMinutes: 180, initialSent: true, title: `${label(job)} 실패 상태`, message: `오늘 실행이 실패로 끝났습니다${last.error ? ` (${last.error})` : ''}. 원인을 확인한 뒤 다시 실행해 주세요.` });
+      problems.push({ key: `failed:${job}:${last.startedAt ?? last.at}`, repeatMinutes: 180, initialSent: true, title: `${label(job)} 실패 상태`, message: `오늘 실행이 실패로 끝났습니다${failureReason(last) ? ` (${failureReason(last)})` : ''}. 원인을 확인한 뒤 다시 실행해 주세요.` });
   }
   for (const [service, days] of Object.entries(blockedStreaks))
     if (days >= 3) problems.push({ key: `blocked:${service}:${day}`, repeatMinutes: 24 * 60, title: `${service === 'molit' ? '국토부' : '온비드'} 요청 ${days}일 연속 거부`, message: 'API 키 만료나 이용 한도 문제일 수 있습니다. 공공데이터포털에서 키 상태를 확인해 주세요.' });

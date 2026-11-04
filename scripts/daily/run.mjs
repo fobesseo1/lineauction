@@ -33,7 +33,7 @@ const alive=pid=>{try{process.kill(pid,0);return true;}catch(e){return e.code===
 
 // 1. Scheduled starts (daily time, missed-run catch-up, or logon) wait for the job's hour and skip
 //    when the job already ran today. Manual runs always proceed.
-// 'chain' starts (court right after Onbid) skip the hour check but otherwise behave like scheduled ones;
+// 'chain' starts (Onbid right after market, court right after Onbid) skip the hour check but otherwise behave like scheduled ones;
 // the 15:00 task stays as a fallback and skips itself once the chained run has finished.
 if(trigger==='schedule'&&(!runsOn(job)||beforeSchedule(job)))process.exit(0);
 if(trigger==='chain'&&!runsOn(job))process.exit(0);
@@ -296,14 +296,16 @@ ${name}: ${e.message}`).catch(()=>{});}
  console.log(JSON.stringify({job,trigger,status:run.status,steps:run.steps.map(s=>({name:s.name,code:s.code,seconds:s.seconds}))}));
  process.exitCode=run.status==='completed'?0:1;
 }
-// Court follows Onbid on its run days after a 3-minute pause instead of waiting for 15:00.
-if(job==='onbid'&&trigger!=='manual'&&runsOn('court')&&!scheduledSkip(await history(),'court',day).skip){
+// Onbid follows market and court follows Onbid (on its run days) after a 3-minute pause instead of
+// waiting for the 10:00 / 15:00 tasks, which stay as fallbacks and skip themselves once it ran.
+const NEXT={market:'onbid',onbid:'court'}[job];
+if(NEXT&&trigger!=='manual'&&runsOn(NEXT)&&!scheduledSkip(await history(),NEXT,day).skip){
  await delay(3*60_000);
- // Its own log: court.log can be held open by the 15:00 task's redirect (EBUSY crashed this once).
+ // Its own log: <job>.log can be held open by the fallback task's redirect (EBUSY crashed this once).
  try{
   const {openSync}=await import('node:fs');
-  const out=openSync(`${root}/court-chain.log`,'a');
-  spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain',`--machine=${machine}`],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
-  console.log('court chained');
- }catch(e){console.error('court chain failed; the 15:00 task will run it',e.message);}
+  const out=openSync(`${root}/${NEXT}-chain.log`,'a');
+  spawn(process.execPath,['scripts/daily/run.mjs',`--job=${NEXT}`,'--trigger=chain',`--machine=${machine}`],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
+  console.log(`${NEXT} chained`);
+ }catch(e){console.error(`${NEXT} chain failed; its fallback task will run it`,e.message);}
 }
