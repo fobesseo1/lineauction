@@ -1,5 +1,5 @@
 // Rebuild the Supabase market_* summary tables from the local trade warehouse.
-//   node scripts/molit/publish.mjs [--dry-run]
+//   node scripts/molit/publish.mjs --with-villas [--dry-run] [--full] [--allow-large-delete]
 // Only new or changed rows are written (content digest) and vanished rows deleted,
 // so screens never see an empty table mid-run.
 import {DatabaseSync} from 'node:sqlite';
@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
+import {guardDeletes} from '../daily/delete-guard.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
 import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory} from './summary.mjs';
@@ -200,7 +201,6 @@ const linkRows=[...placeRows.filter(p=>p.kapt_code),...extraLinks.map(l=>({id:l.
    .map(p=>({d:Math.round(metres(p,c)),name:places.get(p.id).name,kapt:places.get(p.id).kapt_code})).sort((x,y)=>x.d-y.d).slice(0,3)})));}
 console.log('kapt_match',JSON.stringify(placeRows.reduce((m,p)=>(p.kapt_match&&(m[p.kapt_match]=(m[p.kapt_match]??0)+1),m),{})));
 console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
-if(dryRun){wh.close();process.exit(0);}
 
 // Batches of 500 with up to 3 tries: a busy free-tier DB occasionally times out one batch.
 async function upsert(table,rows,onConflict){
@@ -235,13 +235,18 @@ async function knownDigests(table,cols){
  if(!process.argv.includes('--full')){try{return new Map(Object.entries(JSON.parse(await readFile(digestCachePath(table),'utf8'))));}catch(e){if(e.code!=='ENOENT')throw e;}}
  return existingDigests(table,cols);
 }
-async function syncTable(table,rows,cols){
+// Every table is planned before anything is written, so a run that would delete far more than usual
+// (an empty or partial warehouse) stops with nothing changed (scripts/daily/delete-guard.mjs).
+async function planTable(table,rows,cols){
  const have=await knownDigests(table,cols);
  const keyOf=r=>cols.map(c=>r[c]).join('|');
- const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
- await upsert(table,changed,cols.join(','));
  const current=new Set(rows.map(keyOf));
  const gone=[...have.keys()].filter(k=>!current.has(k));
+ return {name:table,removed:gone.length,total:have.size,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
+}
+async function applyTable(table,rows,cols,have,keyOf,gone){
+ const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
+ await upsert(table,changed,cols.join(','));
  for(let i=0;i<gone.length;i+=200){
   const batch=gone.slice(i,i+200).map(k=>k.split('|'));
   const del=cols.length===1?supa.from(table).delete().in(cols[0],batch.map(b=>b[0]))
@@ -251,10 +256,6 @@ async function syncTable(table,rows,cols){
  await writeJson(digestCachePath(table),Object.fromEntries(rows.map(r=>[keyOf(r),digestOf(r)])));
  console.log(`${table}: ${changed.length} written, ${gone.length} removed, ${rows.length-changed.length} unchanged`);
 }
-await syncTable('market_places',placeRows,['id']);
-await syncTable('market_area_stats',stats,['place_id','area_type']);
-await syncTable('market_place_complexes',linkRows,['place_id','kapt_code']);
-{const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
 
 // Trade rows are immutable (id = content hash), so they are synced by difference. Daily runs only
 // compare the months MOLIT reloads (recent RECHECK_MONTHS) and drop rows that left the window;
@@ -265,7 +266,7 @@ const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d
 // The ids published for the recheck window are kept locally ({id: deal_date}), so a daily run
 // doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
 // seconds and made the site's queries time out). --full or a missing cache reads the DB.
-async function syncById(table,rows,windowStart){
+async function planById(table,rows,windowStart){
  const idCachePath=`data/molit/published-ids-${table}.json`;
  let cached=null;
  if(!full){try{cached=JSON.parse(await readFile(idCachePath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}}
@@ -284,6 +285,17 @@ async function syncById(table,rows,windowStart){
  const mine=rows.filter(r=>r.deal_date>=from);
  const current=new Set(mine.map(r=>r.id));
  const added=mine.filter(r=>!existing.has(r.id)),gone=[...existing].filter(id=>!current.has(id));
+ // Rows older than the window are expired; measured against the whole table, since a wrong window
+ // start (from a partial warehouse) would expire most of it.
+ const head=q=>q.then(({count,error})=>{if(error)throw Error(`${table} count: ${error.message}`);return count??0;});
+ const [expiring,total]=await Promise.all([head(supa.from(table).select('id',{count:'exact',head:true}).lt('deal_date',windowStart)),head(supa.from(table).select('id',{count:'exact',head:true}))]);
+ return [
+  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,removed:gone.length,total:existing.size,apply:()=>applyById(table,rows,windowStart,added,gone)},
+  {name:`${table} 기간 만료`,removed:expiring,total},
+ ];
+}
+async function applyById(table,rows,windowStart,added,gone){
+ const idCachePath=`data/molit/published-ids-${table}.json`;
  for(let i=0;i<added.length;i+=1000){
   for(let attempt=1;;attempt++){
    const {error}=await supa.from(table).upsert(added.slice(i,i+1000),{onConflict:'id',ignoreDuplicates:true});
@@ -298,10 +310,21 @@ async function syncById(table,rows,windowStart){
  console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
 const salesStart=`${months[0]}-01`;
-await syncById('market_trades',sales,salesStart);
-await syncById('market_rents',rents,start);
-await syncById('market_commercial_trades',commercial,salesStart);
-await syncById('market_presale_trades',presale,start);
+const plans=[
+ await planTable('market_places',placeRows,['id']),
+ await planTable('market_area_stats',stats,['place_id','area_type']),
+ await planTable('market_place_complexes',linkRows,['place_id','kapt_code']),
+ ...await planById('market_trades',sales,salesStart),
+ ...await planById('market_rents',rents,start),
+ ...await planById('market_commercial_trades',commercial,salesStart),
+ ...await planById('market_presale_trades',presale,start),
+];
+console.log(JSON.stringify({plan:plans.map(({name,removed,total})=>({name,removed,total}))}));
+if(dryRun){wh.close();process.exit(0);}
+await guardDeletes('실거래 요약 업로드',plans);
+for(const p of plans.slice(0,3))await p.apply();
+{const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
+for(const p of plans.slice(3))if(p.apply)await p.apply();
 
 console.log('PUBLISHED');
 wh.close();

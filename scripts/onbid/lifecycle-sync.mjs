@@ -1,12 +1,14 @@
 // Marks Onbid conditions that dropped out of the latest complete list pass. Runs after each list
 // refresh (collect.mjs) and can be run alone; it makes no Onbid API requests.
-// --dry-run prints the counts without writing; --accept-size skips the list-size guard once (e.g. the
-// first run, or after a long gap when the previous pass is unknown).
+// --dry-run prints the counts without writing; --allow-large-delete passes the first-missing guard;
+// --accept-size skips the list-size guard once (e.g. the first run, or after a long gap when the
+// previous pass is unknown).
 import {readFile} from 'node:fs/promises';
 import {REGIONS} from './core.mjs';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from './atomic.mjs';
 import {trackMissing} from './lifecycle-core.mjs';
+import {guardDeletes} from '../daily/delete-guard.mjs';
 process.loadEnvFile('.env.local');
 const root='data/onbid';
 const read=async(name,fallback)=>{try{return JSON.parse(await readFile(`${root}/${name}`,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}};
@@ -33,7 +35,11 @@ if(!acceptSize){
 const previous=await read('missing.json',{});
 const result=trackMissing(previous,[...ids.keys()],listed,day);
 const newlyClosed=result.closed.filter(key=>(previous[key]?.days?.length??0)<2).length;
-if(dryRun){console.log(JSON.stringify({dryRun:true,day,listed:listed.length,previousListed:last?.listed??null,db:ids.size,recheck:result.recheck.length,closed:result.closed.length,newlyClosed,restored:result.restored.length}));process.exit(0);}
+// Conditions missing for the first time; a normal day has up to ~9% of the list (2026-10-30: 2,279).
+// An empty or stale missing.json makes every long-closed condition look newly missing.
+const newlyMissing=result.recheck.filter(key=>!previous[key]).length;
+if(dryRun){console.log(JSON.stringify({dryRun:true,day,listed:listed.length,previousListed:last?.listed??null,db:ids.size,recheck:result.recheck.length,newlyMissing,closed:result.closed.length,newlyClosed,restored:result.restored.length}));process.exit(0);}
+await guardDeletes('온비드 종료 처리',[{name:'처음 목록에서 빠진 입찰 조건',removed:newlyMissing,total:last?.listed??listed.length,ratio:0.15}]);
 const checkedAt=new Date().toISOString(),source='https://www.onbid.co.kr/';
 const rows=[
  ...result.recheck.map(key=>({property_id:ids.get(key),state:'needs-recheck',reason:'온비드 목록에서 미관측 · 하루 더 확인 후 종료 처리',checked_at:checkedAt,source_url:source,evidence:{missingDays:result.missing[key].days}})),
