@@ -2,11 +2,15 @@
 // Windows Task Scheduler (--trigger=schedule) or by hand (--trigger=manual, desktop shortcut or
 // the local settings page). It owns ordering between jobs; each collector keeps its own
 // checkpoint, quota and STOP handling.
+// Several PCs may run this; a Supabase lease (factory.mjs) lets one of them do each day's job, and the
+// collectors' local state travels through the private storage bucket (bundle.mjs).
 import {mkdir,readFile,writeFile,appendFile,open,unlink} from 'node:fs/promises';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {sendWindowsNotification} from '../court/windows-notify.mjs';
 import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule,runsOn,kstWeekday} from './core.mjs';
+import {lease as factoryLease,machineName,noticeTakeover,noticeStale,dailyNotices,notifyOperator} from './factory.mjs';
+import {JOB_BUNDLES,download as downloadBundle,upload as uploadBundle} from './bundle.mjs';
 
 const root='data/daily';await mkdir(root,{recursive:true});
 const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length+3);
@@ -15,7 +19,10 @@ if(!JOBS.includes(job))throw Error(`--job must be one of ${JOBS.join(', ')}`);
 if(!['schedule','manual','chain'].includes(trigger))throw Error('--trigger must be schedule, manual or chain');
 const LABELS={onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'};
 const label=LABELS[job];
-const day=koreanDay();
+// FACTORY_DAY and FACTORY_FAKE_STEPS are for trying the multi-PC handover without collecting anything.
+const day=process.env.FACTORY_DAY??koreanDay();
+const machine=machineName(arg('machine'));
+const fakeSteps=Number(process.env.FACTORY_FAKE_STEPS??0);
 
 const readJson=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}};
 const history=async()=>(await readFile(`${root}/runs.jsonl`,'utf8').catch(()=>'')).split('\n').filter(Boolean).map(l=>JSON.parse(l));
@@ -55,6 +62,43 @@ if(trigger!=='manual'&&scheduledSkip(await history(),job,day).skip){await lock.c
 const run={job,trigger,day,startedAt:new Date().toISOString(),pid:process.pid,steps:[]};
 await lock.writeFile(JSON.stringify({job,trigger,pid:process.pid,startedAt:run.startedAt}));
 await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
+const release=async()=>{await unlink(`${root}/current.json`).catch(()=>{});await lock.close();await unlink(lockPath).catch(()=>{});};
+
+// 3. Latest code, then the day's lease. Another PC running any job means wait (scheduled) or stop
+//    (manual); a job another PC finished today is skipped; one whose PC went quiet is taken over.
+run.machine=machine;
+if(process.env.FACTORY_GIT_PULL!=='off'){
+ const pull=spawnSync('git',['pull','--ff-only','-q'],{windowsHide:true,encoding:'utf8',timeout:120_000});
+ run.pull=pull.status===0?'ok':`failed: ${(pull.stderr||pull.error?.message||'').trim().split('\n').at(-1)}`;
+}
+const lease=factoryLease({job,day,machine});
+let claim;
+for(const started=Date.now();;){
+ try{claim=await lease.claim(trigger==='manual');}catch(e){claim={claimed:false,reason:'error',error:e.message};}
+ if(claim.claimed)break;
+ const why={busy:`${claim.holder}에서 ${LABELS[claim.job]??claim.job} 작업 중`,held:`${claim.holder}에서 실행 중`,done:`오늘 ${claim.holder}에서 이미 끝냄`,'gave-up':`오늘 ${claim.attempt}번 실패해서 자동으로 더 하지 않음`,error:`잠금 확인 실패: ${claim.error}`}[claim.reason]??claim.reason;
+ const wait=trigger!=='manual'&&['busy','held','error'].includes(claim.reason)&&Date.now()-started<8*3600_000;
+ if(!wait){
+  await record({job,trigger,day,machine,status:'skipped',reason:`lease-${claim.reason}`,holder:claim.holder??null,at:new Date().toISOString()});
+  if(trigger==='manual'||claim.reason==='gave-up')await notify(`${label} 실행 안 함`,why);
+  console.log(JSON.stringify({job,machine,skipped:claim.reason,holder:claim.holder??null}));
+  await release();process.exit(0);
+ }
+ await delay(Math.min(60_000,Number(process.env.FACTORY_LEASE_SECONDS??900)*1000/3));
+}
+run.claim=claim;lease.start();
+if(['takeover','retry'].includes(claim.reason))await noticeTakeover({job,day,machine,claim}).catch(e=>console.error(e.message));
+
+// 4. This job's state from whichever PC ran it last. Without it (no network, a broken download)
+//    the collectors still run, but steps that remove or overwrite rows are skipped and nothing is
+//    uploaded, so an old copy can never replace newer data.
+const DANGER=new Set(['publish','onbid-lifecycle','refresh-current','court-pipeline','alerts']);
+run.bundles=[];let stale=null;
+for(const name of JOB_BUNDLES[job]){
+ try{run.bundles.push(await downloadBundle(name));}
+ catch(e){stale=`${name} 기록을 받지 못함: ${e.message}`;run.bundles.push({bundle:name,status:'failed',error:e.message});}
+}
+if(stale){run.stale=stale;await noticeStale({job,day,machine,reason:stale}).catch(e=>console.error(e.message));}
 
 // Each step is a separate collector process with its own time limit.
 // A scheduled run after a failed one today redoes only what didn't succeed: steps that already
@@ -81,6 +125,15 @@ async function courtStateGuard(){
  await notify(`${label} 기록 파일 복구`,'법원 기록 파일이 깨져 있어 저장된 수집 기록으로 다시 만들었습니다.');
 }
 function step(name,script,args,timeoutMs){
+ if(lease.state.lost)throw Error('LEASE_LOST: 다른 컴퓨터가 이 작업을 이어받음');
+ if(stale&&DANGER.has(name)){
+  const entry={name,code:0,seconds:0,timedOut:false,result:'수집 기록이 최신이 아니라 건너뜀',skipped:true,stale:true};
+  run.steps.push(entry);void writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
+  return Promise.resolve(entry);
+ }
+ if(fakeSteps){
+  return delay(fakeSteps*1000).then(()=>{const entry={name,code:0,seconds:fakeSteps,timedOut:false,result:'fake',fake:true};run.steps.push(entry);void writeFile(`${root}/current.json`,JSON.stringify(run,null,2));return entry;});
+ }
  if(doneToday.has(name)){
   const entry={name,code:0,seconds:0,timedOut:false,result:'오늘 앞선 실행에서 완료',skipped:true};
   run.steps.push(entry);void writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
@@ -219,6 +272,20 @@ try{
  }
 }catch(error){run.status='failed';run.error=error.message;await notify(`${label} 실패`,error.message);}
 finally{
+ // 5. Upload this PC's state (unless it was stale or the job was taken over), then close the lease.
+ //    A stale run ends as failed so another PC with the latest state can redo it.
+ if(stale&&run.status==='completed'){run.status='failed';run.error=stale;}
+ run.uploads=[];
+ if(!lease.state.lost&&!stale)for(const name of JOB_BUNDLES[job]){
+  try{run.uploads.push(await uploadBundle(name,{machine}));}
+  catch(e){run.uploads.push({bundle:name,error:e.message});await notifyOperator(`<b>⚠️ ${label}: ${machine}의 수집 기록 올리기 실패</b>
+${name}: ${e.message}`).catch(()=>{});}
+ }
+ lease.stop();
+ const versions=run.uploads.filter(u=>u.version).map(u=>`${u.bundle} ${u.version}`).join(', ')||null;
+ const took=Math.round((Date.now()-Date.parse(run.startedAt))/60000);
+ if(!lease.state.lost)await lease.finish(run.status==='completed'?'completed':'failed',{minutes:took,steps:run.steps.map(s=>({name:s.name,code:s.code,seconds:s.seconds,...(s.stale?{stale:true}:{})})),bundles:run.bundles,uploads:run.uploads,error:run.error??null},versions).catch(e=>console.error('lease finish failed',e.message));
+ if(!process.env.FACTORY_DAY)await dailyNotices({day,machine}).catch(e=>console.error('daily notices failed',e.message));
  run.finishedAt=new Date().toISOString();
  await record(run);await writeFile(`${root}/last-${job}.json`,JSON.stringify(run,null,2));
  await unlink(`${root}/current.json`).catch(()=>{});await lock.close();await unlink(lockPath).catch(()=>{});
@@ -232,7 +299,7 @@ if(job==='onbid'&&trigger!=='manual'&&runsOn('court')&&!scheduledSkip(await hist
  try{
   const {openSync}=await import('node:fs');
   const out=openSync(`${root}/court-chain.log`,'a');
-  spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain'],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
+  spawn(process.execPath,['scripts/daily/run.mjs','--job=court','--trigger=chain',`--machine=${machine}`],{detached:true,windowsHide:true,stdio:['ignore',out,out]}).unref();
   console.log('court chained');
  }catch(e){console.error('court chain failed; the 15:00 task will run it',e.message);}
 }

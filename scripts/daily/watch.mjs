@@ -77,3 +77,7 @@ await writeFile(`${root}/watch-state.json`,JSON.stringify(state,null,2));
 const health={checkedAt:new Date(now).toISOString(),ok:!problems.length,running:lock?{job:lock.job,trigger:lock.trigger,startedAt:lock.startedAt,alive:alive(lock.pid)}:null,lastActivityAt:workAt?new Date(workAt).toISOString():null,problems:problems.map(({key,title,message})=>({key,title,message}))};
 await writeFile(`${root}/health.json`,JSON.stringify(health,null,2));
 console.log(JSON.stringify({ok:health.ok,problems:health.problems.map(p=>p.title)}));
+// Across all PCs (Supabase leases): a job nobody finished by its deadline, and the daily report.
+// Each notice goes out once whichever PC's watchdog sees it first.
+try{const {dailyNotices,machineName}=await import('./factory.mjs');await dailyNotices({machine:machineName()});}
+catch(e){console.error('daily notices failed',e.message);}
