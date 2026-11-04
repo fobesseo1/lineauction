@@ -173,8 +173,8 @@ try{
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
   await step('recommend','scripts/refresh-recommend.mjs',[],10*60_000);
-  // lineestate's caches cleared and re-warmed (~10k complex pages; off with LINEESTATE_WARM=off), now that
-  // their tables are fresh. A failure is only recorded; it does not fail the run.
+  // lineestate's caches cleared, now that their tables are fresh, and re-warmed (~10k complex pages)
+  // unless LINEESTATE_WARM=off. A failure is only recorded; it does not fail the run.
   await step('revalidate','scripts/revalidate-lineestate.mjs',[],65*60_000);
   // New discounts can make properties match saved 할인율 conditions.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
