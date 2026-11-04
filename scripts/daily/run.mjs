@@ -19,7 +19,8 @@ if(!JOBS.includes(job))throw Error(`--job must be one of ${JOBS.join(', ')}`);
 if(!['schedule','manual','chain'].includes(trigger))throw Error('--trigger must be schedule, manual or chain');
 const LABELS={onbid:'온비드 공매',court:'법원 경매',market:'단지·실거래'};
 const label=LABELS[job];
-// FACTORY_DAY and FACTORY_FAKE_STEPS are for trying the multi-PC handover without collecting anything.
+// FACTORY_DAY, FACTORY_FAKE_STEPS and FACTORY_FAKE_DOWNLOAD_FAIL are for trying the multi-PC handover
+// without collecting anything.
 const day=process.env.FACTORY_DAY??koreanDay();
 const machine=machineName(arg('machine'));
 const fakeSteps=Number(process.env.FACTORY_FAKE_STEPS??0);
@@ -95,7 +96,10 @@ if(['takeover','retry'].includes(claim.reason))await noticeTakeover({job,day,mac
 const DANGER=new Set(['publish','onbid-lifecycle','refresh-current','court-pipeline','alerts']);
 run.bundles=[];let stale=null;
 for(const name of JOB_BUNDLES[job]){
- try{run.bundles.push(await downloadBundle(name));}
+ try{
+  if(process.env.FACTORY_FAKE_DOWNLOAD_FAIL)throw Error('시험: 내려받기 실패로 가정');
+  run.bundles.push(await downloadBundle(name));
+ }
  catch(e){stale=`${name} 기록을 받지 못함: ${e.message}`;run.bundles.push({bundle:name,status:'failed',error:e.message});}
 }
 if(stale){run.stale=stale;await noticeStale({job,day,machine,reason:stale}).catch(e=>console.error(e.message));}
