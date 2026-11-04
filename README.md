@@ -121,6 +121,45 @@ Invoke-RestMethod -Uri 'http://localhost:3000/api/cron/collect-onbid' -Method Po
 
 [공식 Vercel Cron 요금·제한](https://vercel.com/docs/cron-jobs/usage-and-pricing)에 따르면 Hobby는 하루 한 번만 허용하므로 현재 매시간 설정은 Pro 이상이 필요합니다. Hobby에서는 cron 항목을 제거하고 Supabase Cron 또는 GitHub Actions로 인증된 endpoint를 호출할 수 있습니다. 배포·스케줄 활성화는 이번 작업에서 하지 않았습니다. 현재 cron은 collect-onbid만 실행합니다. 실거래 수집·분석·알림 job은 아직 연결하지 않았습니다.
 
+## 데이터 공장을 여러 PC에서 돌리기
+
+사무실 PC, 집 PC, 노트북 중 **켜져 있는 한 대가 그날 작업을 맡습니다.** 아무 PC나 꺼져 있어도 됩니다.
+
+### 어떻게 돌아가나
+
+- **잠금**: 작업(단지·실거래, 온비드, 법원)을 시작하기 전에 Supabase의 잠금 표(`factory_job_leases`)에서 "오늘 이 작업"을 잡습니다. 다른 PC가 이미 끝냈으면 건너뛰고, 다른 PC가 하고 있으면 기다립니다. 여러 PC가 동시에 두 작업을 돌리지는 않습니다.
+- **이어받기**: 작업 중인 PC는 1분마다 "살아 있음" 신호를 보냅니다. 15분 동안 신호가 없으면(꺼짐·멈춤) 기다리던 다른 PC가 이어받습니다. 하루 3번까지 다시 시도합니다.
+- **수집 기록**: 실거래 창고·온비드·법원 기록은 Supabase Storage의 비공개 버킷 `factory-state`에 있습니다. 작업 시작에 (다른 PC가 마지막으로 했을 때만) 내려받고, 끝나면 바뀐 부분만 올립니다. 처음 올린 판(기준판)과 최신 2판을 남깁니다.
+- **안전장치**: 기록을 받지 못했거나 오래된 PC는 수집만 하고 **지우는 단계(실거래 업로드·종료 처리·현재 목록 갱신·DB 반영·알림)는 건너뜁니다.** 기록도 올리지 않고 "실패"로 남겨, 최신 기록이 있는 PC가 다시 하게 합니다. 평소보다 많이(5% 넘게) 지우려 하면 어느 PC든 멈춥니다.
+- **최신 코드**: 실행할 때마다 `git pull --ff-only`로 코드를 받습니다.
+- **텔레그램**(운영 방, `TELEGRAM_CHAT_ID`): 이어받았을 때, 기록이 오래됐을 때, 정해진 시간(단지 12시·온비드 14시·법원 20시)까지 아무도 못 끝냈을 때, 그리고 매일 "누가 했는지·올린 판·걸린 시간" 보고.
+
+### 새 PC에 설치
+
+1. 이 저장소의 `setup` 폴더(`setup.bat`, `setup.ps1`)를 새 PC에 받고, 같은 폴더에 `.env.local`을 둡니다(없으면 설치 중에 붙여 넣기).
+2. `setup.bat`을 더블클릭합니다. PC 이름(예: `home`, `office`, `laptop`)과 시작을 몇 분 늦출지(첫 PC 0, 둘째 30, 셋째 60)를 묻습니다.
+3. 설치가 하는 일: Node 24·Git 설치 → 코드 받기 → `npm ci` → 수집 기록 내려받기(약 1.3GB) → 작업 스케줄러 등록 → 텔레그램으로 "등록 완료".
+4. 절전 모드는 "안 함"으로 해 두세요(작업 중 잠들면 다른 PC가 이어받기는 하지만 늦어집니다).
+
+텔레그램 봇 응답(1분마다)은 한 PC에서만 돌려야 합니다. 그 PC만 `setup.bat -WithBot`으로 설치하세요. 설치하지 않고 할 일만 보려면 `-DryRun`.
+
+### 자주 쓰는 명령
+
+```bash
+node scripts/daily/status.mjs
+```
+이 PC의 진행 상황.
+
+```bash
+node scripts/daily/bundle.mjs status
+```
+이 PC의 수집 기록이 최신판인지(`current: true`).
+
+```bash
+node scripts/daily/run.mjs --job=market --trigger=manual
+```
+직접 실행(이미 끝난 작업도 다시 합니다. 다른 PC가 하는 중이면 실행하지 않습니다).
+
 ## UI와 디자인
 
 제공된 `DESIGNstyle-lineestate.md`를 `docs/design/`에 원본 보관했습니다. 현재 브랜드는 선경매 · LINE AUCTION이며 새 로고는 `public/brand/lineauction-logo.svg`에 원본 그대로 저장하고 공통 헤더에서 사용합니다. 이전 로고는 원본 기록으로 보관합니다.
