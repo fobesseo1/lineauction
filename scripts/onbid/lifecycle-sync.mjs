@@ -1,5 +1,7 @@
 // Marks Onbid conditions that dropped out of the latest complete list pass. Runs after each list
 // refresh (collect.mjs) and can be run alone; it makes no Onbid API requests.
+// --dry-run prints the counts without writing; --accept-size skips the list-size guard once (e.g. the
+// first run, or after a long gap when the previous pass is unknown).
 import {readFile} from 'node:fs/promises';
 import {REGIONS} from './core.mjs';
 import {createClient} from '@supabase/supabase-js';
@@ -8,6 +10,7 @@ import {trackMissing} from './lifecycle-core.mjs';
 process.loadEnvFile('.env.local');
 const root='data/onbid';
 const read=async(name,fallback)=>{try{return JSON.parse(await readFile(`${root}/${name}`,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}};
+const dryRun=process.argv.includes('--dry-run'),acceptSize=process.argv.includes('--accept-size');
 const progress=await read('progress.json',{});
 if(progress.status!=='list_completed')throw Error('LIST_NOT_COMPLETED');
 const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date(progress.listFinishedAt));
@@ -20,9 +23,17 @@ for(let offset=0;;offset+=1000){
  for(const r of data)ids.set(`${r.source_property_id}:${r.auction_condition_id}`,r.id);
  if(data.length<1000)break;
 }
-// A refresh that saw far fewer listings than the DB holds is more likely a partial pass than a mass closure.
-if(listed.length<ids.size*0.8)throw Error(`LIST_TOO_SMALL_${listed.length}_OF_${ids.size}`);
-const result=trackMissing(await read('missing.json',{}),[...ids.keys()],listed,day);
+// A pass that saw far fewer listings than the previous one is more likely partial than a mass closure.
+// (The DB keeps closed conditions, so its size is no baseline.)
+const last=await read('lifecycle-state.json',null);
+if(!acceptSize){
+ if(!last?.listed)throw Error('NO_PREVIOUS_PASS_RUN_WITH_--accept-size');
+ if(listed.length<last.listed*0.8)throw Error(`LIST_TOO_SMALL_${listed.length}_OF_PREVIOUS_${last.listed}`);
+}
+const previous=await read('missing.json',{});
+const result=trackMissing(previous,[...ids.keys()],listed,day);
+const newlyClosed=result.closed.filter(key=>(previous[key]?.days?.length??0)<2).length;
+if(dryRun){console.log(JSON.stringify({dryRun:true,day,listed:listed.length,previousListed:last?.listed??null,db:ids.size,recheck:result.recheck.length,closed:result.closed.length,newlyClosed,restored:result.restored.length}));process.exit(0);}
 const checkedAt=new Date().toISOString(),source='https://www.onbid.co.kr/';
 const rows=[
  ...result.recheck.map(key=>({property_id:ids.get(key),state:'needs-recheck',reason:'온비드 목록에서 미관측 · 하루 더 확인 후 종료 처리',checked_at:checkedAt,source_url:source,evidence:{missingDays:result.missing[key].days}})),
@@ -31,6 +42,7 @@ const rows=[
 ];
 for(let i=0;i<rows.length;i+=500){const {error}=await db.from('property_lifecycle').upsert(rows.slice(i,i+500),{onConflict:'property_id'});if(error)throw Error(`DB_LIFECYCLE_${error.code}`);}
 await writeJson(`${root}/missing.json`,result.missing);
-const summary={day,listed:listed.length,db:ids.size,recheck:result.recheck.length,closed:result.closed.length,restored:result.restored.length};
+await writeJson(`${root}/lifecycle-state.json`,{day,listed:listed.length});
+const summary={day,listed:listed.length,db:ids.size,recheck:result.recheck.length,closed:result.closed.length,newlyClosed,restored:result.restored.length};
 progress.lifecycle=summary;await writeJson(`${root}/progress.json`,progress);
 console.log(JSON.stringify(summary));
