@@ -232,15 +232,16 @@ try{
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
   await step('recommend','scripts/refresh-recommend.mjs',[],10*60_000);
-  // lineestate's caches cleared, now that their tables are fresh, and re-warmed (~10k complex pages)
-  // unless LINEESTATE_WARM=off. A failure is only recorded; it does not fail the run.
-  await step('revalidate','scripts/revalidate-lineestate.mjs',[],65*60_000);
+  // lineestate's 역 근처 TOP 3 table recomputed (~2 min), its caches cleared now that their tables are
+  // fresh, and re-warmed (~10k complex pages) unless LINEESTATE_WARM=off. A failure is only recorded;
+  // it does not fail the run.
+  const revalidateStep=await step('revalidate','scripts/revalidate-lineestate.mjs',[],85*60_000);
   // New discounts can make properties match saved 할인율 conditions.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
   const last=s=>String(s.result??'').slice(0,160);
   run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),official:last(official),parcels:last(parcels),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
   run.status=[complex,trades,publish,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
-  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`].join('\n');
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`,`역 근처 TOP 3: ${String(revalidateStep.result?.near??revalidateStep.result??'').slice(0,240)}`].join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
