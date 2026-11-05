@@ -13,7 +13,8 @@ param(
   [switch]$WithBot,                 # 텔레그램 봇 응답(1분마다)도 이 PC에서 돌릴 때만. 여러 대가 같이 돌리면 안 됩니다.
   [switch]$DryRun,                  # 아무것도 바꾸지 않고 할 일만 보여 줍니다.
   [int]$StopAfter = 8,              # 시험용: 이 단계까지만 하고 멈춥니다.
-  [switch]$Elevated                 # 관리자 창으로 다시 열렸을 때 붙습니다.
+  [switch]$Elevated,                # 관리자 창으로 다시 열렸을 때 붙습니다.
+  [string]$EnvFrom                  # 받은 코드 안의 새 설치 파일로 넘어갈 때, 처음 설치 파일 옆의 .env.local 위치.
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -63,12 +64,21 @@ try {
     $step = 3; Say "3/8 코드 받기 → $Folder"
     if (Test-Path "$Folder\.git") { Do-Step '이미 있음 → 최신으로 (git pull --ff-only)' { Run 'git pull' { git -C $Folder pull --ff-only } } }
     else { Do-Step "git clone $Repo" { Run 'git clone' { git clone $Repo $Folder } } }
+    # 바탕화면·USB에 둔 예전 설치 파일로 실행했으면, 방금 받은 코드 안의 최신 설치 파일로 넘어가 이어서 합니다.
+    $latest = "$Folder\setup\setup.ps1"
+    if (-not $DryRun -and (Test-Path $latest) -and ((Get-FileHash $latest).Hash -ne (Get-FileHash $MyInvocation.MyCommand.Path).Hash)) {
+      Write-Host "  설치 파일이 바뀌었습니다 → 최신 설치 파일($latest)로 이어서 합니다" -ForegroundColor Yellow
+      $next = @{ Machine = $Machine; OffsetMinutes = $OffsetMinutes; Folder = $Folder; Repo = $Repo; StopAfter = $StopAfter; EnvFrom = $(if ($EnvFrom) { $EnvFrom } else { "$here\.env.local" }) }
+      if ($WithBot) { $next.WithBot = $true }; if ($Elevated) { $next.Elevated = $true }
+      & $latest @next; exit $LASTEXITCODE
+    }
   }
 
   if ($StopAfter -ge 4) {
     $step = 4; Say '4/8 비밀값 (.env.local)'
     $envTarget = "$Folder\.env.local"
     if (Test-Path $envTarget) { Write-Host '  이미 있음 → 덮어쓰지 않고 FACTORY_MACHINE 줄만 맞춥니다' }
+    elseif ($EnvFrom -and (Test-Path $EnvFrom)) { Do-Step '처음 설치 파일 옆의 .env.local 복사' { Copy-Item $EnvFrom $envTarget } }
     elseif (Test-Path "$here\.env.local") { Do-Step '설치 파일 옆의 .env.local 복사' { Copy-Item "$here\.env.local" $envTarget } }
     elseif ($DryRun) { Write-Host '  (예행) .env.local 붙여 넣기 받기' }
     else {
