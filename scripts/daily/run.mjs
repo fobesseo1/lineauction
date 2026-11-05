@@ -79,6 +79,8 @@ for(const started=Date.now();;){
  if(claim.claimed)break;
  const why={busy:`${claim.holder}에서 ${LABELS[claim.job]??claim.job} 작업 중`,held:`${claim.holder}에서 실행 중`,done:`오늘 ${claim.holder}에서 이미 끝냄`,'gave-up':`오늘 ${claim.attempt}번 실패해서 자동으로 더 하지 않음`,error:`잠금 확인 실패: ${claim.error}`}[claim.reason]??claim.reason;
  const wait=trigger!=='manual'&&['busy','held','error'].includes(claim.reason)&&Date.now()-started<8*3600_000;
+ // The progress window shows this instead of a step list while another PC holds the day.
+ if(wait){run.waiting={reason:claim.reason,holder:claim.holder??null,job:claim.job??null,why,checkedAt:new Date().toISOString()};await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));}
  if(!wait){
   await record({job,trigger,day,machine,status:'skipped',reason:`lease-${claim.reason}`,holder:claim.holder??null,at:new Date().toISOString()});
   if(trigger==='manual'||claim.reason==='gave-up')await notify(`${label} 실행 안 함`,why);
@@ -87,7 +89,7 @@ for(const started=Date.now();;){
  }
  await delay(Math.min(60_000,Number(process.env.FACTORY_LEASE_SECONDS??900)*1000/3));
 }
-run.claim=claim;lease.start();
+delete run.waiting;run.claim=claim;lease.start();
 if(['takeover','retry'].includes(claim.reason))await noticeTakeover({job,day,machine,claim}).catch(e=>console.error(e.message));
 
 // 4. This job's state from whichever PC ran it last. Without it (no network, a broken download)

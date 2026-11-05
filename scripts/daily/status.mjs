@@ -6,6 +6,9 @@ import {readFile} from 'node:fs/promises';
 import {setTimeout as delay} from 'node:timers/promises';
 import {koreanDay,kstWeekday} from './core.mjs';
 import {resolvedByRerun} from './watch-core.mjs';
+import {hostname} from 'node:os';
+import {loadEnv} from './env.mjs';
+try{loadEnv();}catch{}   // FACTORY_MACHINE and the Supabase keys; the local view works without them
 
 const readJson=async path=>{try{return JSON.parse(await readFile(path,'utf8'));}catch{return null;}};
 const time=v=>v?new Date(v).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'}):'—';
@@ -100,10 +103,33 @@ function jobLines(current,last,extra,reruns=[]){
  return lines;
 }
 
+// Today's jobs across all PCs (public.factory_job_leases), re-read at most every 15 s. A failed read
+// only hides this section; the local view above never depends on the network.
+let shared={at:0,lines:[]};
+async function machineLines(day){
+ if(Date.now()-shared.at<15_000)return shared.lines;
+ const lines=['── 오늘 컴퓨터별 (모든 PC) ──'];
+ try{
+  const {db,machineName}=await import('./factory.mjs');
+  const {data,error}=await db.from('factory_job_leases').select('job,machine,status,attempt,started_at,heartbeat_at,finished_at,lease_until').eq('day',day);
+  if(error)throw Error(error.message);
+  const by=Object.fromEntries(data.map(r=>[r.job,r]));
+  for(const job of ['market','onbid','court']){
+   const r=by[job];
+   if(!r){lines.push(`  ${JOB_KO[job].padEnd(6,'　')} 아직 시작한 컴퓨터 없음`);continue;}
+   const alive=r.status==='running'&&Date.parse(r.lease_until)>Date.now();
+   const state=r.status==='running'?(alive?`실행 중 · 신호 ${time(r.heartbeat_at)}${ago(r.heartbeat_at)}`:`응답 없음 (마지막 신호 ${time(r.heartbeat_at)}) · 곧 다른 PC가 이어받음`)
+    :`${statusKo[r.status]??r.status} ${time(r.finished_at)} (${dur((Date.parse(r.finished_at)-Date.parse(r.started_at))/1000)})`;
+   lines.push(`  ${JOB_KO[job].padEnd(6,'　')} ${r.machine}${r.machine===machineName()?' (이 PC)':''} · ${time(r.started_at)} 시작 · ${state}${r.attempt>1?` · ${r.attempt}번째 시도`:''}`);
+  }
+ }catch(e){lines.push(`  확인 실패: ${String(e.message).slice(0,80)}`);}
+ shared={at:Date.now(),lines};return lines;
+}
+
 async function render(){
  const day=koreanDay();
  const [current,lastOnbid,lastCourt,lastMarket,health,onbid,detail,budget,court,molit,coords]=await Promise.all(['data/daily/current.json','data/daily/last-onbid.json','data/daily/last-court.json','data/daily/last-market.json','data/daily/health.json','data/onbid/progress.json','data/onbid/detail-progress.json','data/onbid/budget.json','data/court/standalone/progress.json','data/court/pipeline/molit-request-budget.json','data/geo/coords-progress.json'].map(readJson));
- const lines=[`선경매 진행 상황  ·  ${new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}  (5초마다 갱신, 창을 닫아도 수집은 계속됩니다)`,''];
+ const lines=[`선경매 진행 상황 (${process.env.FACTORY_MACHINE??hostname()})  ·  ${new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})}  (5초마다 갱신, 창을 닫아도 수집은 계속됩니다)`,''];
  const lock=await readJson('data/daily/running.lock');
  if(current&&lock){
   const extra={
@@ -116,9 +142,13 @@ async function render(){
   // 지도 좌표 reports how many parcels it has fetched, so its remaining time follows its own pace.
   if(extra.geo&&coords.fetched>0){const spent=(Date.parse(coords.updatedAt)-Date.parse(coords.startedAt))/1000;extra.remaining.geo=spent/coords.fetched*Math.max(0,coords.target-coords.fetched);}
   const reruns=(await readFile('data/daily/reruns.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
-  lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra,reruns));
- }else lines.push('■ 지금 실행 중인 작업 없음');
+  // A run started by an older runner writes no "waiting": no claim and no steps after 2 minutes means the same.
+  const waiting=current.waiting??(!current.claim&&!current.steps.length&&Date.now()-Date.parse(current.startedAt)>120_000?{why:'다른 컴퓨터가 오늘 작업 중'}:null);
+  if(waiting)lines.push(`■ 이 PC는 대기 중: ${JOB_KO[current.job]??current.job} (${time(current.startedAt)}부터)`,`  ${waiting.why} → 그 PC가 끝내면 이 PC는 건너뛰고, 15분 넘게 신호가 없으면 이어받습니다.`);
+  else lines.push(...jobLines(current,{onbid:lastOnbid,court:lastCourt,market:lastMarket}[current.job],extra,reruns));
+ }else lines.push('■ 이 PC에서 지금 실행 중인 작업 없음');
  lines.push('');
+ lines.push(...await machineLines(day),'');
  const allReruns=(await readFile('data/daily/reruns.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
  lines.push('── 매일 일정 ──');
  for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 7시 반'],['온비드 공매',lastOnbid,'단지·실거래 끝나고 3분 뒤 (늦어도 오전 10시)'],['법원 경매',lastCourt,'평일, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']]){

@@ -101,7 +101,7 @@ try {
   }
 
   if ($StopAfter -ge 7) {
-    $step = 7; Say '7/8 작업 스케줄러 등록 (\LineAuction\)'
+    $step = 7; Say '7/8 작업 스케줄러 등록 (\LineAuction\) + 바탕화면 바로가기'
     $vbs = "$Folder\scripts\daily\run-hidden.vbs"
     $tasks = @(
       @{ Name = 'Market Daily'; Args = "`"$vbs`" market schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 450) } },
@@ -117,6 +117,19 @@ try {
         if ($t.Name -notlike '*every*') { $triggers += New-ScheduledTaskTrigger -AtLogOn }
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 12) -MultipleInstances IgnoreNew
         Register-ScheduledTask -TaskPath '\LineAuction\' -TaskName $t.Name -Action (New-ScheduledTaskAction -Execute 'wscript.exe' -Argument $t.Args -WorkingDirectory $Folder) -Trigger $triggers -Settings $settings -Force | Out-Null
+      }
+    }
+    # 바탕화면 바로가기: 진행 상황 보기(읽기 전용), 온비드·법원 지금 실행. 다시 설치하면 같은 것으로 바뀝니다.
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $links = @(
+      @{ Name = '선경매 진행 상황 보기'; Target = "$env:SystemRoot\System32\cmd.exe"; Args = '/k "title 선경매 진행 상황 & chcp 65001 >nul & node scripts\daily\status.mjs --watch"'; Icon = 'shell32.dll,22' },
+      @{ Name = '선경매 온비드 지금 실행'; Target = "$env:SystemRoot\System32\wscript.exe"; Args = "`"$vbs`" onbid manual"; Icon = 'shell32.dll,137' },
+      @{ Name = '선경매 법원 지금 실행'; Target = "$env:SystemRoot\System32\wscript.exe"; Args = "`"$vbs`" court manual"; Icon = 'shell32.dll,137' }
+    )
+    foreach ($l in $links) {
+      Do-Step "바로가기: $($l.Name)" {
+        $s = (New-Object -ComObject WScript.Shell).CreateShortcut("$desktop\$($l.Name).lnk")
+        $s.TargetPath = $l.Target; $s.Arguments = $l.Args; $s.WorkingDirectory = $Folder; $s.IconLocation = $l.Icon; $s.Save()
       }
     }
   }
