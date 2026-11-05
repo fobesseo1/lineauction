@@ -136,7 +136,7 @@ Invoke-RestMethod -Uri 'http://localhost:3000/api/cron/collect-onbid' -Method Po
 
 ### 새 PC에 설치
 
-1. 이 저장소의 `setup` 폴더(`setup.bat`, `setup.ps1`)를 새 PC에 받고, 같은 폴더에 `.env.local`을 둡니다(없으면 설치 중에 붙여 넣기). 설치 파일은 코드를 받은 뒤 그 안의 최신 설치 파일(`%USERPROFILE%uction-deal-finder\setup\setup.bat`)로 넘어가 이어서 하므로, 처음 받은 파일이 오래돼도 됩니다. 다시 설치할 때는 그 폴더의 `setup.bat`을 쓰면 됩니다.
+1. 이 저장소의 `setup` 폴더(`setup.bat`, `setup.ps1`)를 새 PC에 받고, 같은 폴더에 `.env.local`을 둡니다(없으면 설치 중에 붙여 넣기). 설치 파일은 코드를 받은 뒤 그 안의 최신 설치 파일(`%USERPROFILE%auction-deal-finder\setup\setup.bat`)로 넘어가 이어서 하므로, 처음 받은 파일이 오래돼도 됩니다. 다시 설치할 때는 그 폴더의 `setup.bat`을 쓰면 됩니다.
 2. `setup.bat`을 **오른쪽 클릭 → "관리자 권한으로 실행"** 합니다(작업 스케줄러 등록에 관리자 권한이 필요합니다. 그냥 더블클릭하면 관리자 창으로 다시 열리니 "예"를 누르세요). PC 이름(예: `home`, `office`, `laptop`)과 시작을 몇 분 늦출지(첫 PC 0, 둘째 30, 셋째 60)를 묻습니다.
 3. 설치가 하는 일: Node 24 이상·Git 설치 → 코드 받기 → `.env.local` 넣기(BOM 없이 저장하고 Node로 읽히는지 확인) → `npm ci` → 수집 기록 내려받기(약 1.3GB) → 작업 스케줄러 등록 → 텔레그램으로 "등록 완료".
    마지막 줄이 초록색 **"완료: 8/8 단계 모두 성공"**이어야 끝난 것입니다. 빨간 **"실패: N/8 단계"**가 나오면 이유를 고치고 다시 실행하면 됩니다(된 단계는 그대로 두고, 있는 `.env.local`은 덮어쓰지 않습니다).
