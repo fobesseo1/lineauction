@@ -49,6 +49,19 @@ K-APT 공용관리비·개별사용료·장기수선충당금. 금액은 **단�
 - 신고에 호 정보가 없어 **'몇 건 만기 예정'의 상한**이다. 만기 전에 갱신 신고가 들어와도 옛 계약이 그대로 남는다.
 - `market_rents`에는 계약 기간 열을 넣지 않았다. 12개월치뿐이라 만기 예측에 모자라고, 106만 줄을 다시 써야 한다.
 
+## 임대·혼합 단지 `complex_rental_types` (PK `kapt_code`)
+
+K-apt 공식 원본(https://www.k-apt.go.kr/web/board/goKaptBasicExcelDownload.do, 관리비 공개 의무단지)에서 임대·혼합만 뽑은 **전국** 파일이다. 전국이라 `complexes`로 가는 외래 키는 없다.
+
+`sale_type`('임대'|'혼합'), `households, sale_households, rental_households, public_rental, private_rental`, `source_date`(파일 기준일), `loaded_at`
+
+- 적재: `node scripts/complex/rental-types.mjs <csv> [--date YYYY-MM-DD] [--dry-run]`. 자동 수집은 없고, 새 파일을 받으면 손으로 돌린다. 원본은 `data/rental-types/kapt-rental-mixed-YYYYMMDD.csv`(git 밖)에 둔다.
+- 다시 돌려도 안전하다. 새 파일에 없는 단지는 지운다(임대·혼합이 아니게 된 것). 30% 넘게 지워지면 멈춘다. 잘못된 줄이 하나라도 있으면 쓰기 전에 멈춘다. 표보다 오래된 파일은 거부한다.
+- **표에 없다고 분양 단지인 것은 아니다.** 의무단지 파일이라 빠진 단지가 있을 수 있다. `complexes.sale_type`이 임대·혼합인데 이 표에 없는 단지가 115곳이다(2026-11-06, 제일풍경채 옥정 등. 빠진 이유는 확인하지 못했다).
+- 임대세대수가 세대수보다 큰 줄(원본 오류, 등촌주공9단지 1445세대에 임대 14450)은 `households`만 두고 나머지 세대 수를 null로 넣는다. 2026-11-06 파일에 6곳.
+- 원본 그대로인 어긋남: `rental_households`가 공공+민간과 다른 곳이 있고(공공·민간이 모두 0), '임대'인데 임대세대수가 0인 곳도 있다(신공덕2삼성래미안제2). 세대 수보다 `sale_type`을 믿는다.
+- **실거래를 이 표로 거를 때 주의:** `market_area_stats`는 `place_id`(지번) 단위다. 분양 단지와 같은 지번을 쓰는 임대 단지는 분양 쪽 거래가 함께 잡힌다(신당남산타운임대 ↔ 신당남산타운(분양)). 임대 코드에 매매가 보여도 그 임대 동이 팔렸다는 뜻이 아니다.
+
 ## 공시가격 (기존 표) `complex_official_prices`
 
 `area_type = floor(전용면적)`으로 잇는다. 없는 단지·타입은 보유세를 어림으로 표시한다.
