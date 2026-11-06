@@ -1,36 +1,35 @@
-// 어린이집 (CHILDCARE_API_KEY) · 유치원 (KINDER_API_KEY) → public.childcare_facilities, public.complex_childcare.
+// 어린이집 (no key) · 유치원 (KINDER_API_KEY) → public.childcare_facilities, public.complex_childcare.
 //   node scripts/detail/childcare.mjs [--part daycare|kindergarten|all] [--refresh]
-// One call per 시군구, cached for 25 days. A part whose key is missing is skipped and its rows stay as they are.
+// Answers are cached for 25 days. Without KINDER_API_KEY the kindergarten part is skipped and its rows stay as they are.
 import {writeJson} from '../onbid/atomic.mjs';
 import {stat} from 'node:fs/promises';
-import {XMLParser} from 'fast-xml-parser';
 import {singleRun} from '../single-run.mjs';
-import {arg,flag,sleep,readJson,dir,complexes,leafSigungu,upsert,replaceRows,fetchAll} from './common.mjs';
-import {childcareRow,kinderRow,gridIndex,nearby} from './core.mjs';
+import {arg,flag,sleep,readJson,dir,complexes,leafSigungu,upsert,replaceRows,fetchAll,REGIONS} from './common.mjs';
+import {childcareRow,parseChildcareSheet,monthsBefore,kinderRow,gridIndex,nearby} from './core.mjs';
 
 const root='data/detail/childcare';await dir(root,'daycare','kindergarten');
 if(!await singleRun(root,'scripts/detail/childcare.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 const part=arg('--part','all'),refresh=flag('--refresh');
 const fresh=async p=>{if(refresh)return false;try{return (Date.now()-(await stat(p)).mtimeMs)/86400e3<25;}catch(e){if(e.code==='ENOENT')return false;throw e;}};
-const parser=new XMLParser({parseTagValue:false,processEntities:true});
-// Both services count a 시 with 구 under each 구, so leaf regions cover everything exactly once.
-async function daycare(region){
- const file=`${root}/daycare/${region.code}.json`;
+// 어린이집정보공개포털 '어린이집 기본정보' (매월 말일 기준, svcseq 84): one request per 시도 and no key. The OPEN API
+// cpmsapi021 was tried first; it answers only 50 rows per 시군구 with no type or coordinates.
+const SHEET='https://info.childcare.go.kr/info_html5/stat/sheet/StatCrInfoResult.jsp';
+async function daycare(sido){
+ const file=`${root}/daycare/sido-${sido.code}.json`;
  if(await fresh(file))return readJson(file,[]);
- // The portal issues keys per service: cpmsapi021 by default, CHILDCARE_API_SERVICE to use another one.
- const service=process.env.CHILDCARE_API_SERVICE||'cpmsapi021';
- const u=new URL(`http://api.childcare.go.kr/mediate/rest/${service}/${service}/request`);
- u.searchParams.set('key',process.env.CHILDCARE_API_KEY);u.searchParams.set('arcode',region.code);
- for(let attempt=0;;attempt++){
-  await sleep(500);
-  try{
-   const xml=await (await fetch(u,{signal:AbortSignal.timeout(60000)})).text();
-   const res=parser.parse(xml).response;
-   if(res?.errcode)throw Error(`CHILDCARE_${res.errcode}`);
-   const items=[].concat(res?.item??[]);
-   await writeJson(file,items);return items;
-  }catch(e){if(/CHILDCARE_INFO-100/.test(e.message)||attempt>=2)throw Error(String(e.message));await sleep(5000*(attempt+1));}
+ for(const ym of monthsBefore(new Date(),3)){
+  await sleep(1000);
+  const r=await fetch(SHEET,{method:'POST',headers:{'user-agent':'Mozilla/5.0 lineestate-data-factory/1.0','referer':'https://info.childcare.go.kr/','content-type':'application/x-www-form-urlencoded'},
+   body:new URLSearchParams({flag:'crInfo',flagType:'',S_SAVENAME:'',exlChk:'',std_condi:'Y',wkyear:ym.slice(0,4),wkmonth:ym.slice(4,6),sido:sido.code,sigun:'',limit:'50000'}),signal:AbortSignal.timeout(180000)});
+  if(!r.ok)throw Error(`CHILDCARE_SHEET_${r.status}`);
+  const html=await r.text(),total=Number(html.match(/총 건수\s*:\s*([\d,]+)/)?.[1]?.replace(/,/g,'')??0),rows=parseChildcareSheet(html);
+  if(!total)continue;   // this month is not loaded yet
+  if(rows.length!==total)throw Error(`CHILDCARE_SHEET_INCOMPLETE:${rows.length}/${total}`);
+  await writeJson(file,rows);
+  console.log(`DAYCARE ${sido.name} ${ym}: ${rows.length}`);
+  return rows;
  }
+ throw Error(`CHILDCARE_SHEET_EMPTY:${sido.code}`);
 }
 async function kinder(region){
  const file=`${root}/kindergarten/${region.code}.json`;
@@ -54,12 +53,12 @@ async function kinder(region){
  }
  await writeJson(file,out);return out;
 }
-const OPEN=/정상|운영/;
+const OPEN=/정상|재개|운영/;   // 재개 = reopened; 휴지 (suspended) stays out
 try{
  const regions=leafSigungu();
  const rows=[];const summary={};
- if((part==='all'||part==='daycare')&&process.env.CHILDCARE_API_KEY){
-  let n=0;for(const r of regions){for(const item of await daycare(r)){const row=childcareRow(item,r.sido.name);if(row&&row.name&&(!row.status||OPEN.test(row.status))){rows.push(row);n++;}}}
+ if(part==='all'||part==='daycare'){
+  let n=0;for(const s of REGIONS){for(const item of await daycare(s)){const row=childcareRow(item,s.name);if(row&&(!row.status||OPEN.test(row.status))){rows.push(row);n++;}}}
   summary.daycare=n;
  }else summary.daycare='skipped';
  if((part==='all'||part==='kindergarten')&&process.env.KINDER_API_KEY){

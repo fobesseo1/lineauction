@@ -1,4 +1,5 @@
 // Pure helpers for the complex-detail collectors (관리비, 학교, 보육, 동·타입, 버스, 전월세 만기).
+import {createHash} from 'node:crypto';
 const clean=v=>v==null||String(v).trim()===''?null:String(v).trim();
 const num=v=>{const s=clean(v);if(s==null)return null;const n=Number(s.replace(/,/g,''));return Number.isFinite(n)?n:null;};
 const whole=v=>{const n=num(v);return n==null?null:Math.round(n);};
@@ -208,11 +209,23 @@ export const sameSchoolStem=(a,b)=>a.length>=2&&b.length>=2&&(a===b||a.endsWith(
 // ---- 어린이집·유치원
 const CHILDCARE_TYPES=[['국공립','public'],['사회복지','welfare'],['법인','corporate'],['단체','corporate'],['민간','private'],['가정','home'],['협동','cooperative'],['직장','workplace']];
 export const childcareType=name=>CHILDCARE_TYPES.find(([k])=>(name??'').includes(k))?.[1]??'other';
+// 어린이집정보공개포털 '어린이집 기본정보' result page → one object per row, keyed by the page's own column names.
+const cellText=h=>h.replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+export function parseChildcareSheet(html){
+ const thead=html.match(/<thead>([\s\S]*?)<\/thead>/)?.[1];
+ if(!thead)throw Error('CHILDCARE_SHEET_NO_HEAD');
+ const head=[...thead.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map(m=>cellText(m[1]));
+ for(const need of ['어린이집명','어린이집유형구분','운영현황','정원수','위도','경도'])if(!head.includes(need))throw Error(`CHILDCARE_SHEET_COLUMN:${need}`);
+ const body=html.slice(html.indexOf('</thead>'));
+ return [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(m=>[...m[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(c=>cellText(c[1]))).filter(c=>c.length>=head.length-1).map(c=>Object.fromEntries(head.map((h,i)=>[h,c[i]??''])));
+}
+// The sheet has no facility code, so the id hashes what identifies a place: where, what, and when it was licensed.
 export function childcareRow(r,sido){
- const id=clean(r.stcode);if(!id)return null;
- const [lat,lon]=[num(r.la),num(r.lo)];
- return {id:`cc:${id}`,kind:'daycare',name:clean(r.crname),type_name:clean(r.crtypename),type_code:childcareType(r.crtypename),status:clean(r.crstatusname),sido,sigungu:clean(r.sigunname),address:clean(r.craddr),
-  capacity:whole(r.crcapat),current_children:whole(r.crchcnt),latitude:lat&&validPoint(lat,lon)?lat:null,longitude:lat&&validPoint(lat,lon)?lon:null};
+ const name=clean(r['어린이집명']);if(!name)return null;
+ const [lat,lon]=[num(r['위도']),num(r['경도'])];
+ const id=createHash('sha1').update([sido,r['시군구'],name,clean(r['인가일자'])??'',clean(r['주소'])??''].join('|')).digest('hex').slice(0,20);
+ return {id:`cc:${id}`,kind:'daycare',name,type_name:clean(r['어린이집유형구분']),type_code:childcareType(r['어린이집유형구분']),status:clean(r['운영현황']),sido,sigungu:clean(r['시군구']),address:clean(r['주소']),
+  capacity:whole(r['정원수']),current_children:whole(r['현원수']),latitude:lat&&validPoint(lat,lon)?lat:null,longitude:lat&&validPoint(lat,lon)?lon:null};
 }
 const KINDER_TYPES=[['국립','public'],['공립','public'],['사립','private']];
 export function kinderRow(r,sido,sigungu){

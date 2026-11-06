@@ -28,6 +28,7 @@ K-APT 공용관리비·개별사용료·장기수선충당금. 금액은 **단�
 
 - `childcare_facilities`: `id`(`cc:…`, `kg:…`), `kind`('daycare'|'kindergarten'), `name, type_name`(원문), `type_code`('public'|'welfare'|'corporate'|'private'|'home'|'cooperative'|'workplace'|'other'), `status, sido, sigungu, address, capacity, current_children, latitude, longitude, updated_at`
 - `complex_childcare`: `kind, type_code, distance_m`. 종류별 1 km 안 가까운 10곳, 없으면 2 km 안 가장 가까운 1곳.
+- 어린이집 출처는 어린이집정보공개포털 '어린이집 기본정보'(매월 말일 기준)다. 포털의 이용 조건은 "저작자와 출처를 표시하면 비영리목적의 변경 및 자유이용 허락"이다. 유료·상업 화면에 쓰기 전 확인이 필요하다. `id`는 자료에 코드가 없어 지역·이름·인가일·주소로 만든 값이라, 주소가 바뀌면 달라질 수 있다.
 
 ## 동·타입 `complex_buildings` (PK `kapt_code, register_pk`), `complex_dong_types` (PK `kapt_code, dong_name, exclusive_area`)
 

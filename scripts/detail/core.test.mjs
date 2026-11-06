@@ -5,7 +5,7 @@ const expect=v=>({
  toHaveLength:n=>assert.equal(v.length,n),toBeGreaterThan:n=>assert.ok(v>n),
  toMatchObject:o=>{for(const [k,x] of Object.entries(o))assert.deepEqual(v[k],x,k);},
 });
-import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,kinderRow,monthsBefore} from './core.mjs';
+import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,parseChildcareSheet,kinderRow,monthsBefore} from './core.mjs';
 
 describe('contractTerm',()=>{
  it('reads MOLIT terms',()=>expect(contractTerm('26.10~28.10')).toEqual({start:'2026-10',end:'2028-10'}));
@@ -69,7 +69,8 @@ describe('schools and childcare',()=>{
  });
  it('maps childcare types',()=>{expect(childcareType('국공립')).toBe('public');expect(childcareType('가정')).toBe('home');expect(childcareType('민간')).toBe('private');expect(childcareType('기타')).toBe('other');});
  it('maps a daycare and a kindergarten',()=>{
-  expect(childcareRow({stcode:'1',crname:'A',crtypename:'국공립',crcapat:'30',crchcnt:'20',la:'37.5',lo:'127'},'서울특별시')).toMatchObject({id:'cc:1',capacity:30,current_children:20,type_code:'public',latitude:37.5});
+  const [sheet]=parseChildcareSheet(`<table><thead><tr><th scope='col'>번호</th><th>시군구</th><th>어린이집명</th><th>어린이집유형구분</th><th>운영현황</th><th>주소</th><th>정원수</th><th>현원수</th><th>위도</th><th>경도</th><th>인가일자</th></tr></thead><tbody><tr><td align='center'>1</td><td>종로구</td><td style="x"> 창신어린이집</td><td>국공립</td><td>정상</td><td>서울 A &amp; B</td><td>30</td><td>20</td><td>37.5</td><td>127</td><td>1981-09-01</td></tr></tbody></table>`);
+  expect(childcareRow(sheet,'서울특별시')).toMatchObject({name:'창신어린이집',status:'정상',address:'서울 A & B',capacity:30,current_children:20,type_code:'public',latitude:37.5,sigungu:'종로구'});
   expect(kinderRow({kinderCode:'k',kindername:'B',establish:'사립(사인)',prmstfcnt:'50',ppcnt3:'3',ppcnt4:'4',lttdcdnt:'37.5',lngtcdnt:'127'},'서울특별시','강남구')).toMatchObject({id:'kg:k',capacity:50,current_children:7,type_code:'private'});
  });
 });
