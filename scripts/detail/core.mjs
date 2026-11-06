@@ -235,3 +235,20 @@ export function kinderRow(r,sido,sigungu){
  return {id:`kg:${id}`,kind:'kindergarten',name:clean(r.kindername),type_name:clean(r.establish),type_code:KINDER_TYPES.find(([k])=>(r.establish??'').includes(k))?.[1]??'other',status:null,sido,sigungu,address:clean(r.addr),
   capacity:whole(r.prmstfcnt),current_children:children||null,latitude:lat&&validPoint(lat,lon)?lat:null,longitude:lat&&validPoint(lat,lon)?lon:null};
 }
+
+// Daily schedule. From 07:00 to 07:30 it runs ahead of the market job; a later start is the day's only run and goes after that job.
+export const DETAIL_START=7*60,DETAIL_CUTOFF=7.5*60,DETAIL_LATEST=23*60;
+export function schedulePlan({minutes,day,ranDay,lease}){
+ if(ranDay===day)return 'ran-today';
+ if(minutes<DETAIL_START)return 'too-early';   // the 07:00 trigger will start it; also clear of any night run
+ if(minutes>=DETAIL_LATEST)return 'too-late';  // too little of the day left, and fees must stop before midnight
+ return minutes<DETAIL_CUTOFF&&!lease?'morning':'late';
+}
+// lease: today's market row, null when there is none yet, undefined when it could not be read.
+export const MARKET_GRACE=15*60e3,MARKET_WAIT_LIMIT=4*3600e3;
+export function marketGate({lease,lockBusy,nowMs,waitedMs}){
+ const running=lockBusy||(lease?.status==='running'&&Date.parse(lease.lease_until)>nowMs);
+ if(!running&&lease)return 'go';                                 // finished or failed, or its PC went quiet
+ if(!running&&lease===null&&waitedMs>=MARKET_GRACE)return 'go';  // it did not start on this PC or any other
+ return waitedMs>=MARKET_WAIT_LIMIT?'give-up':'wait';
+}

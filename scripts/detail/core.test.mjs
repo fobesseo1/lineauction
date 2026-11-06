@@ -5,7 +5,7 @@ const expect=v=>({
  toHaveLength:n=>assert.equal(v.length,n),toBeGreaterThan:n=>assert.ok(v>n),
  toMatchObject:o=>{for(const [k,x] of Object.entries(o))assert.deepEqual(v[k],x,k);},
 });
-import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,parseChildcareSheet,kinderRow,monthsBefore} from './core.mjs';
+import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,parseChildcareSheet,kinderRow,monthsBefore,schedulePlan,marketGate} from './core.mjs';
 
 describe('contractTerm',()=>{
  it('reads MOLIT terms',()=>expect(contractTerm('26.10~28.10')).toEqual({start:'2026-10',end:'2028-10'}));
@@ -73,5 +73,24 @@ describe('schools and childcare',()=>{
   expect(childcareRow(sheet,'서울특별시')).toMatchObject({name:'창신어린이집',status:'정상',address:'서울 A & B',capacity:30,current_children:20,type_code:'public',latitude:37.5,sigungu:'종로구'});
   expect(kinderRow({kinderCode:'k',kindername:'B',establish:'사립(사인)',prmstfcnt:'50',ppcnt3:'3',ppcnt4:'4',lttdcdnt:'37.5',lngtcdnt:'127'},'서울특별시','강남구')).toMatchObject({id:'kg:k',capacity:50,current_children:7,type_code:'private'});
  });
+});
+describe('daily schedule',()=>{
+ const plan=(minutes,o={})=>schedulePlan({minutes,day:'2026-11-07',ranDay:null,lease:null,...o});
+ it('runs once a day',()=>expect(plan(800,{ranDay:'2026-11-07'})).toBe('ran-today'));
+ it('forgets yesterday',()=>expect(plan(800,{ranDay:'2026-11-06'})).toBe('late'));
+ it('leaves early logins to the 07:00 trigger',()=>expect(plan(419)).toBe('too-early'));
+ it('runs in the window',()=>{expect(plan(420)).toBe('morning');expect(plan(449)).toBe('morning');});
+ it('goes after the market job from 07:30',()=>expect(plan(450)).toBe('late'));
+ it('waits inside the window too when the market job was started by hand',()=>expect(plan(430,{lease:{status:'running'}})).toBe('late'));
+ it('gives the day up late at night',()=>expect(plan(1380)).toBe('too-late'));
+});
+describe('marketGate',()=>{
+ const now=Date.parse('2026-11-07T00:00:00Z'),live={status:'running',lease_until:'2026-11-07T00:10:00Z'},gate=o=>marketGate({lease:null,lockBusy:false,nowMs:now,waitedMs:0,...o});
+ it('waits while it runs here or elsewhere',()=>{expect(gate({lease:live})).toBe('wait');expect(gate({lockBusy:true})).toBe('wait');});
+ it('goes once it finished or failed',()=>{expect(gate({lease:{status:'completed'}})).toBe('go');expect(gate({lease:{status:'failed'}})).toBe('go');});
+ it('goes when its PC went quiet',()=>expect(gate({lease:{status:'running',lease_until:'2026-11-06T23:59:00Z'}})).toBe('go'));
+ it('gives a logon start time to appear, then goes',()=>{expect(gate({waitedMs:14*60e3})).toBe('wait');expect(gate({waitedMs:15*60e3})).toBe('go');});
+ it('never waits forever',()=>{expect(gate({lease:live,waitedMs:4*3600e3})).toBe('give-up');expect(gate({lease:undefined,waitedMs:4*3600e3})).toBe('give-up');expect(gate({lockBusy:true,waitedMs:4*3600e3})).toBe('give-up');});
+ it('keeps waiting when the database cannot be read',()=>expect(gate({lease:undefined,waitedMs:3600e3})).toBe('wait'));
 });
 describe('monthsBefore',()=>{it('skips this month by default',()=>expect(monthsBefore(new Date('2026-11-06T00:00:00Z'),2)).toEqual(['202610','202609']));});
