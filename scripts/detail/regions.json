@@ -1,0 +1,8 @@
+{
+  "note": "Regions the complex-detail collectors cover. Add a 시도 here to widen them (e.g. 부산 26). seoulBusFile: this 시도 is not in TAGO's stop file, so its stops come from 서울 열린데이터광장 OA-15067.",
+  "sido": [
+    { "code": "11", "name": "서울특별시", "seoulBusFile": true },
+    { "code": "41", "name": "경기도" },
+    { "code": "28", "name": "인천광역시" }
+  ]
+}

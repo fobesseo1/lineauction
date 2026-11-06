@@ -23,7 +23,7 @@ const NOISE=[/\.log$/,/\.tmp$/,/\.lock$/,/\/STOP$/,/\.(stdout|stderr)(\.log)?$/,
 const SHARED_FILES=['data/alerts/state.json','data/alerts/staff.json','data/molit/budget.json','data/complex/budget.json','data/onbid/budget.json','data/onbid/access-paused.json','data/court/pipeline/molit-request-budget.json','data/court/pipeline/molit-access-paused.json'];
 export const BUNDLES={
  shared:{include:[...SHARED_FILES,'data/geo']},
- market:{include:['data/molit/warehouse.sqlite','data/molit/published-*','data/complex','data/building','data/calc','data/stations','data/schools','data/neighborhood']},
+ market:{include:['data/molit/warehouse.sqlite','data/molit/published-*','data/complex','data/building','data/calc','data/stations','data/schools','data/neighborhood','data/detail']},
  // raw/ holds list pages cached for one day; detail-raw/ holds the detail answers photos read.
  onbid:{include:['data/onbid'],exclude:[/^data\/onbid\/(raw|test-[^/]*|history)\//]},
  court:{include:['data/court/current.json','data/court/media','data/court/pipeline','data/court/standalone','data/court/results','data/court/progress','data/court/coverage.json','data/court/finalization.json'],
