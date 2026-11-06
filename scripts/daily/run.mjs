@@ -230,6 +230,8 @@ try{
   await step('loan-products','scripts/finance/finlife-products.mjs',[],10*60_000);
   // lineestate's region trend table (app schema), rebuilt from the refreshed summaries.
   const statsStep=await step('stats','scripts/refresh-stats.mjs',[],15*60_000);
+  // lineestate's region 평당가 table (app schema), read by the 단지 상세 price comparison.
+  await step('region-pyeong-price','scripts/refresh-region-pyeong-price.mjs',[],10*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
   await step('recommend','scripts/refresh-recommend.mjs',[],10*60_000);
   // lineestate's 역 근처 TOP 3 table recomputed (~2 min), its caches cleared now that their tables are
