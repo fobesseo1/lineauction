@@ -19,6 +19,8 @@ K-APT 공용관리비·개별사용료·장기수선충당금. 금액은 **단�
 
 주의: 난방비가 큰 겨울과 여름은 값이 크게 다르다. 화면에 기준 월을 함께 보여 준다. `management_area`는 `complexes`와 같은 값이다.
 
+난방비 별도: 줄이 있는 단지는 `heat_private`·`heat_common`이 null이 아니라 0으로 들어와, 미제출(줄 없음)과 구분된다. 합이 0이면 "난방비 별도"로 적는다. 2026-09 기준 `complexes.heating`이 개별난방인 단지의 98%가 0이고, 지역·중앙난방도 236곳이 0이다(이유 미확인, 9월이라 계절 탓일 수 있음). 음수인 45곳은 별도가 아니라 정산으로 보이므로 이 문구를 쓰지 않는다.
+
 ## 학교 `schools` (PK `school_code`), `complex_schools` (PK `kapt_code, school_code`)
 
 - `schools`: `name, kind`('elementary'|'middle'|'high'), `region_code, address, founding, coed, latitude, longitude, year`(공시 연도), `classes, students, students_per_class`, `grade_students_per_class`({"1": 22.1, ...}), `updated_at`
