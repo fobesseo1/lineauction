@@ -7,9 +7,9 @@ export const JOBS = ['onbid', 'court', 'market'];
 // fractional (7.5 = 07:30).
 export const SCHEDULE_HOURS = { onbid: 10, court: 15, market: 7.5 };
 export const kstMinutes = (now = new Date()) => { const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now).split(':').map(Number); return h * 60 + m; };
-// KST weekdays each job runs on (0 = Sunday). Court listings change on court business days only;
-// Onbid runs daily while its detail backlog is being filled.
-export const RUN_DAYS = { onbid: [0, 1, 2, 3, 4, 5, 6], court: [1, 2, 3, 4, 5], market: [0, 1, 2, 3, 4, 5, 6] };
+// KST weekdays each job runs on (0 = Sunday). Court runs Monday to Saturday so Friday's postings and
+// results are picked up on Saturday; Onbid runs daily while its detail backlog is being filled.
+export const RUN_DAYS = { onbid: [0, 1, 2, 3, 4, 5, 6], court: [1, 2, 3, 4, 5, 6], market: [0, 1, 2, 3, 4, 5, 6] };
 const WEEKDAY = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 export const kstWeekday = (now = new Date()) => WEEKDAY[new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(now)];
 export const runsOn = (job, now = new Date()) => RUN_DAYS[job].includes(kstWeekday(now));

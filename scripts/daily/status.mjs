@@ -151,7 +151,7 @@ async function render(){
  lines.push(...await machineLines(day),'');
  const allReruns=(await readFile('data/daily/reruns.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
  lines.push('── 매일 일정 ──');
- for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 7시 반'],['온비드 공매',lastOnbid,'단지·실거래 끝나고 3분 뒤 (늦어도 오전 10시)'],['법원 경매',lastCourt,'평일, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']]){
+ for(const [label,run,hour] of [['단지·실거래',lastMarket,'매일 오전 7시 반'],['온비드 공매',lastOnbid,'단지·실거래 끝나고 3분 뒤 (늦어도 오전 10시)'],['법원 경매',lastCourt,'월~토, 온비드 끝나고 3분 뒤 (늦어도 오후 3시)']]){
   const fixed=resolvedByRerun(run,allReruns);
   lines.push(`  ${label.padEnd(6,'　')} ${hour}  ·  최근: ${run?`${fixed?'완료 (실패한 단계는 따로 다시 실행해 완료)':statusKo[run.status]??run.status} ${when(run.finishedAt)}`:'기록 없음'}`);
  }

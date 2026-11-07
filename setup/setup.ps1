@@ -47,7 +47,7 @@ try {
   if ($OffsetMinutes -lt 0) { $OffsetMinutes = [int](Read-Host '시작 시각을 몇 분 늦출까요? (첫 PC 0, 둘째 30, 셋째 60)') }
   # 단지·실거래 07:30 → 끝나면 온비드 → 끝나면 법원. 10:00·15:00은 앞 작업이 안 이어졌을 때의 예비 시각.
   $at = { param($m) (Get-Date -Hour 0 -Minute 0 -Second 0).AddMinutes($m + $OffsetMinutes) }
-  Write-Host ("  {0}: 단지·실거래 {1:HH:mm} 시작 → 온비드 → 법원(평일)이 이어서. 예비 시각 온비드 {2:HH:mm} · 법원 {3:HH:mm}" -f $Machine, (& $at 450), (& $at 600), (& $at 900))
+  Write-Host ("  {0}: 단지·실거래 {1:HH:mm} 시작 → 온비드 → 법원(월~토)이 이어서. 예비 시각 온비드 {2:HH:mm} · 법원 {3:HH:mm}" -f $Machine, (& $at 450), (& $at 600), (& $at 900))
 
   if ($StopAfter -ge 2) {
     $step = 2; Say '2/8 Node.js(24 이상)와 Git'
@@ -116,7 +116,7 @@ try {
     $tasks = @(
       @{ Name = 'Market Daily'; Args = "`"$vbs`" market schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 450) } },
       @{ Name = 'Onbid Daily'; Args = "`"$vbs`" onbid schedule"; Trigger = { New-ScheduledTaskTrigger -Daily -At (& $at 600) } },
-      @{ Name = 'Court Daily'; Args = "`"$vbs`" court schedule"; Trigger = { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At (& $at 900) } },
+      @{ Name = 'Court Daily'; Args = "`"$vbs`" court schedule"; Trigger = { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday, Saturday -At (& $at 900) } },
       @{ Name = 'Watch every 10min'; Args = "`"$Folder\scripts\daily\watch-hidden.vbs`""; Trigger = { New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 10) } }
     )
     if ($WithBot) { $tasks += @{ Name = 'Telegram Bot every 1min'; Args = "`"$Folder\scripts\alerts\bot-hidden.vbs`""; Trigger = { New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1) } } }
