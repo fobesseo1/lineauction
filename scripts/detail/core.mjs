@@ -236,6 +236,57 @@ export function kinderRow(r,sido,sigungu){
   capacity:whole(r.prmstfcnt),current_children:children||null,latitude:lat&&validPoint(lat,lon)?lat:null,longitude:lat&&validPoint(lat,lon)?lon:null};
 }
 
+// 마이홈 공공임대 rows → a complex, one 단지 (hsmpSn) at a time. Several complexes can share a lot, so a PNU alone decides only
+// when it names one complex; otherwise the road address must. Anything still ambiguous stays unmatched.
+const roadKey=s=>{const p=String(s??'').replace(/\(.*$/,'').trim().split(/\s+/);return p.length>2?p.slice(1).join(''):'';};
+export function matchRentalSupplies(rows,list){
+ const byPnu=new Map(),byRoad=new Map();
+ for(const c of list){
+  if(c.pnu)(byPnu.get(c.pnu)??byPnu.set(c.pnu,[]).get(c.pnu)).push(c);
+  const k=roadKey(c.road_address);if(k)(byRoad.get(k)??byRoad.set(k,[]).get(k)).push(c);
+ }
+ const groups=new Map();
+ for(const r of rows){if(r.hsmpSn==null)continue;(groups.get(r.hsmpSn)??groups.set(r.hsmpSn,[]).get(r.hsmpSn)).push(r);}
+ const out=new Map();let unmatched=0;
+ for(const [sn,group] of groups){
+  const {pnu,rnAdres}=group[0],k=roadKey(rnAdres),onLot=byPnu.get(pnu)??[],onRoad=k?byRoad.get(k)??[]:[];
+  let hit=null,by=null;
+  if(onLot.length===1){hit=onLot[0];by='pnu';}
+  else if(onLot.length>1){const both=onLot.filter(c=>roadKey(c.road_address)===k);if(both.length===1){hit=both[0];by='pnu';}}
+  else if(onRoad.length===1){hit=onRoad[0];by='road';}
+  if(!hit){unmatched++;continue;}
+  const seen=out.get(hit.kapt_code)??out.set(hit.kapt_code,new Map()).get(hit.kapt_code);
+  for(const r of group){
+   const style=clean(r.styleNm)??'',key=`${sn}|${r.suplyTyNm}|${style}`;
+   if(seen.has(key)||!clean(r.suplyTyNm))continue;
+   const a=num(r.suplyPrvuseAr);
+   seen.set(key,{kapt_code:hit.kapt_code,hsmp_sn:sn,supply_type:clean(r.suplyTyNm),style_name:style,exclusive_area:a,area_type:a==null?null:Math.floor(a),type_households:whole(r.hshldCo),
+    institution:clean(r.insttNm),hsmp_name:clean(r.hsmpNm),base_deposit:whole(r.bassRentGtn),base_monthly_rent:whole(r.bassMtRntchrg),matched_by:by});
+  }
+ }
+ return {supplies:[...out.values()].flatMap(m=>[...m.values()]),unmatched};
+}
+// One complex's 평형 verdicts. 'none' needs the 유형 합계 to agree with K-APT's rentals (±10%) and no 민간임대, which 마이홈 does not
+// cover; otherwise a 평형 without a 마이홈 row is 'unknown'. Bounds need a closer match, since they are arithmetic on those totals.
+export function areaRentalRows(kapt,supplies,areas,rental){
+ const totals=new Map();for(const s of supplies)totals.set(`${s.hsmp_sn}|${s.supply_type}`,s.type_households??0);
+ const sum=[...totals.values()].reduce((a,b)=>a+b,0),official=rental?.rental_households??null;
+ const near=tol=>official!=null&&Math.abs(sum-official)<=tol;
+ const sure=near(official*.1)&&!rental?.private_rental,exact=sure&&near(Math.max(2,official*.01));
+ const hh=new Map();for(const a of areas){const t=Math.floor(a.exclusive_area);hh.set(t,(hh.get(t)??0)+(a.households??0));}
+ const types=new Map();for(const s of supplies)if(s.area_type!=null)(types.get(s.area_type)??types.set(s.area_type,new Set()).get(s.area_type)).add(s.supply_type);
+ const rentedHh=[...types.keys()].reduce((a,t)=>a+(hh.get(t)??0),0),allKnown=[...types.keys()].every(t=>hh.has(t));
+ const rows=[];
+ for(const t of new Set([...types.keys(),...hh.keys()])){
+  const households=hh.get(t)??null;
+  if(!types.has(t)){rows.push({kapt_code:kapt,area_type:t,households,status:sure?'none':'unknown',rental_min:sure?0:null,rental_max:sure?0:null,supply_types:[]});continue;}
+  let min=null,max=null;
+  if(exact&&allKnown&&households!=null){max=Math.min(households,sum);min=Math.min(households,Math.max(0,sum-(rentedHh-households)));}
+  rows.push({kapt_code:kapt,area_type:t,households,status:min!=null&&min===households?'rental_only':'has_rental',rental_min:min,rental_max:max,supply_types:[...types.get(t)].sort()});
+ }
+ return rows.sort((a,b)=>a.area_type-b.area_type);
+}
+
 // Daily schedule. From 07:00 to 07:30 it runs ahead of the market job; a later start is the day's only run and goes after that job.
 export const DETAIL_START=7*60,DETAIL_CUTOFF=7.5*60,DETAIL_LATEST=23*60;
 export function schedulePlan({minutes,day,ranDay,lease}){

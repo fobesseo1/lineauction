@@ -5,7 +5,7 @@ const expect=v=>({
  toHaveLength:n=>assert.equal(v.length,n),toBeGreaterThan:n=>assert.ok(v>n),
  toMatchObject:o=>{for(const [k,x] of Object.entries(o))assert.deepEqual(v[k],x,k);},
 });
-import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,parseChildcareSheet,kinderRow,monthsBefore,schedulePlan,marketGate} from './core.mjs';
+import {contractTerm,expiryRows,feeRow,FEE_OPS,buildingRows,nameMatches,gridIndex,nearby,metres,parseCsv,tagoStops,mergeStops,isExpressRoute,schoolRow,childcareType,childcareRow,parseChildcareSheet,kinderRow,monthsBefore,schedulePlan,marketGate,matchRentalSupplies,areaRentalRows} from './core.mjs';
 
 describe('contractTerm',()=>{
  it('reads MOLIT terms',()=>expect(contractTerm('26.10~28.10')).toEqual({start:'2026-10',end:'2028-10'}));
@@ -73,6 +73,39 @@ describe('schools and childcare',()=>{
   expect(childcareRow(sheet,'서울특별시')).toMatchObject({name:'창신어린이집',status:'정상',address:'서울 A & B',capacity:30,current_children:20,type_code:'public',latitude:37.5,sigungu:'종로구'});
   expect(kinderRow({kinderCode:'k',kindername:'B',establish:'사립(사인)',prmstfcnt:'50',ppcnt3:'3',ppcnt4:'4',lttdcdnt:'37.5',lngtcdnt:'127'},'서울특별시','강남구')).toMatchObject({id:'kg:k',capacity:50,current_children:7,type_code:'private'});
  });
+});
+describe('rental supplies',()=>{
+ const row=o=>({hsmpSn:1,pnu:'P',rnAdres:'서울특별시 강서구 마곡서1로 100',suplyTyNm:'국민임대',styleNm:'49A',suplyPrvuseAr:49.77,hshldCo:293,...o});
+ it('matches by a lot only one complex is on',()=>{
+  const {supplies}=matchRentalSupplies([row({})],[{kapt_code:'K',pnu:'P',road_address:'서울특별시 강서구 다른길 1'}]);
+  expect(supplies).toHaveLength(1);expect(supplies[0]).toMatchObject({kapt_code:'K',matched_by:'pnu',area_type:49,type_households:293});
+ });
+ it('lets the road decide on a shared lot and leaves the rest unmatched',()=>{
+  const two=[{kapt_code:'A',pnu:'P',road_address:'서울특별시 강서구 마곡서1로 100'},{kapt_code:'B',pnu:'P',road_address:'서울특별시 강서구 마곡서1로 200'}];
+  expect(matchRentalSupplies([row({})],two).supplies[0].kapt_code).toBe('A');
+  expect(matchRentalSupplies([row({rnAdres:'서울특별시 강서구 없는길 9'})],two).unmatched).toBe(1);
+ });
+ it('falls back to the road when the lot is unknown',()=>expect(matchRentalSupplies([row({pnu:'X'})],[{kapt_code:'K',pnu:'P',road_address:'서울시 강서구 마곡서1로 100(마곡동)'}]).supplies[0].matched_by).toBe('road'));
+ const s=(t,area,n,sn=1)=>({hsmp_sn:sn,supply_type:t,area_type:area,type_households:n});
+ const areas=[[49,187],[59,488],[84,588],[114,203]].map(([exclusive_area,households])=>({exclusive_area,households}));
+ const mvalley=[s('국민임대',49,293),s('국민임대',59,293),s('장기전세',59,628),s('장기전세',84,628)];
+ it('judges 마곡엠밸리6 from 유형 합계 and 전유부',()=>{
+  const r=areaRentalRows('K',mvalley,areas,{rental_households:921,private_rental:0});
+  expect(r.find(x=>x.area_type===114)).toMatchObject({status:'none',rental_min:0,rental_max:0});
+  expect(r.find(x=>x.area_type===84)).toMatchObject({status:'has_rental',rental_min:246,rental_max:588,supply_types:['장기전세']});
+  expect(r.find(x=>x.area_type===49)).toMatchObject({status:'has_rental',rental_min:0,rental_max:187});
+ });
+ it('calls a 평형 rental only when the numbers force it',()=>{
+  const r=areaRentalRows('K',[s('국민임대',39,458)],[{exclusive_area:39.9,households:458},{exclusive_area:59.9,households:338}],{rental_households:458,private_rental:0});
+  expect(r[0].status).toBe('rental_only');expect(r[1].status).toBe('none');
+ });
+ it('does not say none when 민간임대 or a poor match could hide rentals',()=>{
+  expect(areaRentalRows('K',mvalley,areas,{rental_households:921,private_rental:10}).find(x=>x.area_type===114).status).toBe('unknown');
+  expect(areaRentalRows('K',mvalley,areas,{rental_households:3000,private_rental:0}).find(x=>x.area_type===114).status).toBe('unknown');
+  expect(areaRentalRows('K',mvalley,areas,null).find(x=>x.area_type===114).status).toBe('unknown');
+ });
+ it('gives no bounds when the totals are only roughly right',()=>expect(areaRentalRows('K',mvalley,areas,{rental_households:900,private_rental:0}).find(x=>x.area_type===84)).toMatchObject({status:'has_rental',rental_min:null,rental_max:null}));
+ it('keeps a rented 평형 the 전유부 does not know',()=>expect(areaRentalRows('K',[s('국민임대',33,10)],[],null)[0]).toMatchObject({area_type:33,households:null,status:'has_rental'}));
 });
 describe('daily schedule',()=>{
  const plan=(minutes,o={})=>schedulePlan({minutes,day:'2026-11-07',ranDay:null,lease:null,...o});
