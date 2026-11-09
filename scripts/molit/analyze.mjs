@@ -43,20 +43,7 @@ function kaptPlace(pnu,kind){
  const list=(placesByKapt.get(kapt)??[]).filter(p=>p.kind===kind);
  return list.length?{place:list.sort((a,b)=>a.id<b.id?-1:1)[0],via:'kapt_pnu'}:null;
 }
-// Sales of shared buildings that no complex could claim (publish.mjs: left on a 'shared_lot' building) stay out of the discount.
-const heldSales=new Set();
-{
- const heldPlaces=new Set();
- for(let from=0;;from+=1000){
-  const {data,error}=await supa.from('market_place_complexes').select('place_id').eq('kapt_match','shared_lot').order('place_id').range(from,from+999);
-  if(error)throw Error(error.message);for(const r of data)heldPlaces.add(r.place_id);if(data.length<1000)break;
- }
- for(const place of heldPlaces)for(let from=0;;from+=1000){
-  const {data,error}=await supa.from('market_trades').select('id').eq('place_id',place).order('id').range(from,from+999);
-  if(error)throw Error(error.message);for(const r of data)heldSales.add(r.id);if(data.length<1000)break;
- }
-}
-const salesOf=wh.prepare(`select key,deal_date,amount,area from trades where kind=? and lawd=? and umd=? and jibun=? and deal='sale'
+const salesOf=wh.prepare(`select deal_date,amount,area from trades where kind=? and lawd=? and umd=? and jibun=? and deal='sale'
  and cancel_date is null and coalesce(dealing,'')<>'직거래' and amount is not null and deal_date>=?`);
 
 // 빌라: same-building sales and, per 시군구, all villa sales for the dong comparison.
@@ -133,7 +120,7 @@ for(const p of properties){
    transaction_count_3m:null,transaction_count_6m:null,transaction_count_12m:null,score_breakdown:{via:hit.via},calculated_at:runAt});
   continue;
  }
- const all=salesOf.all(place.kind,place.lawd,place.umd,place.jibun,since[12]).filter(s=>!heldSales.has(s.key));
+ const all=salesOf.all(place.kind,place.lawd,place.umd,place.jibun,since[12]);
  const byType=new Map();for(const s of all){const t=Math.floor(s.area);byType.set(t,[...(byType.get(t)??[]),s]);}
  let mismatch=false,type=areaType,market=marketPrice(byType.get(areaType)??[],{since6:since[6],since12:since[12]});
  if(!market){

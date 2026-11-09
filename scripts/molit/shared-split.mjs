@@ -110,11 +110,24 @@ export const rentCopyId=(key,kapt)=>`${key}~${kapt}`;
 // - Several sale complexes: each gets a small place with the trades assigned to it. What cannot be
 //   assigned stays on the building, which all sale complexes keep linked ('shared_lot').
 // Returns null when there is nothing to split.
-export function planPlaceSplit(parentId,complexes,trades,buildings){
+// A hand-checked rule for this building's sales (shared-sale-overrides.json), or null if it says nothing.
+function manualOwner(t,rule){
+ if(rule.all)return rule.all;
+ const deal=rule.deals?.find(d=>d.date===t.deal_date&&Math.abs(d.area-t.area)<0.01&&d.floor===t.floor&&d.amount===t.amount);
+ return deal?.owner??rule.dong?.[dongKey(t.building)]??null;
+}
+export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,override=null}={}){
  if(complexes.length<2)return null;
  const ordered=[...complexes].sort((a,b)=>a.kapt_code<b.kapt_code?-1:1);
  const {result,sale,dropped,agree}=splitTrades(ordered,trades,buildings);
  if(!sale.length)return null;
+ // Several K-APT codes for what people call one complex: nothing is divided among them.
+ if(asOne)for(const t of trades)result.set(t.key,{owner:null,method:'shared'});
+ // With a hand-checked rule, only that rule places this building's sales; rents stay common.
+ if(override)for(const t of trades){
+  const owner=t.deal==='sale'?manualOwner(t,override):null;
+  result.set(t.key,{owner,method:owner?'manual':'shared'});
+ }
  const rental=ordered.filter(c=>!isSaleComplex(c));
  const rentalCode=new Set(rental.map(c=>c.kapt_code));
  const many=sale.length>1;
@@ -122,8 +135,11 @@ export function planPlaceSplit(parentId,complexes,trades,buildings){
  for(const t of trades){
   const {owner,method}=result.get(t.key);
   if(owner&&(many||rentalCode.has(owner))){const place_id=childPlaceId(parentId,owner);used.add(owner);rows.push({t,id:t.key,place_id,method});continue;}
-  // A sale no complex can claim is held: listed on the building, out of every statistic until a later run settles it.
-  rows.push({t,id:t.key,place_id:parentId,method,held:many&&t.deal==='sale'&&!owner});
+  // A sale no complex can claim stays listed on the building and counts in the stats of every sale
+  // complex here, on their small places, so the building's own row shows no sale for that size.
+  const common=many&&t.deal==='sale'&&!owner;
+  rows.push({t,id:t.key,place_id:parentId,method,common});
+  if(common)for(const c of sale){used.add(c.kapt_code);rows.push({t,id:t.key,place_id:childPlaceId(parentId,c.kapt_code),method:'common',statOnly:true});}
   if(t.deal==='rent'&&!owner)for(const r of rental){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
  }
  // A building left to one complex goes by that name, not whichever complex filed the latest trade.

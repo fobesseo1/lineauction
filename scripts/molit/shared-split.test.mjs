@@ -78,12 +78,35 @@ test('planPlaceSplit leaves a one-sale-complex building and gives the rental com
  assert.deepEqual(p.rows.map(r=>[r.id,r.place_id]),[['a','P'],['b','P'],['b~R','P:R'],['c','P:R']]);
 });
 
-test('planPlaceSplit gives each sale complex its own place and holds the rest on the building',()=>{
+test('planPlaceSplit gives each sale complex its own place and counts the rest in every one of them',()=>{
  const cs=[c('6','개포주공6단지'),c('7','개포주공7단지')];
  const p=planPlaceSplit('P',cs,[sale('a',83,'','개포주공6단지'),sale('b',83,'','개포주공7단지'),sale('c',83,'','개포주공')],none);
- assert.deepEqual(p.rows.map(r=>r.place_id),['P:6','P:7','P']);
- assert.deepEqual(p.rows.map(r=>!!r.held),[false,false,true]);
+ assert.deepEqual(p.rows.map(r=>r.place_id),['P:6','P:7','P','P:6','P:7']);
+ assert.deepEqual(p.rows.map(r=>!!r.common),[false,false,true,false,false]);
+ assert.deepEqual(p.rows.map(r=>!!r.statOnly),[false,false,false,true,true]);
  assert.equal(p.primaryMatch,'shared_lot');assert.deepEqual(p.alsoLinked,['7']);
+});
+
+test('a hand rule places sales by 동 or exact deal and leaves the rest common',()=>{
+ const cs=[c('T','선학태산'),c('D','선학대진'),c('J','선학정광')];
+ const rule={dong:{1:'T',8:'D',11:'J'},deals:[{date:'2026-10-18',area:64.38,floor:2,amount:19400,owner:'D'}]};
+ const t=(key,building,extra={})=>({...sale(key,64.38,building,'태산,대진.정광아파트'),deal_date:'2026-09-01',floor:1,amount:1,...extra});
+ const p=planPlaceSplit('P',cs,[t('a','1동'),t('b','11'),t('c','',{deal_date:'2026-10-18',floor:2,amount:19400}),t('d',''),{...rent('e',64.38),deal_date:'2026-09-01'}],none,{override:rule});
+ assert.deepEqual(p.rows.filter(r=>!r.statOnly).map(r=>[r.id,r.place_id]),[['a','P:T'],['b','P:J'],['c','P:D'],['d','P'],['e','P']]);
+ assert.equal(p.rows.filter(r=>r.statOnly).length,3);
+});
+
+test('a hand rule can give every sale to one complex',()=>{
+ const cs=[c('6','금호6'),c('1','금호1'),c('C','청구')];
+ const p=planPlaceSplit('P',cs,[{...sale('a',55,'601','묶음,신고'),deal_date:'2026-09-01',floor:1,amount:1}],none,{override:{all:'6'}});
+ assert.deepEqual(p.rows.map(r=>r.place_id),['P:6']);
+});
+
+test('asOne keeps every trade common even when names differ',()=>{
+ const cs=[c('1','노원1단지'),c('2','노원2단지')];
+ const p=planPlaceSplit('P',cs,[sale('a',84,'','노원1단지')],none,{asOne:true});
+ assert.deepEqual(p.rows.map(r=>r.place_id),['P','P:1','P:2']);
+ assert.deepEqual(p.children.map(x=>x.kapt_code),['1','2']);
 });
 
 test('planPlaceSplit skips a building with no sale complex',()=>{

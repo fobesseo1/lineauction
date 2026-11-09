@@ -155,12 +155,14 @@ if(process.env.SHARED_SPLIT!=='off'){
  const tradesAt=wh.prepare(`select key,name,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind='apt' and lawd=? and umd=? and jibun=? and deal_date>=? and area is not null`);
  const known=new Set(JSON.parse(await readFile(new URL('./shared-places.json',import.meta.url),'utf8')));
+ const saleOverrides=JSON.parse(await readFile(new URL('./shared-sale-overrides.json',import.meta.url),'utf8'));
+ const oneComplex=new Set(JSON.parse(await readFile(new URL('./shared-one-complex.json',import.meta.url),'utf8')));
  for(const [id,kapts] of shared){
   const p=places.get(id);
   if(!known.has(id))newShared.push(id);
   const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`);
   let plan;
-  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings);}
+  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,{asOne:oneComplex.has(id),override:saleOverrides[id]??null});}
   catch(e){
    // A building the rules fail on keeps yesterday's rows untouched: nothing here is written or removed.
    failedSplits.push(`${id}: ${e.message}`);frozenPlaces.add(id);for(const t of trades)frozenIds.add(t.key);places.delete(id);
@@ -215,9 +217,10 @@ for(const plan of splitPlaces.values()){
  const groups=new Map();
  for(const r of plan.rows){const key=`${r.place_id}|${Math.floor(r.t.area)}`;(groups.get(key)??groups.set(key,[]).get(key)).push(r);}
  for(const [key,g] of groups){
-  const [pid,areaType]=key.split('|'),place=places.get(pid),all=g.filter(r=>!r.held).map(r=>r.t),period=all.filter(t=>t.deal_date>=start);
+  const [pid,areaType]=key.split('|'),place=places.get(pid),all=g.filter(r=>!r.common).map(r=>r.t),period=all.filter(t=>t.deal_date>=start);
   if(period.length){const row={place_id:pid,area_type:Number(areaType),kind:place.kind,sido:place.sido,sigungu:place.sigungu,...areaStats(period),history:null,period_start:start,period_end:end,refreshed_at:runAt};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);}
-  for(const {t,id} of g){
+  for(const {t,id,statOnly} of g){
+   if(statOnly)continue;
    if(t.deal==='rent'&&t.deal_date>=start){rents.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});splitIds.add(id);}
    if(t.deal==='sale'&&t.amount!=null){sales.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});splitIds.add(id);}
   }
@@ -409,8 +412,8 @@ for(const p of plans.slice(3))if(p.apply)await p.apply();
 
 // The daily note on the shared-building split, to the operator chat.
 if(process.env.SHARED_SPLIT!=='off'){
- const heldRows=[...splitPlaces.values()].flatMap(p=>p.rows.filter(r=>r.held));
- const line=[`보류 매매 ${heldRows.length.toLocaleString('ko-KR')}건 (${new Set(heldRows.map(r=>r.place_id)).size}건물, 시세·통계 제외)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
+ const commonRows=[...splitPlaces.values()].flatMap(p=>p.rows.filter(r=>r.common));
+ const line=[`이름으로 못 나눈 매매 ${commonRows.length.toLocaleString('ko-KR')}건 (단지 공통 반영)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
  console.log(line.join(' | '));
  if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
 }
