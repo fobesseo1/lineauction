@@ -149,10 +149,9 @@ if(process.env.SHARED_SPLIT!=='off'){
  const shared=[...linksOf].filter(([,k])=>k.size>1);
  const info=new Map(complexList.map(c=>[c.kapt_code,c]));
  const codes=[...new Set(shared.flatMap(([,k])=>[...k]))].filter(k=>info.has(k));
- const buildings=new Map(),types=new Map();
+ const buildings=new Map();
  const readAll=async(table,cols)=>{const out=[];for(let i=0;i<codes.length;i+=200)for(let from=0;;from+=1000){const {data,error}=await supa.from(table).select(cols).in('kapt_code',codes.slice(i,i+200)).order('kapt_code').range(from,from+999);if(error)throw Error(`${table}: ${error.message}`);out.push(...data);if(data.length<1000)break;}return out;};
  for(const b of await readAll('complex_buildings','kapt_code,dong_name,households,main_purpose')){if(!(b.households>0)&&!/아파트/.test(b.main_purpose??''))continue;(buildings.get(b.kapt_code)??buildings.set(b.kapt_code,[]).get(b.kapt_code)).push(b.dong_name);}
- for(const t of await readAll('complex_area_types','kapt_code,exclusive_area'))(types.get(t.kapt_code)??types.set(t.kapt_code,[]).get(t.kapt_code)).push(Number(t.exclusive_area));
  const tradesAt=wh.prepare(`select key,name,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind='apt' and lawd=? and umd=? and jibun=? and deal_date>=? and area is not null`);
  const known=new Set(JSON.parse(await readFile(new URL('./shared-places.json',import.meta.url),'utf8')));
@@ -161,7 +160,7 @@ if(process.env.SHARED_SPLIT!=='off'){
   if(!known.has(id))newShared.push(id);
   const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`);
   let plan;
-  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,types);}
+  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings);}
   catch(e){
    // A building the rules fail on keeps yesterday's rows untouched: nothing here is written or removed.
    failedSplits.push(`${id}: ${e.message}`);frozenPlaces.add(id);for(const t of trades)frozenIds.add(t.key);places.delete(id);

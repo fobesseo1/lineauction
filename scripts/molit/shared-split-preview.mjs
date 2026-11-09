@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {writeFileSync} from 'node:fs';
 import {createClient} from '@supabase/supabase-js';
 import {areaStats,periodStart} from './summary.mjs';
-import {splitTrades,isSaleComplex,rentOwnerAmongAll} from './shared-split.mjs';
+import {splitTrades,isSaleComplex} from './shared-split.mjs';
 process.loadEnvFile('.env.local');
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
@@ -17,9 +17,8 @@ const byPlace=new Map();for(const l of links)(byPlace.get(l.place_id)??byPlace.s
 const shared=[...byPlace].filter(([id,k])=>k.length>1&&id.startsWith('apt:'));
 const codes=[...new Set(shared.flatMap(([,k])=>k))];
 const complexes=new Map((await inChunks('complexes','kapt_code,name,sale_type,households,dong_count,sigungu,dong,units_le60,units_le85,units_le135,units_gt135','kapt_code',codes)).map(c=>[c.kapt_code,c]));
-const buildings=new Map(),types=new Map();
+const buildings=new Map();
 for(const b of await inChunks('complex_buildings','kapt_code,dong_name,households,main_purpose','kapt_code',codes)){if(!(b.households>0)&&!/아파트/.test(b.main_purpose??''))continue;(buildings.get(b.kapt_code)??buildings.set(b.kapt_code,[]).get(b.kapt_code)).push(b.dong_name);}
-for(const t of await inChunks('complex_area_types','kapt_code,exclusive_area,households','kapt_code',codes))(types.get(t.kapt_code)??types.set(t.kapt_code,[]).get(t.kapt_code)).push(Number(t.exclusive_area));
 
 const start=periodStart(new Date());
 const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35);const from36=d.toISOString().slice(0,10);
@@ -30,18 +29,19 @@ for(const [id,kapts] of shared){
  const [,lawd,umd,jibun]=id.split(':');
  const trades=q.all(lawd,umd,jibun,from36);
  const cs=kapts.map(k=>complexes.get(k)).filter(Boolean);
- const {result,sale,dropped,agree}=splitTrades(cs,trades,buildings,types);
- const methods={};for(const t of trades)if(t.deal==='sale'){const m=result.get(t.key).method;methods[m]=(methods[m]??0)+1;}
+ const {result,sale,dropped,agree}=splitTrades(cs,trades,buildings);
+ const methods={},rentMethods={};for(const t of trades){const m=result.get(t.key).method,b=t.deal==='sale'?methods:rentMethods;b[m]=(b[m]??0)+1;}
  const recent=trades.filter(t=>t.deal_date>=start);
- const rentsRecent=recent.filter(t=>t.deal==='rent');
- const rentResolved=sale.length===1?rentsRecent.filter(t=>rentOwnerAmongAll(t,cs,types)).length:rentsRecent.filter(t=>result.get(t.key).owner).length;
  const rows=cs.map(c=>{
-  const mine=t=>{const r=result.get(t.key);if(t.deal==='sale')return isSaleComplex(c)&&(r.owner===c.kapt_code||(sale.length===1&&r.owner));return r.owner===c.kapt_code||r.owner==null;};
-  const held=t=>{const r=result.get(t.key);return t.deal==='rent'?r.owner===c.kapt_code:mine(t);};
-  const keep=areaRow(recent.filter(mine)),hold=areaRow(recent.filter(held));
-  return {kapt_code:c.kapt_code,name:c.name,sale_type:c.sale_type,households:c.households,before:areaRow(recent),after:keep,afterHold:hold};
+  const own=t=>result.get(t.key).owner===c.kapt_code;
+  const mine=t=>t.deal==='sale'?isSaleComplex(c)&&own(t):own(t)||result.get(t.key).owner==null;
+  const held=t=>t.deal==='sale'?mine(t):own(t);
+  const after=areaRow(recent.filter(mine)),hold=areaRow(recent.filter(held));
+  const latest=trades.filter(t=>t.deal==='sale'&&own(t)&&!t.cancel_date&&t.dealing!=='직거래').sort((a,b)=>b.deal_date.localeCompare(a.deal_date)).slice(0,3).map(t=>({date:t.deal_date,area:t.area,floor:t.floor,dong:t.building,amount:t.amount,name:t.name}));
+  return {kapt_code:c.kapt_code,name:c.name,sale_type:c.sale_type,households:c.households,before:areaRow(recent),after,afterHold:hold,latest,own36:trades.filter(t=>t.deal==='sale'&&own(t)).length,rentOwn12:recent.filter(t=>t.deal==='rent'&&own(t)).length};
  });
- places.push({id,saleComplexes:sale.length,complexes:rows,methods,totalSales36:trades.filter(t=>t.deal==='sale').length,rentsRecent:rentsRecent.length,rentResolved,dropped,agree});
+ const names=[...new Set(trades.map(t=>t.name))];
+ places.push({id,saleComplexes:sale.length,complexes:rows,methods,rentMethods,names,totalSales36:trades.filter(t=>t.deal==='sale').length,rentsRecent:recent.filter(t=>t.deal==='rent').length,rentResolved:recent.filter(t=>t.deal==='rent'&&result.get(t.key).owner).length,dropped,agree});
 }
 writeFileSync(process.argv[2],JSON.stringify(places));
 wh.close();
