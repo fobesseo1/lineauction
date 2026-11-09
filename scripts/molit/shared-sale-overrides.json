@@ -55,6 +55,10 @@
   "extend": true,
   "names": [
    {
+    "contains": "대성베르힐",
+    "owner": "A10023254"
+   },
+   {
     "contains": "2차SKLeaders",
     "owner": "A10023403"
    },
