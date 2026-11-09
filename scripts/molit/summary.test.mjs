@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart,applyManualLinks} from './summary.mjs';
+
+test('applyManualLinks replaces a building\'s complex or adds one',()=>{
+ const places=new Map([['a',{id:'a',kapt_code:'WRONG',kapt_match:'near_name'}],['b',{id:'b',kapt_code:'RENTAL',kapt_match:'pnu'}]]);
+ const out=applyManualLinks(places,[{place_id:'a',kapt_code:'K1',action:'primary'},{place_id:'b',kapt_code:'K2',action:'also'},{place_id:'gone',kapt_code:'K3',action:'primary'}]);
+ assert.deepEqual(places.get('a'),{id:'a',kapt_code:'K1',kapt_match:'manual'});
+ assert.equal(places.get('b').kapt_code,'RENTAL');
+ assert.deepEqual(out,{extra:[{place_id:'b',kapt_code:'K2',kapt_match:'manual'}],missing:['gone']});
+});
 
 test('nameOrdinals reads 차수, 단지 lists and a trailing number',()=>{
  assert.deepEqual([...nameOrdinals('동두천신창비바패밀리1,2단지')],[1,2]);

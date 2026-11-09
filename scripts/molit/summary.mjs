@@ -60,6 +60,20 @@ export function sharesNamePart(molitName,complexName){
   .some(p=>p.length>=2&&!GENERIC.has(p)&&!/마을$/.test(p)&&target.includes(p));   // "양지마을" names a neighbourhood, not a complex
 }
 
+// Hand-checked building ↔ complex pairs (manual-place-links.json) that the lot and name rules miss.
+// 'primary' makes it the building's own complex, replacing whatever a rule picked; 'also' adds a link
+// and leaves the building's own complex as it is. Buildings no longer in the warehouse are listed.
+export function applyManualLinks(places,manual){
+ const extra=[],missing=[];
+ for(const m of manual){
+  const p=places.get(m.place_id);
+  if(!p){missing.push(m.place_id);continue;}
+  if(m.action==='primary')Object.assign(p,{kapt_code:m.kapt_code,kapt_match:'manual'});
+  else extra.push({place_id:m.place_id,kapt_code:m.kapt_code,kapt_match:'manual'});
+ }
+ return {extra,missing};
+}
+
 export function median(values){
  if(!values.length)return null;
  const s=[...values].sort((a,b)=>a-b),mid=s.length>>1;

@@ -10,7 +10,7 @@ import {writeJson} from '../onbid/atomic.mjs';
 import {guardDeletes} from '../daily/delete-guard.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,applyManualLinks} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -111,8 +111,11 @@ for(const p of places.values()){
  if(at)pushTo(placeCell,cellOf(at.latitude,at.longitude),p);
  if(p.pnu)pushTo(placeByPnu,p.pnu,p);
 }
-const linkedKapt=new Set([...places.values()].map(p=>p.kapt_code).filter(Boolean));
-const primaryClaims=new Map(),extraLinks=[];
+// Hand-checked pairs come first, so the complex-side pass below neither claims those buildings nor retries those complexes.
+const manual=applyManualLinks(places,JSON.parse(await readFile(new URL('./manual-place-links.json',import.meta.url),'utf8')));
+if(manual.missing.length)console.log(`manual links: buildings not found ${manual.missing.join(', ')}`);
+const linkedKapt=new Set([...places.values()].map(p=>p.kapt_code).filter(Boolean).concat(manual.extra.map(l=>l.kapt_code)));
+const primaryClaims=new Map(),extraLinks=[...manual.extra];
 for(const c of complexList){
  if(linkedKapt.has(c.kapt_code))continue;
  const near=new Set(c.pnu?placeByPnu.get(c.pnu)??[]:[]);
