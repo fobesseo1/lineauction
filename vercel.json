@@ -1,1 +1,6 @@
-{}
+{
+  "redirects": [
+    { "source": "/dashboard", "destination": "https://lineestate.co.kr/", "permanent": true },
+    { "source": "/:path*", "destination": "https://lineestate.co.kr/:path*", "permanent": true }
+  ]
+}
