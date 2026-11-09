@@ -8,6 +8,8 @@ import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {guardDeletes} from '../daily/delete-guard.mjs';
+import {planPlaceSplit,childPlaceId} from './shared-split.mjs';
+import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
 import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,applyManualLinks} from './summary.mjs';
@@ -132,6 +134,50 @@ for(const c of complexList){
 }
 for(const [id,codes] of primaryClaims)if(codes.length===1)Object.assign(places.get(id),{kapt_code:codes[0],kapt_match:'same_point'});
 
+const months=Array.from({length:36},(_,i)=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35+i);return d.toISOString().slice(0,7);});
+
+// Buildings several K-APT complexes share: their trades are assigned to complexes (shared-split.mjs).
+// An assigned trade moves to a small place of its complex ('<building>:<kapt_code>', kapt_match
+// 'shared_split'); what cannot be assigned stays on the building (links with kapt_match 'shared_lot').
+// SHARED_SPLIT=off in .env.local turns this off, see shared-split-rollback.mjs.
+const splitPlaces=new Map(),frozenPlaces=new Set(),frozenIds=new Set(),newShared=[],failedSplits=[];
+if(process.env.SHARED_SPLIT!=='off'){
+ const linksOf=new Map();
+ const addLink=(id,k)=>{(linksOf.get(id)??linksOf.set(id,new Set()).get(id)).add(k);};
+ for(const p of places.values())if(p.kind==='apt'&&p.kapt_code)addLink(p.id,p.kapt_code);
+ for(const l of extraLinks)if(places.has(l.place_id))addLink(l.place_id,l.kapt_code);
+ const shared=[...linksOf].filter(([,k])=>k.size>1);
+ const info=new Map(complexList.map(c=>[c.kapt_code,c]));
+ const codes=[...new Set(shared.flatMap(([,k])=>[...k]))].filter(k=>info.has(k));
+ const buildings=new Map(),types=new Map();
+ const readAll=async(table,cols)=>{const out=[];for(let i=0;i<codes.length;i+=200)for(let from=0;;from+=1000){const {data,error}=await supa.from(table).select(cols).in('kapt_code',codes.slice(i,i+200)).order('kapt_code').range(from,from+999);if(error)throw Error(`${table}: ${error.message}`);out.push(...data);if(data.length<1000)break;}return out;};
+ for(const b of await readAll('complex_buildings','kapt_code,dong_name,households,main_purpose')){if(!(b.households>0)&&!/아파트/.test(b.main_purpose??''))continue;(buildings.get(b.kapt_code)??buildings.set(b.kapt_code,[]).get(b.kapt_code)).push(b.dong_name);}
+ for(const t of await readAll('complex_area_types','kapt_code,exclusive_area'))(types.get(t.kapt_code)??types.set(t.kapt_code,[]).get(t.kapt_code)).push(Number(t.exclusive_area));
+ const tradesAt=wh.prepare(`select key,name,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
+  from trades where kind='apt' and lawd=? and umd=? and jibun=? and deal_date>=? and area is not null`);
+ const known=new Set(JSON.parse(await readFile(new URL('./shared-places.json',import.meta.url),'utf8')));
+ for(const [id,kapts] of shared){
+  const p=places.get(id);
+  if(!known.has(id))newShared.push(id);
+  const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`);
+  let plan;
+  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,types);}
+  catch(e){
+   // A building the rules fail on keeps yesterday's rows untouched: nothing here is written or removed.
+   failedSplits.push(`${id}: ${e.message}`);frozenPlaces.add(id);for(const t of trades)frozenIds.add(t.key);places.delete(id);
+   for(let i=extraLinks.length-1;i>=0;i--)if(extraLinks[i].place_id===id)extraLinks.splice(i,1);
+   continue;
+  }
+  if(!plan)continue;
+  splitPlaces.set(id,plan);
+  Object.assign(p,{kapt_code:plan.primary,kapt_match:plan.primaryMatch});
+  for(let i=extraLinks.length-1;i>=0;i--)if(extraLinks[i].place_id===id)extraLinks.splice(i,1);
+  for(const k of plan.alsoLinked)extraLinks.push({place_id:id,kapt_code:k,kapt_match:'shared_lot'});
+  for(const c of plan.children){const child=childPlaceId(id,c.kapt_code);places.set(child,{...p,id:child,name:c.name,kapt_code:c.kapt_code,kapt_match:'shared_split'});}
+ }
+ console.log(`shared buildings ${shared.length}, split ${splitPlaces.size}, small places ${[...splitPlaces.values()].reduce((a,s)=>a+s.children.length,0)}`);
+}
+
 // Stats and 전월세 contracts over the last 12 months, streamed in building+area order.
 const stats=[],sales=[],rents=[];
 let group=[],groupKey=null;
@@ -142,6 +188,7 @@ const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|'
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
+ if(splitPlaces.has(pid)||frozenPlaces.has(pid))continue;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
  if(t.deal==='rent')rents.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});
@@ -149,19 +196,34 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
 flush();
 
 // 36-month chart history per building+평형, attached to the stats rows that exist.
-const months=Array.from({length:36},(_,i)=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35+i);return d.toISOString().slice(0,7);});
 const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
 let hGroup=[],hKey=null;
 const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length)row.history=monthlyHistory(hGroup,months,row.jeonse_basis);hGroup=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
+ if(splitPlaces.has(key.split('|')[0])||frozenPlaces.has(key.split('|')[0]))continue;
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
  // Sales list: the same 36 months as the chart.
  if(t.deal==='sale'&&t.amount!=null)sales.push({id:t.key,place_id:key.split('|')[0],area:t.area,area_type:Math.floor(t.area),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
 }
 hFlush();
+
+// The trades of split buildings, now each on its final place. Same rows as the streams above.
+const splitIds=new Set();
+for(const plan of splitPlaces.values()){
+ const groups=new Map();
+ for(const r of plan.rows){const key=`${r.place_id}|${Math.floor(r.t.area)}`;(groups.get(key)??groups.set(key,[]).get(key)).push(r);}
+ for(const [key,g] of groups){
+  const [pid,areaType]=key.split('|'),place=places.get(pid),all=g.filter(r=>!r.held).map(r=>r.t),period=all.filter(t=>t.deal_date>=start);
+  if(period.length){const row={place_id:pid,area_type:Number(areaType),kind:place.kind,sido:place.sido,sigungu:place.sigungu,...areaStats(period),history:null,period_start:start,period_end:end,refreshed_at:runAt};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);}
+  for(const {t,id} of g){
+   if(t.deal==='rent'&&t.deal_date>=start){rents.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});splitIds.add(id);}
+   if(t.deal==='sale'&&t.amount!=null){sales.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,building:t.building,deal_date:t.deal_date,amount:t.amount,direct:t.dealing==='직거래',cancelled:!!t.cancel_date});splitIds.add(id);}
+  }
+ }
+}
 
 // 토지·상업업무용·단독다가구 sales (36 months), by 법정동; MOLIT masks most of their lot numbers.
 const COMMERCIAL_KIND={land:'land',nrg:'commercial',sh:'house'};
@@ -244,8 +306,10 @@ async function planTable(table,rows,cols){
  const have=await knownDigests(table,cols);
  const keyOf=r=>cols.map(c=>r[c]).join('|');
  const current=new Set(rows.map(keyOf));
- const gone=[...have.keys()].filter(k=>!current.has(k));
- return {name:table,removed:gone.length,total:have.size,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
+ const frozen=k=>{const id=k.split('|')[0];return [...frozenPlaces].some(f=>id===f||id.startsWith(`${f}:`));};
+ const gone=[...have.keys()].filter(k=>!current.has(k)&&!frozen(k));
+ const changed=rows.filter(r=>have.get(keyOf(r))!==digestOf(r)).length;
+ return {name:table,removed:gone.length,total:have.size,changed,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
 }
 async function applyTable(table,rows,cols,have,keyOf,gone){
  const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
@@ -287,18 +351,33 @@ async function planById(table,rows,windowStart){
  }
  const mine=rows.filter(r=>r.deal_date>=from);
  const current=new Set(mine.map(r=>r.id));
- const added=mine.filter(r=>!existing.has(r.id)),gone=[...existing].filter(id=>!current.has(id));
+ // Trades of split buildings can change place when the assignment changes; ids alone would not show it.
+ const placePath=`data/molit/published-split-${table}.json`;
+ let lastPlace={};try{lastPlace=JSON.parse(await readFile(placePath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ const splitRows=rows.filter(r=>splitIds.has(r.id));
+ const moved=splitRows.filter(r=>lastPlace[r.id]!==r.place_id);
+ for(const [id,place] of Object.entries(lastPlace))if([...frozenPlaces].some(f=>place===f||place.startsWith(`${f}:`)))frozenIds.add(id);
+ const added=mine.filter(r=>!existing.has(r.id)),gone=[...existing].filter(id=>!current.has(id)&&!frozenIds.has(id));
  // Rows older than the window are expired; measured against the whole table, since a wrong window
  // start (from a partial warehouse) would expire most of it.
  const head=q=>q.then(({count,error})=>{if(error)throw Error(`${table} count: ${error.message}`);return count??0;});
  const [expiring,total]=await Promise.all([head(supa.from(table).select('id',{count:'exact',head:true}).lt('deal_date',windowStart)),head(supa.from(table).select('id',{count:'exact',head:true}))]);
  return [
-  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,removed:gone.length,total:existing.size,apply:()=>applyById(table,rows,windowStart,added,gone)},
+  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,removed:gone.length,total:existing.size,added:added.length,moved:moved.length,apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
   {name:`${table} 기간 만료`,removed:expiring,total},
  ];
 }
-async function applyById(table,rows,windowStart,added,gone){
+async function applyById(table,rows,windowStart,added,gone,moved=[],placePath=null,splitRows=[]){
  const idCachePath=`data/molit/published-ids-${table}.json`;
+ for(let i=0;i<moved.length;i+=1000){
+  for(let attempt=1;;attempt++){
+   const {error}=await supa.from(table).upsert(moved.slice(i,i+1000),{onConflict:'id'});
+   if(!error)break;
+   if(attempt>=3)throw Error(`${table} move: ${error.message}`);
+   await new Promise(r=>setTimeout(r,5000*attempt));
+  }
+ }
+ if(placePath&&splitRows.length)await writeJson(placePath,Object.fromEntries(splitRows.map(r=>[r.id,r.place_id])));
  for(let i=0;i<added.length;i+=1000){
   for(let attempt=1;;attempt++){
    const {error}=await supa.from(table).upsert(added.slice(i,i+1000),{onConflict:'id',ignoreDuplicates:true});
@@ -322,12 +401,20 @@ const plans=[
  ...await planById('market_commercial_trades',commercial,salesStart),
  ...await planById('market_presale_trades',presale,start),
 ];
-console.log(JSON.stringify({plan:plans.map(({name,removed,total})=>({name,removed,total}))}));
+console.log(JSON.stringify({plan:plans.map(({name,removed,total,changed,added,moved})=>({name,removed,total,changed,added,moved}))}));
 if(dryRun){wh.close();process.exit(0);}
 await guardDeletes('실거래 요약 업로드',plans);
 for(const p of plans.slice(0,3))await p.apply();
 {const {error}=await supa.from('market_summary_meta').upsert({id:1,published_at:runAt,period_start:start,period_end:end});if(error)throw Error(`meta: ${error.message}`);}
 for(const p of plans.slice(3))if(p.apply)await p.apply();
+
+// The daily note on the shared-building split, to the operator chat.
+if(process.env.SHARED_SPLIT!=='off'){
+ const heldRows=[...splitPlaces.values()].flatMap(p=>p.rows.filter(r=>r.held));
+ const line=[`보류 매매 ${heldRows.length.toLocaleString('ko-KR')}건 (${new Set(heldRows.map(r=>r.place_id)).size}건물, 시세·통계 제외)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
+ console.log(line.join(' | '));
+ if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
+}
 
 console.log('PUBLISHED');
 wh.close();

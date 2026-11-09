@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {splitTrades,dongOwners,dongKey} from './shared-split.mjs';
+import {splitTrades,dongOwners,dongKey,planPlaceSplit} from './shared-split.mjs';
 
 const none=new Map();
 const sale=(key,area,building,name='x')=>({key,deal:'sale',area,building,name});
@@ -44,3 +44,27 @@ test('a combined name stays shared',()=>{
 });
 
 test('dongKey ignores the 동 suffix',()=>{assert.equal(dongKey(' 101동'),'101');assert.equal(dongKey(''),null);});
+
+const rent=(key,area)=>({key,deal:'rent',area,building:'',name:'x'});
+test('planPlaceSplit leaves a one-sale-complex building and copies rents for the rental complex',()=>{
+ const cs=[{kapt_code:'R',name:'15단지',sale_type:'임대'},{kapt_code:'S',name:'16단지',sale_type:'분양'}];
+ const p=planPlaceSplit('P',cs,[sale('a',59,'1615'),rent('b',59)],none,none);
+ assert.equal(p.primary,'S');assert.equal(p.primaryMatch,'shared_sale');assert.deepEqual(p.alsoLinked,[]);
+ assert.deepEqual(p.rows.map(r=>[r.id,r.place_id]),[['a','P'],['b','P'],['b~R','P:R']]);
+ assert.deepEqual(p.children,[{kapt_code:'R',name:'15단지'}]);
+});
+test('planPlaceSplit gives each sale complex its own place and keeps the rest on the building',()=>{
+ const cs=[{kapt_code:'6',name:'개포주공6단지',sale_type:'분양'},{kapt_code:'7',name:'개포주공7단지',sale_type:'분양'}];
+ const p=planPlaceSplit('P',cs,[sale('a',83,'607'),sale('b',83,'701'),sale('c',83,'')],none,none);
+ assert.deepEqual(p.rows.map(r=>r.place_id),['P:6','P:7','P']);
+ assert.equal(p.primaryMatch,'shared_lot');assert.deepEqual(p.alsoLinked,['7']);
+});
+test('an unassigned sale among several sale complexes is held, an assigned one is not',()=>{
+ const cs=[{kapt_code:'6',name:'개포주공6단지',sale_type:'분양'},{kapt_code:'7',name:'개포주공7단지',sale_type:'분양'}];
+ const p=planPlaceSplit('P',cs,[sale('a',83,'607'),sale('b',83,'701'),sale('c',83,'')],none,none);
+ assert.deepEqual(p.rows.map(r=>!!r.held),[false,false,true]);
+});
+
+test('planPlaceSplit skips a building with no sale complex',()=>{
+ assert.equal(planPlaceSplit('P',[{kapt_code:'A',sale_type:'임대'},{kapt_code:'B',sale_type:'임대'}],[],none,none),null);
+});

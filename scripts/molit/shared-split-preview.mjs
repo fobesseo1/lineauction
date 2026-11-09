@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {writeFileSync} from 'node:fs';
 import {createClient} from '@supabase/supabase-js';
 import {areaStats,periodStart} from './summary.mjs';
-import {splitTrades,isSaleComplex} from './shared-split.mjs';
+import {splitTrades,isSaleComplex,rentOwnerAmongAll} from './shared-split.mjs';
 process.loadEnvFile('.env.local');
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
@@ -24,7 +24,7 @@ for(const t of await inChunks('complex_area_types','kapt_code,exclusive_area,hou
 const start=periodStart(new Date());
 const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35);const from36=d.toISOString().slice(0,10);
 const q=wh.prepare(`select key,lawd,umd,jibun,name,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type from trades where kind='apt' and lawd=? and umd=? and jibun=? and deal_date>=? and area is not null`);
-const areaRow=(trades)=>{const m=new Map();for(const t of trades)(m.get(Math.floor(t.area))??m.set(Math.floor(t.area),[]).get(Math.floor(t.area))).push(t);return [...m].sort((a,b)=>a[0]-b[0]).map(([a,g])=>{const s=areaStats(g);return {area:a,sale:s.sale_count,price:s.sale_median,jeonse:s.jeonse_count,jeonsePrice:s.jeonse_median};}).filter(r=>r.sale||r.jeonse);};
+const areaRow=(trades)=>{const m=new Map();for(const t of trades)(m.get(Math.floor(t.area))??m.set(Math.floor(t.area),[]).get(Math.floor(t.area))).push(t);return [...m].sort((a,b)=>a[0]-b[0]).map(([a,g])=>{const s=areaStats(g);return {area:a,sale:s.sale_count,price:s.sale_median,jeonse:s.jeonse_count,jeonsePrice:s.jeonse_median,wolse:s.wolse_count};}).filter(r=>r.sale||r.jeonse||r.wolse);};
 const places=[];
 for(const [id,kapts] of shared){
  const [,lawd,umd,jibun]=id.split(':');
@@ -33,14 +33,15 @@ for(const [id,kapts] of shared){
  const {result,sale,dropped,agree}=splitTrades(cs,trades,buildings,types);
  const methods={};for(const t of trades)if(t.deal==='sale'){const m=result.get(t.key).method;methods[m]=(methods[m]??0)+1;}
  const recent=trades.filter(t=>t.deal_date>=start);
- const validSales=recent.filter(t=>t.deal==='sale'&&!t.cancel_date&&t.dealing!=='직거래').length;
+ const rentsRecent=recent.filter(t=>t.deal==='rent');
+ const rentResolved=sale.length===1?rentsRecent.filter(t=>rentOwnerAmongAll(t,cs,types)).length:rentsRecent.filter(t=>result.get(t.key).owner).length;
  const rows=cs.map(c=>{
-  const after=recent.filter(t=>{const r=result.get(t.key);if(!isSaleComplex(c)&&t.deal==='sale')return false;return r.owner===c.kapt_code||r.owner==null;});
-  return {kapt_code:c.kapt_code,name:c.name,sale_type:c.sale_type,households:c.households,before:areaRow(recent),after:areaRow(after),
-   saleBefore:validSales,saleAfter:areaRow(after).reduce((a,r)=>a+r.sale,0),
-   own:recent.filter(t=>t.deal==='sale'&&!t.cancel_date&&t.dealing!=='직거래'&&result.get(t.key).owner===c.kapt_code).length};
+  const mine=t=>{const r=result.get(t.key);if(t.deal==='sale')return isSaleComplex(c)&&(r.owner===c.kapt_code||(sale.length===1&&r.owner));return r.owner===c.kapt_code||r.owner==null;};
+  const held=t=>{const r=result.get(t.key);return t.deal==='rent'?r.owner===c.kapt_code:mine(t);};
+  const keep=areaRow(recent.filter(mine)),hold=areaRow(recent.filter(held));
+  return {kapt_code:c.kapt_code,name:c.name,sale_type:c.sale_type,households:c.households,before:areaRow(recent),after:keep,afterHold:hold};
  });
- places.push({id,saleComplexes:sale.length,complexes:rows,methods,totalSales36:trades.filter(t=>t.deal==='sale').length,totalRents36:trades.filter(t=>t.deal==='rent').length,dongBlank:trades.filter(t=>t.deal==='sale'&&!t.building).length,dropped,validSales,agree});
+ places.push({id,saleComplexes:sale.length,complexes:rows,methods,totalSales36:trades.filter(t=>t.deal==='sale').length,rentsRecent:rentsRecent.length,rentResolved,dropped,agree});
 }
 writeFileSync(process.argv[2],JSON.stringify(places));
 wh.close();

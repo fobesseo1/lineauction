@@ -114,3 +114,37 @@ export function splitTrades(complexes,trades,buildings,types){
  }
  return {result:out,sale,dropped,agree};
 }
+
+// Rents have no 동 number: how far area or filed name gets among all complexes here, rentals included.
+export function rentOwnerAmongAll(t,complexes,types){
+ const lists=complexes.map(c=>({kapt_code:c.kapt_code,areas:types.get(c.kapt_code)??[]}));
+ const byArea=lists.every(l=>l.areas.length)?areaOwner(t.area,lists):null;
+ return byArea??ownerOfName(t.name,complexes);
+}
+
+export const childPlaceId=(parent,kapt)=>`${parent}:${kapt}`;
+export const rentCopyId=(key,kapt)=>`${key}~${kapt}`;
+// Where each trade of a shared building goes. complexes are the building's linked complexes.
+// - One sale complex: the building stays that complex's, trades unmoved. Each rental complex gets a
+//   small place of its own holding copies of the rents, so it shows no sales.
+// - Several sale complexes: each gets a small place with the trades assigned to it. What cannot be
+//   assigned stays on the building, which all sale complexes keep linked ('shared_lot').
+// Returns null when there is nothing to split.
+export function planPlaceSplit(parentId,complexes,trades,buildings,types){
+ if(complexes.length<2)return null;
+ const ordered=[...complexes].sort((a,b)=>a.kapt_code<b.kapt_code?-1:1);
+ const {result,sale,dropped,agree}=splitTrades(ordered,trades,buildings,types);
+ if(!sale.length)return null;
+ const rental=ordered.filter(c=>!isSaleComplex(c));
+ const many=sale.length>1;
+ const rows=[],used=new Set();
+ for(const t of trades){
+  const {owner,method}=result.get(t.key);
+  if(many&&owner){const place_id=childPlaceId(parentId,owner);used.add(owner);rows.push({t,id:t.key,place_id,method});continue;}
+  // A sale no complex can claim is held: listed on the building, out of every statistic until a later run settles it.
+  rows.push({t,id:t.key,place_id:parentId,method,held:many&&t.deal==='sale'&&!owner});
+  if(t.deal==='rent'&&!owner)for(const r of rental){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
+ }
+ return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',alsoLinked:sale.slice(1).map(c=>c.kapt_code),
+  children:ordered.filter(c=>used.has(c.kapt_code)).map(c=>({kapt_code:c.kapt_code,name:c.name})),rows,dropped,agree};
+}
