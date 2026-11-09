@@ -348,5 +348,6 @@
  {"place_id":"rh:41820:설악면 선촌리:25-1","kapt_code":"A10021644","action":"primary","note":"청아빌라2차","checked":"2026-11-09 연립 신고·같은 지번"},
  {"place_id":"rh:41830:양평읍 창대리:836","kapt_code":"A10023849","action":"primary","note":"양평까뮤이스테이트","checked":"2026-11-09 연립 신고·같은 지번"},
  {"place_id":"apt:11380:증산동:254","kapt_code":"A12275801","action":"also","note":"증산로13길44-5 = DMC문영퀸즈파크 (도로명 동일, 사용자 확인)","checked":"2026-11-09 사용자 호갱노노"},
- {"place_id":"rh:11530:항동:1-5","kapt_code":"A15271602","action":"primary","note":"그린빌라 (연립 신고)","checked":"2026-11-09 사용자 호갱노노"}
+ {"place_id":"rh:11530:항동:1-5","kapt_code":"A15271602","action":"primary","note":"그린빌라 (연립 신고)","checked":"2026-11-09 사용자 호갱노노"},
+ {"place_id":"apt:11380:증산동:258","kapt_code":"A10022981","action":"also","note":"디엠씨센트럴자이주상복합 = DMC센트럴자이 (도로명 수색로 200, 사용자 확인)","checked":"2026-11-09 사용자 호갱노노"}
 ]
