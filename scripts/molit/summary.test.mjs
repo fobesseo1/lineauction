@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart,applyManualLinks} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart,applyManualLinks,newUnlinked} from './summary.mjs';
 
 test('applyManualLinks replaces a building\'s complex or adds one',()=>{
  const places=new Map([['a',{id:'a',kapt_code:'WRONG',kapt_match:'near_name'}],['b',{id:'b',kapt_code:'RENTAL',kapt_match:'pnu'}]]);
@@ -112,4 +112,10 @@ test('monthlyHistory lines up medians with the month list',()=>{
   {deal:'sale',amount:80,deal_date:'2025-01-01',dealing:'중개거래'},
  ],['2026-01','2026-02','2026-03']);
  assert.deepEqual(h,{from:'2026-01',sale:'0:110:2',jeonse:'2:50:1'});
+});
+
+test('newUnlinked lists capital-area apartments with no link and not confirmed',()=>{
+ const c=(kapt_code,section='apartment',sido='서울특별시')=>({kapt_code,section,sido,name:kapt_code});
+ const got=newUnlinked([c('a'),c('b'),c('c'),c('d','commercial'),c('e','apartment','부산광역시')],new Set(['b']),new Set(['c']));
+ assert.deepEqual(got.map(x=>x.kapt_code),['a']);
 });

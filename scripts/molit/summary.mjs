@@ -74,6 +74,10 @@ export function applyManualLinks(places,manual){
  return {extra,missing};
 }
 
+// 수도권 apartment complexes with no building link and not yet confirmed as having none.
+const CAPITAL=new Set(['서울특별시','경기도','인천광역시']);
+export const newUnlinked=(complexes,linked,confirmed)=>complexes.filter(c=>c.section==='apartment'&&CAPITAL.has(c.sido)&&!linked.has(c.kapt_code)&&!confirmed.has(c.kapt_code));
+
 export function median(values){
  if(!values.length)return null;
  const s=[...values].sort((a,b)=>a-b),mid=s.length>>1;

@@ -12,7 +12,7 @@ import {planPlaceSplit,childPlaceId} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,applyManualLinks} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,applyManualLinks,newUnlinked} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -30,7 +30,7 @@ const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 // also covers complexes whose detail (and so PNU) is not collected yet.
 const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map(),complexList=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type,dong_count,units_le60,units_le85,units_le135,units_gt135').order('id').range(from,from+999);
+ const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type,section,sido,dong_count,units_le60,units_le85,units_le135,units_gt135').order('id').range(from,from+999);
  if(error)throw Error(error.message);
  for(const c of data){
   complexList.push(c);
@@ -416,6 +416,19 @@ if(process.env.SHARED_SPLIT!=='off'){
  const line=[`이름으로 못 나눈 매매 ${commonRows.length.toLocaleString('ko-KR')}건 (단지 공통 반영)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
  console.log(line.join(' | '));
  if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
+}
+
+// Complexes newly without a building, to the operator chat, by name. Confirmed ones are in unlinked-confirmed.json.
+{
+ const confirmed=new Set(JSON.parse(await readFile(new URL('./unlinked-confirmed.json',import.meta.url),'utf8')).map(c=>c.kapt_code));
+ const fresh=newUnlinked(complexList,new Set(linkRows.map(l=>l.kapt_code)),confirmed);
+ console.log(`연결 안 된 새 단지 ${fresh.length}곳`);
+ if(fresh.length&&process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){
+  const names=fresh.slice(0,30).map(c=>c.name).join(', ').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>연결 안 된 새 단지 ${fresh.length}곳</b>
+${names}`);
+  if(!r.ok)console.error('telegram failed',r.description);
+ }
 }
 
 console.log('PUBLISHED');
