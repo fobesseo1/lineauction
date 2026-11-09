@@ -126,6 +126,7 @@ export function planPlaceSplit(parentId,complexes,trades,buildings){
   rows.push({t,id:t.key,place_id:parentId,method,held:many&&t.deal==='sale'&&!owner});
   if(t.deal==='rent'&&!owner)for(const r of rental){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
  }
- return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',alsoLinked:sale.slice(1).map(c=>c.kapt_code),
+ // A building left to one complex goes by that name, not whichever complex filed the latest trade.
+ return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',parentName:many?null:sale[0].name,alsoLinked:sale.slice(1).map(c=>c.kapt_code),
   children:ordered.filter(c=>used.has(c.kapt_code)).map(c=>({kapt_code:c.kapt_code,name:c.name})),rows,dropped,agree};
 }

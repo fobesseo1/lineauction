@@ -74,7 +74,7 @@ test('sales assigned by 동 that do not fit the complex are held',()=>{
 test('planPlaceSplit leaves a one-sale-complex building and gives the rental complex its rents',()=>{
  const cs=[c('R','15단지','임대'),c('S','16단지')];
  const p=planPlaceSplit('P',cs,[sale('a',59,'1615'),rent('b',59),rent('c',59,'15단지(임대)')],none);
- assert.equal(p.primary,'S');assert.equal(p.primaryMatch,'shared_sale');
+ assert.equal(p.primary,'S');assert.equal(p.primaryMatch,'shared_sale');assert.equal(p.parentName,'16단지');
  assert.deepEqual(p.rows.map(r=>[r.id,r.place_id]),[['a','P'],['b','P'],['b~R','P:R'],['c','P:R']]);
 });
 

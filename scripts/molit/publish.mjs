@@ -169,7 +169,7 @@ if(process.env.SHARED_SPLIT!=='off'){
   }
   if(!plan)continue;
   splitPlaces.set(id,plan);
-  Object.assign(p,{kapt_code:plan.primary,kapt_match:plan.primaryMatch});
+  Object.assign(p,{kapt_code:plan.primary,kapt_match:plan.primaryMatch},plan.parentName?{name:plan.parentName}:{});
   for(let i=extraLinks.length-1;i>=0;i--)if(extraLinks[i].place_id===id)extraLinks.splice(i,1);
   for(const k of plan.alsoLinked)extraLinks.push({place_id:id,kapt_code:k,kapt_match:'shared_lot'});
   for(const c of plan.children){const child=childPlaceId(id,c.kapt_code);places.set(child,{...p,id:child,name:c.name,kapt_code:c.kapt_code,kapt_match:'shared_split'});}
