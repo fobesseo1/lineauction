@@ -8,7 +8,7 @@ import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {guardDeletes} from '../daily/delete-guard.mjs';
-import {planPlaceSplit,childPlaceId} from './shared-split.mjs';
+import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
@@ -177,6 +177,21 @@ if(process.env.SHARED_SPLIT!=='off'){
   for(const c of plan.children){const child=childPlaceId(id,c.kapt_code);places.set(child,{...p,id:child,name:c.name,kapt_code:c.kapt_code,kapt_match:'shared_split'});}
  }
  console.log(`shared buildings ${shared.length}, split ${splitPlaces.size}, small places ${[...splitPlaces.values()].reduce((a,s)=>a+s.children.length,0)}`);
+}
+
+// Complexes whose sales MOLIT files as commercial (집합, nrgSale): they get an apartment place of their own.
+{
+ const q=wh.prepare(`select key,name,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
+  from trades where kind='nrg' and lawd=? and umd=? and jibun=? and deal_date>=? and area is not null`);
+ for(const m of JSON.parse(await readFile(new URL('./nrg-as-apt.json',import.meta.url),'utf8'))){
+  const id=placeId('apt',m.lawd,m.umd,m.jibun),plan=nrgSalesPlan(id,m.kapt_code,q.all(m.lawd,m.umd,m.jibun,`${months[0]}-01`),m.minArea);
+  const c=complexList.find(x=>x.kapt_code===m.kapt_code);
+  if(!plan||!c)continue;
+  const [sido,...rest]=(regionName.get(m.lawd)??'').split(' ');
+  const bjd=bjdByDong.get(`${m.lawd}:${m.umd}`)??null;
+  places.set(id,{id,kind:'apt',lawd:m.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:m.umd,jibun:m.jibun,bjd_code:bjd,pnu:jibunPnu(bjd,m.jibun),name:c.name,build_year:m.build_year??null,kapt_code:m.kapt_code,kapt_match:'manual',refreshed_at:runAt});
+  splitPlaces.set(id,plan);
+ }
 }
 
 // Stats and 전월세 contracts over the last 12 months, streamed in building+area order.

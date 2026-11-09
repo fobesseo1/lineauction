@@ -146,3 +146,10 @@ export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,
  return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',parentName:many?null:sale[0].name,alsoLinked:sale.slice(1).map(c=>c.kapt_code),
   children:ordered.filter(c=>used.has(c.kapt_code)).map(c=>({kapt_code:c.kapt_code,name:c.name})),rows,dropped,agree};
 }
+
+// Sales of an apartment complex MOLIT files as commercial (집합), for one lot, as a plan like a split:
+// the rows of an ordinary apartment place. minArea keeps the shops in the same filing out.
+export function nrgSalesPlan(placeId,kapt,trades,minArea){
+ const rows=trades.filter(t=>t.deal==='sale'&&t.area>=minArea).map(t=>({t,id:t.key,place_id:placeId,method:'nrg'}));
+ return rows.length?{primary:kapt,primaryMatch:'manual',alsoLinked:[],children:[],parentName:null,rows,dropped:null,agree:null}:null;
+}

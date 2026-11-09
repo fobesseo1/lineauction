@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {splitTrades,dongOwners,dongKey,planPlaceSplit,ownerOfName} from './shared-split.mjs';
+import {splitTrades,dongOwners,dongKey,planPlaceSplit,ownerOfName,nrgSalesPlan} from './shared-split.mjs';
 
 const none=new Map();
 const sale=(key,area,building,name='x')=>({key,deal:'sale',area,building,name});
@@ -114,3 +114,8 @@ test('planPlaceSplit skips a building with no sale complex',()=>{
 });
 
 test('dongKey ignores the 동 suffix',()=>{assert.equal(dongKey(' 101동'),'101');assert.equal(dongKey(''),null);});
+
+test('nrgSalesPlan keeps sales of flat sizes and leaves the small shops out',()=>{
+ const p=nrgSalesPlan('P','K',[{key:'a',deal:'sale',area:84.9},{key:'b',deal:'sale',area:28.3},{key:'c',deal:'rent',area:84.9}],60);
+ assert.deepEqual(p.rows.map(r=>r.id),['a']);assert.equal(p.primary,'K');
+});
