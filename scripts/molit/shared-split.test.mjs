@@ -65,6 +65,20 @@ test('an unassigned sale among several sale complexes is held, an assigned one i
  assert.deepEqual(p.rows.map(r=>!!r.held),[false,false,true]);
 });
 
+test('a split that leaves one complex with nothing is not applied',()=>{
+ const cs=[{kapt_code:'A',name:'양지마을 금호 1단지',sale_type:'분양'},{kapt_code:'B',name:'수내양지마을청구',sale_type:'분양'}];
+ const trades=Array.from({length:12},(_,i)=>sale(`t${i}`,59,'','양지마을(금호,청구)'));
+ const r=splitTrades(cs,trades,none,none);
+ assert.equal(method(r,'t0'),'shared');assert.match(r.dropped,/배정된 매매 없음/);
+});
+
+test('a split giving a complex sizes it does not have is not applied',()=>{
+ const cs=[{kapt_code:'A',name:'가단지1단지',sale_type:'분양',units_le60:100,units_le85:0,units_le135:0,units_gt135:0},{kapt_code:'B',name:'나단지2단지',sale_type:'분양',units_le60:0,units_le85:100,units_le135:0,units_gt135:0}];
+ const trades=[...Array.from({length:6},(_,i)=>sale(`a${i}`,84,'101')),...Array.from({length:6},(_,i)=>sale(`b${i}`,84,'201'))];
+ const r=splitTrades(cs,trades,none,none);
+ assert.match(r.dropped,/없는 평형대/);
+});
+
 test('planPlaceSplit skips a building with no sale complex',()=>{
  assert.equal(planPlaceSplit('P',[{kapt_code:'A',sale_type:'임대'},{kapt_code:'B',sale_type:'임대'}],[],none,none),null);
 });

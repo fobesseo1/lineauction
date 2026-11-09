@@ -56,8 +56,9 @@ function ownerOfName(name,sale){
  const sameOrd=c=>{const nb=ordinals(c.name);return na.size&&nb.size&&[...na].some(n=>nb.has(n));};
  const byPart=ownerByPart(name,sale);
  if(byPart)return byPart;
- // Strictest test first; a test that fits two complexes settles nothing.
- for(const fits of [c=>similarName(name,c.name),
+ // Strictest test first; a test that fits two complexes settles nothing. A name with no number
+ // cannot pick one of several numbered complexes (similarName alone would call it 1단지).
+ for(const fits of [c=>similarName(name,c.name)&&(na.size>0||!ordinals(c.name).size),
   c=>sharesNamePart(name,c.name)&&(!na.size||!ordinals(c.name).size||sameOrd(c)),
   c=>sameOrd(c)&&commonRun(base,normalizeName(c.name).replace(/\d+/g,''))>=2]){
   const hits=sale.filter(fits);
@@ -112,7 +113,29 @@ export function splitTrades(complexes,trades,buildings,types){
   if(byName){put(t,byName,'name');continue;}
   put(t,null,'shared');
  }
+ // The split as a whole has to look like these complexes; otherwise nothing here is split.
+ const failed=implausible(sale,sales.map(t=>({t,owner:out.get(t.key).owner})));
+ if(failed){for(const t of trades)put(t,null,'shared');dropped=failed;}
  return {result:out,sale,dropped,agree};
+}
+
+const unitsAt=(c,area)=>area<=60?c.units_le60:area<=85?c.units_le85:area<=135?c.units_le135:c.units_gt135;
+// Why an assignment of a building's sales cannot be right, or null: a complex left with no sales when
+// the building has many, more 동 than the complex has, or sizes K-APT says the complex does not have.
+function implausible(sale,assigned){
+ const owned=assigned.filter(a=>a.owner);
+ if(owned.length<10)return null;
+ for(const c of sale){
+  const mine=owned.filter(a=>a.owner===c.kapt_code);
+  if(!mine.length)return `${c.name}: 배정된 매매 없음`;
+  const dongs=new Set(mine.map(a=>dongKey(a.t.building)).filter(Boolean));
+  if(c.dong_count&&dongs.size>c.dong_count*1.2+1)return `${c.name}: 동 ${dongs.size}개 > 단지 ${c.dong_count}개`;
+  if((c.units_le60??0)+(c.units_le85??0)+(c.units_le135??0)+(c.units_gt135??0)>0){
+   const off=mine.filter(a=>!(unitsAt(c,a.t.area)>0)).length;
+   if(off/mine.length>0.1)return `${c.name}: 없는 평형대 ${off}/${mine.length}건`;
+  }
+ }
+ return null;
 }
 
 // Rents have no 동 number: how far area or filed name gets among all complexes here, rentals included.

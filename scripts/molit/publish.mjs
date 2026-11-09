@@ -30,7 +30,7 @@ const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 // also covers complexes whose detail (and so PNU) is not collected yet.
 const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map(),complexList=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type').order('id').range(from,from+999);
+ const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type,dong_count,units_le60,units_le85,units_le135,units_gt135').order('id').range(from,from+999);
  if(error)throw Error(error.message);
  for(const c of data){
   complexList.push(c);

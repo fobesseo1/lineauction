@@ -16,7 +16,7 @@ const links=await all('market_place_complexes','place_id,kapt_code,kapt_match',q
 const byPlace=new Map();for(const l of links)(byPlace.get(l.place_id)??byPlace.set(l.place_id,[]).get(l.place_id)).push(l.kapt_code);
 const shared=[...byPlace].filter(([id,k])=>k.length>1&&id.startsWith('apt:'));
 const codes=[...new Set(shared.flatMap(([,k])=>k))];
-const complexes=new Map((await inChunks('complexes','kapt_code,name,sale_type,households,dong_count,sigungu,dong','kapt_code',codes)).map(c=>[c.kapt_code,c]));
+const complexes=new Map((await inChunks('complexes','kapt_code,name,sale_type,households,dong_count,sigungu,dong,units_le60,units_le85,units_le135,units_gt135','kapt_code',codes)).map(c=>[c.kapt_code,c]));
 const buildings=new Map(),types=new Map();
 for(const b of await inChunks('complex_buildings','kapt_code,dong_name,households,main_purpose','kapt_code',codes)){if(!(b.households>0)&&!/아파트/.test(b.main_purpose??''))continue;(buildings.get(b.kapt_code)??buildings.set(b.kapt_code,[]).get(b.kapt_code)).push(b.dong_name);}
 for(const t of await inChunks('complex_area_types','kapt_code,exclusive_area,households','kapt_code',codes))(types.get(t.kapt_code)??types.set(t.kapt_code,[]).get(t.kapt_code)).push(Number(t.exclusive_area));
