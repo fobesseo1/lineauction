@@ -67,6 +67,31 @@ test('areaStats excludes cancelled and 직거래 sales and computes the jeonse r
  assert.equal(s.jeonse_count,2);assert.equal(s.jeonse_median,55000);assert.equal(s.wolse_count,1);assert.equal(s.wolse_deposit_median,10000);assert.equal(s.wolse_rent_median,150);assert.equal(s.jeonse_ratio,52.4);
 });
 
+const jeonseDeal=(deposit,contract_type,deal_date='2026-03-01')=>({deal:'rent',deposit,monthly_rent:0,contract_type,deal_date});
+
+test('areaStats prices jeonse from new contracts when there are three or more',()=>{
+ const s=areaStats([
+  {deal:'sale',amount:100000,deal_date:'2026-03-01',dealing:'중개거래'},
+  jeonseDeal(70000,'신규'),jeonseDeal(80000,'신규'),jeonseDeal(90000,'신규'),
+  jeonseDeal(20000,'갱신'),jeonseDeal(21000,'갱신'),jeonseDeal(22000,'갱신'),jeonseDeal(23000,null),
+  {deal:'rent',deposit:10000,monthly_rent:150,contract_type:'신규'},
+ ]);
+ assert.equal(s.jeonse_basis,'new');assert.equal(s.jeonse_count,3);assert.equal(s.jeonse_median,80000);assert.equal(s.jeonse_ratio,80);
+ assert.equal(s.wolse_count,1);
+});
+
+test('areaStats keeps every jeonse contract with fewer than three new ones, and blank is not new',()=>{
+ const s=areaStats([jeonseDeal(70000,'신규'),jeonseDeal(80000,'신규'),jeonseDeal(20000,null),jeonseDeal(10000,''),jeonseDeal(30000,'갱신')]);
+ assert.equal(s.jeonse_basis,'all');assert.equal(s.jeonse_count,5);assert.equal(s.jeonse_median,30000);
+ assert.equal(areaStats([]).jeonse_basis,'all');
+});
+
+test('monthlyHistory uses one jeonse basis for every month',()=>{
+ const trades=[jeonseDeal(70000,'신규','2026-01-05'),jeonseDeal(20000,'갱신','2026-01-20'),jeonseDeal(21000,'갱신','2026-02-10')];
+ assert.equal(monthlyHistory(trades,['2026-01','2026-02'],'new').jeonse,'0:70000:1');
+ assert.equal(monthlyHistory(trades,['2026-01','2026-02'],'all').jeonse,'0:45000:2,1:21000:1');
+});
+
 test('periodStart is one year back in KST and placeId is stable',()=>{
  assert.equal(periodStart(new Date('2026-10-12T01:00:00Z')),'2025-10-12');
  assert.equal(placeId('apt','11680','대치동','316'),'apt:11680:대치동:316');

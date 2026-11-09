@@ -69,12 +69,19 @@ export function median(values){
 // Valid sale = not cancelled and not 직거래 (often a related-party price).
 export const validSale=t=>t.deal==='sale'&&!t.cancel_date&&t.dealing!=='직거래'&&t.amount!=null;
 export const isJeonse=t=>t.deal==='rent'&&(t.monthly_rent??0)===0&&t.deposit!=null;
+const isNewJeonse=t=>isJeonse(t)&&t.contract_type==='신규';
+const MIN_NEW_JEONSE=3;
+// Renewals (갱신) and public-rental deals drag a jeonse median far below the market, so a building+area
+// is priced from its new contracts when it has enough of them; otherwise ('all') from every contract.
+// A blank contract_type does not count as new.
+export const jeonseBasis=trades=>trades.filter(isNewJeonse).length>=MIN_NEW_JEONSE?'new':'all';
 
 // One market_area_stats row from all of a building+area's trades inside the period.
 export function areaStats(trades){
  const sales=trades.filter(validSale).sort((a,b)=>a.deal_date.localeCompare(b.deal_date));
  const amounts=sales.map(t=>t.amount);
- const jeonse=trades.filter(isJeonse).map(t=>t.deposit);
+ const basis=jeonseBasis(trades);
+ const jeonse=trades.filter(basis==='new'?isNewJeonse:isJeonse).map(t=>t.deposit);
  const wolse=trades.filter(t=>t.deal==='rent'&&(t.monthly_rent??0)>0);
  const last=sales.at(-1);
  const saleMedian=median(amounts),jeonseMedian=median(jeonse);
@@ -82,7 +89,7 @@ export function areaStats(trades){
   sale_count:sales.length,sale_median:saleMedian,
   sale_min:amounts.length?Math.min(...amounts):null,sale_max:amounts.length?Math.max(...amounts):null,
   sale_last_amount:last?.amount??null,sale_last_date:last?.deal_date??null,sale_last_floor:last?.floor??null,
-  jeonse_count:jeonse.length,jeonse_median:jeonseMedian,
+  jeonse_count:jeonse.length,jeonse_median:jeonseMedian,jeonse_basis:basis,
   // 월세 보증금·월세 medians (만원) feed the price calculator's income approach.
   wolse_count:wolse.length,wolse_deposit_median:median(wolse.map(t=>t.deposit??0)),wolse_rent_median:median(wolse.map(t=>t.monthly_rent)),
   jeonse_ratio:saleMedian&&jeonseMedian?Math.round(jeonseMedian/saleMedian*1000)/10:null,
@@ -98,12 +105,15 @@ export function periodStart(now){
 // Month-by-month medians for a price chart, stored sparsely to keep the free-tier DB small:
 //   {"from":"2023-11","sale":"0:201000:3,1:192500:5","jeonse":"2:110000:4"}
 // Each entry is <month index from "from">:<median 만원>:<count>; months without trades are left out.
-export function monthlyHistory(trades,months){
+// basis is the building+area's 12-month jeonse_basis; one basis for every month keeps the line from
+// jumping between new-contract and renewal prices.
+export function monthlyHistory(trades,months,basis='all'){
+ const countsAsJeonse=basis==='new'?isNewJeonse:isJeonse;
  const index=new Map(months.map((m,i)=>[m,i]));
  const sale=months.map(()=>[]),jeonse=months.map(()=>[]);
  for(const t of trades){
   const i=index.get(t.deal_date?.slice(0,7));if(i===undefined)continue;
-  if(validSale(t))sale[i].push(t.amount);else if(isJeonse(t))jeonse[i].push(t.deposit);
+  if(validSale(t))sale[i].push(t.amount);else if(countsAsJeonse(t))jeonse[i].push(t.deposit);
  }
  const pack=lists=>lists.map((v,i)=>v.length?`${i}:${median(v)}:${v.length}`:null).filter(Boolean).join(',');
  return {from:months[0],sale:pack(sale),jeonse:pack(jeonse)};
