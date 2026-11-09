@@ -116,6 +116,7 @@ test('monthlyHistory lines up medians with the month list',()=>{
 
 test('newUnlinked lists capital-area apartments with no link and not confirmed',()=>{
  const c=(kapt_code,section='apartment',sido='서울특별시')=>({kapt_code,section,sido,name:kapt_code});
- const got=newUnlinked([c('a'),c('b'),c('c'),c('d','commercial'),c('e','apartment','부산광역시')],new Set(['b']),new Set(['c']));
+ const rental={...c('f'),sale_type:'임대'};
+ const got=newUnlinked([c('a'),c('b'),c('c'),c('d','commercial'),c('e','apartment','부산광역시'),rental],new Set(['b']),new Set(['c']));
  assert.deepEqual(got.map(x=>x.kapt_code),['a']);
 });

@@ -119,3 +119,22 @@ test('nrgSalesPlan keeps sales of flat sizes and leaves the small shops out',()=
  const p=nrgSalesPlan('P','K',[{key:'a',deal:'sale',area:84.9},{key:'b',deal:'sale',area:28.3},{key:'c',deal:'rent',area:84.9}],60);
  assert.deepEqual(p.rows.map(r=>r.id),['a']);assert.equal(p.primary,'K');
 });
+
+test('a rental complex with no rents of its own gets copies of the building rents',()=>{
+ const cs=[c('S','유원하나'),c('R','홍제유원하나제2','임대')];
+ const p=planPlaceSplit('P',cs,[sale('a',82,'','유원하나'),rent('b',82,'유원하나')],none);
+ assert.deepEqual(p.rows.map(r=>[r.id,r.place_id]),[['a','P'],['b','P'],['b~R','P:R']]);
+});
+
+test('an extend rule adds to the name step and leaves other trades as the rules left them',()=>{
+ const cs=[c('A','루원시티 SK리더스뷰'),c('B','루원시티2차SK리더스뷰아파트'),c('C','포레나루원시티아파트')];
+ const trades=[sale('a',84,'',"루원시티SKLeaders'VIEW"),sale('b',84,'','루원시티2차SKLeaders`VIEW'),sale('c',84,'','포레나루원시티')];
+ const p=planPlaceSplit('P',cs,trades,none,{override:{extend:true,names:[{contains:'2차SKLeaders',owner:'B'},{contains:"시티SKLeaders'",owner:'A'}]}});
+ assert.deepEqual(p.rows.filter(r=>!r.statOnly).map(r=>r.place_id),['P:A','P:B','P:C']);
+});
+
+test('an area rule places sales by floor area',()=>{
+ const cs=[c('S','연수솔밭마을'),c('G','연수승기마을')];
+ const p=planPlaceSplit('P',cs,[{...sale('a',49.56,'','솔밭마을아파트'),deal_date:'2026-01-01'},{...sale('b',26.3,'','승기마을,연수1차시영'),deal_date:'2026-01-01'}],none,{override:{area:{49:'S',26:'G'}}});
+ assert.deepEqual(p.rows.map(r=>r.place_id),['P:S','P:G']);
+});

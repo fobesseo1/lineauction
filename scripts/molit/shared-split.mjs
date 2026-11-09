@@ -114,7 +114,8 @@ export const rentCopyId=(key,kapt)=>`${key}~${kapt}`;
 function manualOwner(t,rule){
  if(rule.all)return rule.all;
  const deal=rule.deals?.find(d=>d.date===t.deal_date&&Math.abs(d.area-t.area)<0.01&&d.floor===t.floor&&d.amount===t.amount);
- return deal?.owner??rule.dong?.[dongKey(t.building)]??null;
+ const byName=rule.names?.find(n=>String(t.name??'').includes(n.contains));
+ return deal?.owner??byName?.owner??rule.dong?.[dongKey(t.building)]??rule.area?.[Math.floor(t.area)]??null;
 }
 export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,override=null}={}){
  if(complexes.length<2)return null;
@@ -126,7 +127,8 @@ export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,
  // With a hand-checked rule, only that rule places this building's sales; rents stay common.
  if(override)for(const t of trades){
   const owner=t.deal==='sale'?manualOwner(t,override):null;
-  result.set(t.key,{owner,method:owner?'manual':'shared'});
+  // 'extend' rules only add to what the name and 동 steps settled; the others replace them.
+  if(owner||!override.extend)result.set(t.key,{owner,method:owner?'manual':'shared'});
  }
  const rental=ordered.filter(c=>!isSaleComplex(c));
  const rentalCode=new Set(rental.map(c=>c.kapt_code));
@@ -143,6 +145,11 @@ export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,
   if(t.deal==='rent'&&!owner)for(const r of rental){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
  }
  // A building left to one complex goes by that name, not whichever complex filed the latest trade.
+ // A rental complex with no rents of its own in the filings still shows the building's rents.
+ for(const r of rental){
+  if(used.has(r.kapt_code))continue;
+  for(const t of trades)if(t.deal==='rent'){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
+ }
  return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',parentName:many?null:sale[0].name,alsoLinked:sale.slice(1).map(c=>c.kapt_code),
   children:ordered.filter(c=>used.has(c.kapt_code)).map(c=>({kapt_code:c.kapt_code,name:c.name})),rows,dropped,agree};
 }
