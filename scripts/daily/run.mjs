@@ -169,22 +169,20 @@ for(const started=Date.now();;){
 await notify(`${label} ${trigger==='manual'?'수동':'자동'} 실행 시작`,'진행 상황은 바탕화면 "선경매 진행 상황 보기"에서 볼 수 있습니다.\n끝나면 결과를 알려드립니다.');
 try{
  if(job==='onbid'){
-  // List refresh (≈276 requests) then detail backfill/new listings up to the daily 1,000.
+  // List refresh (≈276 requests, apartments kept), then the detail notes of new apartments (risk flags).
   const list=await step('onbid-list','scripts/onbid/collect.mjs',['--refresh'],3*3600_000);
   // Only a completed list pass may mark missing listings (needs-recheck, then closed on day two).
   const listed=(await readJson('data/onbid/progress.json',{})).status==='list_completed';
   const lifecycle=listed?await step('onbid-lifecycle','scripts/onbid/lifecycle-sync.mjs',[],10*60_000):null;
   const detail=await step('onbid-detail','scripts/onbid/detail.mjs',[],4*3600_000);
   await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
-  // Photos of current listings from the saved detail answers (originals, shrunk to webp).
-  await step('onbid-photos','scripts/onbid/photos.mjs',[],3*3600_000);
   // PNU and map point for new listings that came without them (address search; cached).
   await step('fill-pnu','scripts/geo/fill-pnu.mjs',[],30*60_000);
   // Member alerts (saved conditions, watched properties) for what changed in this run.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
   const progress=await readJson('data/onbid/progress.json',{}),detailState=await readJson('data/onbid/detail-progress.json',{}),budget=await readJson('data/onbid/budget.json',{});
-  const {runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt}=progress;
-  run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt},lifecycle:lifecycle?.code===0?progress.lifecycle:null,detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
+  const {runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt,excludedByUse}=progress;
+  run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt,excludedByUse},lifecycle:lifecycle?.code===0?progress.lifecycle:null,detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
   const listOk=list.code===0||/LIST_ALREADY_COMPLETED/.test(JSON.stringify(list.result));
   const detailOk=detail.code===0;
   run.status=listOk&&detailOk?'completed':'failed';
@@ -258,7 +256,7 @@ try{
    await courtStateGuard();
    // A crashed collector can leave its own lock behind; clear it only when that process is gone.
    for(const path of ['data/court/standalone/running.lock','data/court/pipeline/running.lock']){const held=await readJson(path,null);if(held&&!alive(held.pid))await unlink(path).catch(()=>{});}
-   // 1) List/status refresh of all 16 courts + details/photos for new or due items, 2) DB + MOLIT.
+   // 1) List refresh of all 16 courts + the one detail page of new apartments, 2) apartments to the DB + MOLIT.
    const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass'],6*3600_000);
    // Results (매각/유찰) for items whose sale date passed in the last 7 days, before the DB sync.
    await step('court-past-results','scripts/court/past-results.mjs',[],90*60_000);
@@ -267,17 +265,17 @@ try{
    await step('fill-pnu','scripts/geo/fill-pnu.mjs',[],30*60_000);
    await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
    const collector=await readJson('data/court/standalone/progress.json',{}),latest=await readJson('data/court/pipeline/latest.json',{}),molit=await readJson('data/court/pipeline/molit-request-budget.json',{});
-   run.summary={collector:{status:collector.status,attempted:collector.attempted,succeeded:collector.succeeded,failed:collector.failed,photos:collector.photos,skipped:collector.skipped,error:collector.error},
+   run.summary={collector:{status:collector.status,attempted:collector.attempted,succeeded:collector.succeeded,failed:collector.failed,skipped:collector.skipped,excludedByUse:collector.excludedByUse,error:collector.error},
     pipeline:{status:latest.status,properties:latest.properties,lifecycle:latest.lifecycle,matchedProperties:latest.matchedProperties,matchedTrades:latest.matchedTrades,unmatched:latest.unmatched,errors:latest.errors?.length??null},
     molit:{used:molit.day===day?molit.requests:0,limit:molit.limit}};
    const listOk=list.code===0,pipelineOk=pipeline.code===0&&!(latest.errors??[]).filter(e=>e.stage!=='matching').length;
    run.status=listOk&&pipelineOk?'completed':'failed';
    const p=latest.properties??{};
-   const message=[`목록·상세 확인 ${collector.attempted??0}건 (성공 ${collector.succeeded??0} · 실패 ${collector.failed??0}) · 새 사진 ${collector.photos??0}장`,
+   const message=[`새 아파트 상세 ${collector.attempted??0}건 (성공 ${collector.succeeded??0} · 실패 ${collector.failed??0})`,
     ...((collector.oddRows||collector.badPages)?[`읽지 못하고 건너뛴 줄 ${collector.oddRows??0}개 · 페이지 ${collector.badPages??0}개 (data/court/standalone/odd-rows.jsonl)`]:[]),
     `DB 신규 ${p.created??0} · 변경 ${p.updated??0} · 재확인 필요 ${latest.lifecycle?.['needs-recheck']??0} · 종결 ${latest.lifecycle?.closed??0}`,
     `실거래 연결 ${latest.matchedProperties??0}건 · 국토부 요청 ${run.summary.molit.used}/${run.summary.molit.limit??10000}`].join('\n');
-   const failure=[!listOk&&`목록·사진: ${collector.error??collector.status??list.result}`,!pipelineOk&&`DB·실거래: ${latest.errors?.[0]?.message??latest.status??pipeline.result}`].filter(Boolean).join('\n');
+   const failure=[!listOk&&`목록·상세: ${collector.error??collector.status??list.result}`,!pipelineOk&&`DB·실거래: ${latest.errors?.[0]?.message??latest.status??pipeline.result}`].filter(Boolean).join('\n');
    await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message:`${failure}\n${message}`);
   }
  }

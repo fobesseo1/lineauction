@@ -1,12 +1,14 @@
 import {parse} from 'lossless-json';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
-import {sectionOf} from '../property-section.mjs';
+import {sectionOf,isApartmentUse} from '../property-section.mjs';
 export const LIST_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstListSrvc2/getRlstCltrList2';
 export const DETAIL_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstDtlSrvc2/getRlstDtlInf2';
 export const PROPERTY_CODES='0007,0010,0005,0004,0002,0003,0006,0008,0011,0013';
 // Capital area. 인천 added 2026-10-12 (list ~+15%, details join the deadline-ordered queue).
 export const REGIONS=['서울특별시','경기도','인천광역시'];
 export const scope=r=>REGIONS.includes(r.lctnSdnm)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
+export const onbidUse=r=>String(r.cltrUsgSclsCtgrNm??'').trim()||String(r.cltrUsgMclsCtgrNm??'').trim()||null;
+export const isApartmentRow=r=>isApartmentUse(onbidUse(r));
 export const identity=r=>`${r.cltrMngNo}:${r.pbctCdtnNo}`;
 // Only these payload fields are read back from the DB (onbid_public_detail and cover
 // publishing). Full responses stay in the local raw cache, which keeps the DB small.

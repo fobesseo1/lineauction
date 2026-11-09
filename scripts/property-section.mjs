@@ -11,5 +11,9 @@ export function sectionOf(usage,text=''){
  if(MIXED_USES.has(use))return /오피스텔/.test(text)?'apartment':'commercial';
  return 'commercial';
 }
+// Collection scope since 2026-11-08: apartments only, by the source's own use label. 오피스텔, 빌라,
+// 도시형생활주택, 주상복합 and the rest are not collected; rows already stored stay as they are.
+export const APARTMENT_USE='아파트';
+export const isApartmentUse=use=>String(use??'').trim()===APARTMENT_USE;
 // The text a court item carries that can name the building use.
 export const courtSectionText=item=>JSON.stringify([item?.detail??null,item?.assets??null]);

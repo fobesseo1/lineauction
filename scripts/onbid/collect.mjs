@@ -2,10 +2,10 @@ import {writeJson} from './atomic.mjs';
 import {mkdir,readFile,writeFile,rename,open,unlink,access,appendFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
-import {LIST_ENDPOINT,PROPERTY_CODES,partitionList,decode,rowsOf,scope,identity,toProperty,safeOfficialUrl,displayPayload} from './core.mjs';
+import {LIST_ENDPOINT,PROPERTY_CODES,partitionList,decode,rowsOf,scope,isApartmentRow,onbidUse,identity,toProperty,safeOfficialUrl,displayPayload} from './core.mjs';
 import {reserve} from './budget.mjs';
 process.loadEnvFile('.env.local');
-const root='data/onbid';
+const root=process.env.ONBID_ROOT??'data/onbid'; // another folder only for trying a pass on copied pages
 await mkdir(`${root}/raw`,{recursive:true});
 async function read(name,fallback){try{return JSON.parse(await readFile(`${root}/${name}`,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
 async function save(name,value){await writeJson(`${root}/${name}`,value);}
@@ -69,9 +69,11 @@ try{
    if(Number(e.body.pageNo)!==page||size!==100||!Number.isSafeInteger(total)||total<0||(!rows.length&&(page-1)*size<total))throw Error('INCOMPLETE_PAGE');
    const hash=createHash('sha256').update(rows.map(identity).join('|')).digest('hex');
    if(rows.length&&Object.entries(state.completedPages).some(([key,v])=>key.startsWith(`${state.partition}-`)&&key!==pageKey&&v===hash))throw Error('REPEATED_PAGE');
-   const accepted=rows.filter(scope);
+   const inScope=rows.filter(scope);
    // A documented region filter returning another province must not silently count as complete.
-   if(accepted.some(r=>r.lctnSdnm!==p.region))throw Error('REGION_FILTER_MISMATCH');
+   if(inScope.some(r=>r.lctnSdnm!==p.region))throw Error('REGION_FILTER_MISMATCH');
+   // The list API mixes every property type; only apartments go further.
+   const accepted=inScope.filter(isApartmentRow);
    for(const r of accepted)targets[identity(r)]=r;
    await save(targetsFile,targets);
    const checkedAt=new Date().toISOString();
@@ -89,14 +91,15 @@ try{
     const obs=await db.from('onbid_observations').upsert(observations,{onConflict:'property_id'});if(obs.error)throw Error(`DB_OBSERVATIONS_${obs.error.code}`);
     state.dbRows+=accepted.length;state.dbUpdatedAt=checkedAt;
    }
-   if(!state.completedPages[pageKey]){state.rows+=rows.length;state.excluded+=rows.length-accepted.length;state.pages++;}
+   if(!state.completedPages[pageKey]){state.rows+=rows.length;state.excluded+=rows.length-accepted.length;state.pages++;state.excludedByUse??={};for(const r of inScope)if(!isApartmentRow(r)){const use=onbidUse(r)??'미상';state.excludedByUse[use]=(state.excludedByUse[use]??0)+1;}}
    state.completedPages[pageKey]=hash;state.partitionTotals[label]=total;
    state.current={...p,page};state.nextPage++;await publish();await event({type:'page_saved',pageKey,rows:rows.length,accepted:accepted.length,total,properties:state.properties,conditions:state.conditions});
    if(page*size>=total)break;
   }
  }
  if(state.refresh){
-  const previous=await read('targets.json',{}),before=new Set(Object.keys(previous)),now=Object.keys(targets);
+  // Compared within apartments, so the first apartment-only pass doesn't report every other type as gone.
+  const previous=Object.fromEntries(Object.entries(await read('targets.json',{})).filter(([,r])=>isApartmentRow(r))),before=new Set(Object.keys(previous)),now=Object.keys(targets);
   state.added=now.filter(k=>!before.has(k)).length;state.removed=[...before].filter(k=>!(k in targets)).length;
   await save('targets.json',targets);await unlink(`${root}/targets-next.json`).catch(()=>{});
  }

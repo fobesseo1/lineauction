@@ -16,3 +16,9 @@ test('the mixed court category is decided by an officetel mention',()=>{
  assert.equal(sectionOf('상가,오피스텔,근린시설',courtSectionText(officetel)),'apartment');
  assert.equal(sectionOf('상가,오피스텔,근린시설',courtSectionText(shop)),'commercial');
 });
+
+test('collection scope is the apartment label only',async()=>{
+ const {isApartmentUse}=await import('./property-section.mjs');
+ assert.equal(isApartmentUse('아파트'),true);assert.equal(isApartmentUse(' 아파트 '),true);
+ for(const use of ['오피스텔','다세대','도시형생활주택','주상복합','상가,오피스텔,근린시설','기타',null])assert.equal(isApartmentUse(use),false);
+});

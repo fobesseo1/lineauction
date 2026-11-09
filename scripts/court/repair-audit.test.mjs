@@ -37,3 +37,11 @@ test('daily refresh: new daily, 5+ never, 0 photos weekly, 1-4 monthly, spread p
   assert.equal(needsDailyRepair({ key: 'a', detail: null }, { ...at(3), state: 'detail-disabled' }, 0, now), false);
   assert.equal(needsDailyRepair({ key: 'a', detail: null }, { ...at(14), state: 'detail-disabled' }, 0, now), true);
 });
+
+test('a court detail page is read once and never for photos', async () => {
+  const { needsCourtDetail } = await import('./repair-audit.mjs');
+  const now = Date.parse('2026-11-10T00:00:00Z');
+  assert.equal(needsCourtDetail({ key: 'a', detail: {} }, undefined, now), false);
+  assert.equal(needsCourtDetail({ key: 'a', detail: null }, undefined, now), true);
+  assert.equal(needsCourtDetail({ key: 'a', detail: null }, { state: 'detail-disabled', checkedAt: '2026-11-08T00:00:00Z' }, now), false);
+});

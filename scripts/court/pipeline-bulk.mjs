@@ -4,12 +4,12 @@ import {assertMolitAllowed,recordMolitRefusal} from './molit-access-gate.mjs';
 import {cachedMolitMonth,reserveMolitRequest} from './molit-request-cache.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createClient} from '@supabase/supabase-js';
-import {uploadCourtMedia,courtMediaUrl} from './media-storage.mjs';
 import {XMLParser} from 'fast-xml-parser';
 import {mapCourtProperty,apartmentTarget,recentMonths,comparisonExclusion} from './pipeline-core.mjs';
 import {lifecycleFromItem} from './lifecycle.mjs';
 import {collectionCoverage} from './coverage.mjs';
 import {inSeoulGyeonggi} from './scope.mjs';
+import {isApartmentUse} from '../property-section.mjs';
 import {classifyApartmentTrade} from '../experiments/comparison.mjs';
 process.loadEnvFile('.env.local');
 const stageOnly=process.argv.includes('--molit-only');
@@ -70,7 +70,9 @@ try{
  if(stageOnly)await writeFile(`${root}/molit-staged-progress.json`,JSON.stringify({...report,status:'running',database:'deferred-until-photo-complete'},null,2));
  const allItems=Object.values(state.items);
  report.outsideScope=allItems.filter(item=>!inSeoulGyeonggi(item)).length;
- const items=allItems.filter(item=>inSeoulGyeonggi(item)&&(!stageOnly||item.use==='아파트')).map(item=>({item,input:mapCourtProperty(item)}));
+ // Only apartments reach the DB. Other types' rows stay as stored: no update, lifecycle or closure.
+ report.excludedByUse={};for(const item of allItems)if(inSeoulGyeonggi(item)&&!isApartmentUse(item.use)){const use=item.use??'미상';report.excludedByUse[use]=(report.excludedByUse[use]??0)+1;}
+ const items=allItems.filter(item=>inSeoulGyeonggi(item)&&isApartmentUse(item.use)).map(item=>({item,input:mapCourtProperty(item)}));
  report.apartments=items.length;
  const accepted=items.filter(x=>x.input);report.plannedRegions=[...new Set(accepted.map(x=>apartmentTarget(x.item)?.regionCode).filter(Boolean))];report.properties.skipped=items.length-accepted.length;
  const outcomes=new Map();
@@ -115,13 +117,6 @@ try{
   for(const batch of chunks(rows)){try{check(await db.from(table).upsert(batch));}catch(error){report.errors.push({stage:table,message:error.message});}}
  }
  for(const batch of chunks([...new Map(matchedTransactions.map(t=>[t.source_transaction_id,t])).values()]))check(await db.from('transactions').upsert(batch,{onConflict:'source,source_transaction_id'}));
- let manifest=[];try{manifest=JSON.parse(await readFile('data/court/media/manifest.json','utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
- const listed=manifest.filter(m=>ids.has(m.key));
- // Photos live in Supabase Storage; upload first so rows never point at a missing object.
- const upload=await uploadCourtMedia(db,listed.map(m=>m.path));
- if(upload.failed.length)throw Error(`Photo storage upload failed (${upload.failed.length})`);
- const media=listed.map(m=>({id:m.id,path:courtMediaUrl(m.path),alt:m.alt??'법원 공개 사진',sort_order:Number(m.alt?.match(/_(\d+)$/)?.[1]??99),source_url:m.source_url,observed_at:m.observed_at,width:m.width,height:m.height,bytes:m.bytes,original_bytes:m.original_bytes,property_id:ids.get(m.key)}));
- for(const batch of chunks(media))check(await db.from('property_media').upsert(batch));report.media=media.length;
  report.finishedAt=new Date().toISOString();report.status=report.errors.length?'partial':'completed';
  check(await db.from('collection_runs').update({status:report.status,finished_at:report.finishedAt,report}).eq('id',runId));
  await writeFile(`${root}/latest.json`,JSON.stringify(report,null,2));

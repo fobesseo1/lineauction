@@ -19,6 +19,9 @@ export function needsDailyRepair(item, check, photoCount, now = Date.now(), { we
   return due(count === 0 ? weekly : monthly);
 }
 
+// Without photos a detail page is only needed once, for the exclusive area and case text.
+export const needsCourtDetail = (item, check, now = Date.now()) => !item?.detail && needsDailyRepair(item, check, 0, now);
+
 // Absence from a traversal is a search task, never proof of sale or withdrawal.
 export function repairAudit(state, { media = [], checks = {}, seen = [], courts = [], completedCourts = [], run, startedAt, finishedAt } = {}) {
   const scope = new Set(courts), observed = new Set(seen), photographed = new Set(media.map(x => x.key));

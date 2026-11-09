@@ -16,3 +16,11 @@ test('standardPnu converts the Onbid land-type digit to the national standard',(
  assert.equal(standardPnu('4115011000100750003'),'4115011000200750003');
  assert.equal(standardPnu('123'),'123');assert.equal(standardPnu(null),null);
 });
+
+test('only apartment rows are collected, by the small category first',async()=>{
+ const {isApartmentRow}=await import('./core.mjs');
+ assert.equal(isApartmentRow({cltrUsgMclsCtgrNm:'주거용건물',cltrUsgSclsCtgrNm:'아파트'}),true);
+ assert.equal(isApartmentRow({cltrUsgMclsCtgrNm:'주거용건물',cltrUsgSclsCtgrNm:'다세대주택'}),false);
+ assert.equal(isApartmentRow({cltrUsgMclsCtgrNm:'용도복합용건물',cltrUsgSclsCtgrNm:'오피스텔'}),false);
+ assert.equal(isApartmentRow({}),false);
+});

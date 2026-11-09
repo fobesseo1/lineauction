@@ -12,3 +12,10 @@ test('first missing day is recheck, a second distinct day closes, reappearance r
  const back=trackMissing(day2.missing,['a','b','c'],['a','b','c'],'2026-10-13');
  assert.deepEqual([back.recheck,back.closed,back.restored,back.missing],[[],[],['c'],{}]);
 });
+
+test('previous list size is rebuilt for the apartment scope once',async()=>{
+ const {previousListedCount}=await import('./lifecycle-core.mjs');
+ assert.equal(previousListedCount({listed:24779},['a','b','c'],{c:{days:['d']}}),2);
+ assert.equal(previousListedCount({listed:1200,scope:'apartment'},['a','b'],{}),1200);
+ assert.equal(previousListedCount(null,['a'],{}),null);
+});

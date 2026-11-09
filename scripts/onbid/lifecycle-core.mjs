@@ -4,6 +4,13 @@
 // never advances the streak.
 export const CLOSE_AFTER_DAYS = 2;
 
+// Size of the previous list pass in today's scope. A ledger from before the apartment-only collection
+// counted every type, so that size is rebuilt: apartment conditions that were not missing at the time.
+export function previousListedCount(last, dbKeys, previousMissing) {
+  if (!last?.listed) return null;
+  return last.scope === 'apartment' ? last.listed : dbKeys.filter(key => !previousMissing[key]).length;
+}
+
 export function trackMissing(previous, dbKeys, listedKeys, day) {
   const listed = new Set(listedKeys), missing = {}, recheck = [], closed = [], restored = [];
   for (const key of dbKeys) {

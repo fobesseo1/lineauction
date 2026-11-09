@@ -7,10 +7,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { parseList, parseDetail, COURT_URL } from './core.mjs';
 import { inSeoulGyeonggi } from './scope.mjs';
 import { saveRun, replaceFile } from './store.mjs';
-import { saveMedia } from './media.mjs';
-import {readAllOfficialPhotos} from './all-photos.mjs';
 import { withCourtRecovery } from './recovery-core.mjs';
-import { needsDailyRepair, repairAudit } from './repair-audit.mjs';
+import { needsCourtDetail, repairAudit } from './repair-audit.mjs';
+import { isApartmentUse } from '../property-section.mjs';
 
 const root='data/court/standalone';
 await mkdir(root,{recursive:true});
@@ -32,7 +31,7 @@ const load=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf
 const lockPath=`${root}/running.lock`;
 const lock=await open(lockPath,'wx').catch(()=>{throw Error('Standalone collector lock exists; do not run two writers');});
 await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString()}));
-const progress={id:randomUUID(),pid:process.pid,status:'starting',scope:'seoul-gyeonggi',startedAt:new Date().toISOString(),limit,attempted:0,succeeded:0,failed:0,photos:0,skipped:0,errors:[],timings:[]};
+const progress={id:randomUUID(),pid:process.pid,status:'starting',scope:'seoul-gyeonggi',startedAt:new Date().toISOString(),limit,attempted:0,succeeded:0,failed:0,photos:0,skipped:0,excludedByUse:{},errors:[],timings:[]};
 const record=async(event)=>{await appendFile(`${root}/events.jsonl`,JSON.stringify({at:new Date().toISOString(),run:progress.id,...event})+'\n');await atomic(`${root}/progress.json`,progress);console.log(JSON.stringify(event));};
 const sync=async()=>{
  progress.syncStatus='running';await record({stage:'sync-start'});
@@ -57,8 +56,6 @@ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new 
 if(checkpoint.date!==today){checkpoint.date=today;checkpoint.courts={};}
 const repairSeen=repairPass?await load(`${root}/repair-seen.json`,{date:today,keys:[]}):{date:today,keys:[]};
 const seen=new Set(repairSeen.date===today?repairSeen.keys:[]);
-const manifest=await load('data/court/media/manifest.json',[]);
-const photographed=new Set(manifest.map(x=>x.key)),photoCounts=new Map();for(const m of manifest)photoCounts.set(m.key,(photoCounts.get(m.key)??0)+1);
 try{
  browser=await chromium.launch({channel:'msedge',headless:true});
  let pendingRequests=new Set(),lastNetworkActivity=Date.now();
@@ -162,10 +159,12 @@ try{
    const base={schemaVersion:1,court,pageSize:40,pages:[snapshot],details:{},detailJobs:[],errors:[],pagination:{startPage:number,reachedLastPage:false,nextPage:number+1}};
    await saveRun(base);
    let state=await load('data/court/current.json',{});
-   const eligible=items.filter(item=>item.assetCategory==='real-estate'&&inSeoulGyeonggi(item));
+   // The official list mixes every type, so it is still read in full; only apartments go further.
+   const eligible=items.filter(item=>item.assetCategory==='real-estate'&&inSeoulGyeonggi(item)&&isApartmentUse(item.use));
+   for(const item of items)if(inSeoulGyeonggi(item)&&!isApartmentUse(item.use)){const use=item.use??'미상';progress.excludedByUse[use]=(progress.excludedByUse[use]??0)+1;}
    for(const item of eligible)seen.add(item.key);
    for(const item of eligible){
-    if(!needsDailyRepair(state.items[item.key],checks[item.key],photoCounts.get(item.key))){progress.skipped++;continue;}
+    if(!needsCourtDetail(state.items[item.key],checks[item.key])){progress.skipped++;continue;}
     try{await readFile(`${root}/STOP`);stop=true;}catch(e){if(e.code!=='ENOENT')throw e;}
     if(progress.attempted>=limit||stop)return 'stop';
     const began=Date.now();progress.attempted++;progress.current={court,page:number,key:item.key};
@@ -185,16 +184,9 @@ try{
      const stamp=new Date().toISOString();
      const run={...base,pages:[{...snapshot,observedAt:stamp}],details:{[item.key]:raw},detailJobs:[{key:item.key,page:number,state:'succeeded',attempts:1}]};
      await saveRun(run);detailSaved=true;
-     // Original bytes stay in this process: no model/tool chunk transfer.
-     await delay(500);
-     const photos=await readAllOfficialPhotos(page);
-     let media=null;
-     if(photos.length){media=await saveMedia({kind:'court-media',key:item.key,court,caseNumber:item.caseNumber,itemNumber:item.itemNumber,sourceUrl:page.url(),observedAt:stamp,detailRaw:raw,photos});progress.photos+=media.photos;photographed.add(item.key);photoCounts.set(item.key,(photoCounts.get(item.key)??0)+media.photos);}
-     checks[item.key]={state:photos.length?'captured':'none-visible',checkedAt:stamp};
-     await atomic(`${root}/photo-checks.json`,checks);
      progress.succeeded++;consecutiveFailures=0;
-     progress.timings.push({key:item.key,ms:Date.now()-began,photos:media?.photos??0});
-     await record({stage:'saved',key:item.key,ms:Date.now()-began,detail:true,photo:media});
+     progress.timings.push({key:item.key,ms:Date.now()-began});
+     await record({stage:'saved',key:item.key,ms:Date.now()-began,detail:true});
      if(syncEvery&&progress.succeeded%syncEvery===0)await sync();
     }catch(error){
      progress.failed++;consecutiveFailures++;progress.errors.push({key:item.key,message:error.message,detailSaved});
@@ -238,7 +230,8 @@ try{
  progress.status=stop?'stopped':progress.attempted>=limit?'limit-reached':(progress.failed||progress.oddRows||progress.badPages)?'pass-finished-with-errors':'pass-finished';
  if(syncEvery&&(repairPass||progress.succeeded%syncEvery!==0))await sync();
  if(repairPass){
-  const audit=repairAudit(await load('data/court/current.json',{}),{media:await load('data/court/media/manifest.json',[]),checks,seen:[...seen],courts,completedCourts:Object.entries(checkpoint.courts).filter(([,v])=>v.complete).map(([k])=>k),run:progress.id,startedAt:progress.startedAt,finishedAt:new Date().toISOString()});
+  const ledger=await load('data/court/current.json',{});
+  const audit=repairAudit({...ledger,items:Object.fromEntries(Object.entries(ledger.items??{}).filter(([,item])=>isApartmentUse(item.use)))},{media:await load('data/court/media/manifest.json',[]),checks,seen:[...seen],courts,completedCourts:Object.entries(checkpoint.courts).filter(([,v])=>v.complete).map(([k])=>k),run:progress.id,startedAt:progress.startedAt,finishedAt:new Date().toISOString()});
   await atomic(`${root}/repair-audit.json`,audit);
   await record({stage:'repair-audit',counts:audit.counts,allCourtsTraversed:audit.allCourtsTraversed,collectionComplete:false});
  }

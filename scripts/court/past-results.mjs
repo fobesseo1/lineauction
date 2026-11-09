@@ -11,6 +11,7 @@ import {replaceFile} from './store.mjs';
 import {parseResults} from './results.mjs';
 import {selectTargetResults} from './results-repair-core.mjs';
 import {inCapitalArea} from './scope.mjs';
+import {isApartmentUse} from '../property-section.mjs';
 
 const root='data/court/standalone';
 const days=Number(process.argv.find(x=>x.startsWith('--days='))?.slice(7)??7);
@@ -23,7 +24,7 @@ if(await stopped()){console.log(JSON.stringify({stage:'finish',status:'stopped'}
 // Items whose sale date passed within the window and have no result for that date yet.
 function pastDueKeys(state,courts,today,from){
  const allowed=new Set(courts);
- return Object.entries(state.items).filter(([,i])=>allowed.has(i.court)&&inCapitalArea(i)&&i.auctionDate&&i.auctionDate<today&&i.auctionDate>=from
+ return Object.entries(state.items).filter(([,i])=>allowed.has(i.court)&&inCapitalArea(i)&&isApartmentUse(i.use)&&i.auctionDate&&i.auctionDate<today&&i.auctionDate>=from
   &&!(i.resultEvidence&&i.resultEvidence.auctionDate>=i.auctionDate)).map(([k])=>k);
 }
 
