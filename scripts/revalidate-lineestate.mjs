@@ -17,7 +17,8 @@ const started=Date.now();
 // the clone's own .env.local, so it is not passed from here.
 const {NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}=process.env;
 const pick=keys=>Object.fromEntries(keys.filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]]));
-const env={...pick(['SystemRoot','PATH','APPDATA','LOCALAPPDATA','USERPROFILE','TEMP','TMP']),REVALIDATE_SECRET:secret,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY};
+// SUPABASE_GATE_TOKEN: the DB gate header for public-key reads (lineestate's x-ls-gate). Passed when set.
+const env={...pick(['SystemRoot','PATH','APPDATA','LOCALAPPDATA','USERPROFILE','TEMP','TMP','SUPABASE_GATE_TOKEN']),REVALIDATE_SECRET:secret,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY};
 const tidy=r=>(r.stdout??'')+(r.stderr??'');
 const linesOf=text=>text.split('\n').map(l=>l.trim()).filter(Boolean);
 
