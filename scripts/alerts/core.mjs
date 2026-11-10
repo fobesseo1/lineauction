@@ -1,5 +1,6 @@
 // Pure rules for member alerts (lineestate app.alert_rules / app.watchlist → Telegram).
 // send.mjs gathers the rows and state; everything here is testable without the network.
+import {isApartmentUse} from '../property-section.mjs';
 export const SITE=process.env.SITE_URL||'https://lineestate.vercel.app';
 export const MAX_ITEMS=10;
 
@@ -18,7 +19,10 @@ export function isOpen(p,today){
 }
 
 const any=list=>Array.isArray(list)&&list.length>0;
+// Alerts cover apartments only, like collection since 2026-11-08. Older rows of other uses stay in the
+// table, and each new Onbid round of them used to arrive as a "new" item.
 export function matchesRule(rule,p,a){
+ if(!isApartmentUse(p.usage_type))return false;
  if(rule.section&&p.section!==rule.section)return false;
  if(any(rule.sources)&&!rule.sources.includes(p.source))return false;
  if(any(rule.sido)&&!rule.sido.includes(p.sido))return false;

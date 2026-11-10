@@ -14,6 +14,11 @@ test('usableDiscount skips reference prices, missing sales and low confidence',(
  assert.equal(usableDiscount({...a,market_price_method:'villa-building-12m',confidence:'medium'}),25);
 });
 
+test('matchesRule only sends apartments',()=>{
+ for(const usage_type of ['공장용지','오피스텔','근린생활시설','다세대주택',null])assert.equal(matchesRule({id:'r'},{...p,usage_type},a),false);
+ assert.equal(matchesRule({id:'r'},p,a),true);
+});
+
 test('matchesRule treats empty lists and nulls as no condition',()=>{
  assert.equal(matchesRule({id:'r',sources:[],sido:[],sigungu:null},p,a),true);
  assert.equal(matchesRule({id:'r',sigungu:['강남구']},p,a),false);

@@ -13,7 +13,9 @@ process.loadEnvFile('.env.local');
 
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
 const monthCount=Number(arg('--months','36'));
-const apiNames=arg('--apis',Object.keys(APIS).join(',')).split(',');
+// Apartments only since 2026-11-10 (매매·전월세, plus 분양권·입주권 for new complexes). Officetel, villa, commercial
+// and land rows already in the warehouse stay as they are; pass --apis to fetch them by hand.
+const apiNames=arg('--apis','aptSale,aptRent,silvSale').split(',');
 if(apiNames.some(a=>!APIS[a]))throw Error('UNKNOWN_API');
 
 const root='data/molit';await mkdir(root,{recursive:true});
