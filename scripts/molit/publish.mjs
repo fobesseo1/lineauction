@@ -428,9 +428,10 @@ for(const p of plans.slice(3))if(p.apply)await p.apply();
 // The daily note on the shared-building split, to the operator chat.
 if(process.env.SHARED_SPLIT!=='off'){
  const commonRows=[...splitPlaces.values()].flatMap(p=>p.rows.filter(r=>r.common));
- const line=[`이름으로 못 나눈 매매 ${commonRows.length.toLocaleString('ko-KR')}건 (단지 공통 반영)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
+ const ok=!newShared.length&&!failedSplits.length;
+ const line=[`번지 공유 거래 ${commonRows.length.toLocaleString('ko-KR')}건 단지 공통 반영 (규칙대로 처리됨)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
  console.log(line.join(' | '));
- if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
+ if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리: ${ok?'정상':'확인 필요'}</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
 }
 
 // Complexes newly without a building, to the operator chat, by name. Confirmed ones are in unlinked-confirmed.json.
