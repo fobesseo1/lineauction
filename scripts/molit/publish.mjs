@@ -12,7 +12,7 @@ import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,applyManualLinks,newUnlinked} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -215,7 +215,16 @@ flush();
 // representative sale price (saleBasis) from the same 36 months.
 const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
 let hGroup=[],hKey=null;
-const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length){row.history=monthlyHistory(hGroup,months,row.jeonse_basis);Object.assign(row,saleBasis(hGroup,start,end));}hGroup=[];};
+// An apartment 평형 with sales in the 36 months but no trade in the 12 months gets a row too
+// (request 16): its 12-month columns stay empty (0 or null) and only sale_basis_* (the 36-month mean) is set.
+const olderRow=(pid,areaType,place)=>({place_id:pid,area_type:Number(areaType),kind:place?.kind??null,sido:place?.sido??null,sigungu:place?.sigungu??null,...areaStats([]),history:null,period_start:start,period_end:end,refreshed_at:runAt});
+let olderRows=0;
+const hFlush=()=>{
+ let row=statByKey.get(hKey);
+ if(!row&&hGroup.length&&hKey.startsWith('apt:')&&hGroup.some(validSale)){const [pid,areaType]=hKey.split('|');row=olderRow(pid,areaType,places.get(pid));stats.push(row);olderRows++;}
+ if(row&&hGroup.length){row.history=monthlyHistory(hGroup,months,row.jeonse_basis);Object.assign(row,saleBasis(hGroup,start,end));}
+ hGroup=[];
+};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
@@ -235,6 +244,7 @@ for(const plan of splitPlaces.values()){
  for(const [key,g] of groups){
   const [pid,areaType]=key.split('|'),place=places.get(pid),all=g.filter(r=>!r.common).map(r=>r.t),period=all.filter(t=>t.deal_date>=start);
   if(period.length){const row={place_id:pid,area_type:Number(areaType),kind:place.kind,sido:place.sido,sigungu:place.sigungu,...areaStats(period),...saleBasis(all,start,end),history:null,period_start:start,period_end:end,refreshed_at:runAt};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);}
+  else if(place.kind==='apt'&&all.some(validSale)){const row={...olderRow(pid,areaType,place),...saleBasis(all,start,end)};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);olderRows++;}
   for(const {t,id,statOnly} of g){
    if(statOnly)continue;
    if(t.deal==='rent'&&t.deal_date>=start){rents.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});splitIds.add(id);}
@@ -283,7 +293,7 @@ const linkRows=[...placeRows.filter(p=>p.kapt_code),...extraLinks.map(l=>({id:l.
   presale:withPresale.has(c.kapt_code),near:c.latitude==null?null:[...placePoint.values()].filter(p=>places.has(p.id)&&Math.abs(p.latitude-c.latitude)<0.003&&Math.abs(p.longitude-c.longitude)<0.004)
    .map(p=>({d:Math.round(metres(p,c)),name:places.get(p.id).name,kapt:places.get(p.id).kapt_code})).sort((x,y)=>x.d-y.d).slice(0,3)})));}
 console.log('kapt_match',JSON.stringify(placeRows.reduce((m,p)=>(p.kapt_match&&(m[p.kapt_match]=(m[p.kapt_match]??0)+1),m),{})));
-console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length}, sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
+console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length} (36-month-only apt ${olderRows}), sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
 
 // Batches of 500 with up to 3 tries: a busy free-tier DB occasionally times out one batch.
 async function upsert(table,rows,onConflict){
