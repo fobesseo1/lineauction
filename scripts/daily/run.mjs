@@ -257,7 +257,11 @@ try{
    // A crashed collector can leave its own lock behind; clear it only when that process is gone.
    for(const path of ['data/court/standalone/running.lock','data/court/pipeline/running.lock']){const held=await readJson(path,null);if(held&&!alive(held.pid))await unlink(path).catch(()=>{});}
    // 1) List refresh of all 16 courts + the one detail page of new apartments, 2) apartments to the DB + MOLIT.
-   const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass'],6*3600_000);
+   // Mon–Fri search only 아파트 (and hidden apartments by case number); Saturday reads every use so
+   // hidden-apartments.mjs can register apartments the court filed under another use.
+   const fullPass=process.env.COURT_FULL_PASS==='1'||new Date(`${day}T12:00:00Z`).getUTCDay()===6;
+   const list=await step('court-list','scripts/court/standalone.mjs',['--limit=100000','--repair-pass',`--uses=${fullPass?'all':'apartment'}`],6*3600_000);
+   const hidden=fullPass&&list.code===0?await step('court-hidden-apartments','scripts/court/hidden-apartments.mjs',[],15*60_000):null;
    // Results (매각/유찰) for items whose sale date passed in the last 7 days, before the DB sync.
    await step('court-past-results','scripts/court/past-results.mjs',[],90*60_000);
    const pipeline=await step('court-pipeline','scripts/court/pipeline-bulk.mjs',['--months=24'],3*3600_000);
@@ -274,7 +278,8 @@ try{
    const message=[`새 아파트 상세 ${collector.attempted??0}건 (성공 ${collector.succeeded??0} · 실패 ${collector.failed??0})`,
     ...((collector.oddRows||collector.badPages)?[`읽지 못하고 건너뛴 줄 ${collector.oddRows??0}개 · 페이지 ${collector.badPages??0}개 (data/court/standalone/odd-rows.jsonl)`]:[]),
     `DB 신규 ${p.created??0} · 변경 ${p.updated??0} · 재확인 필요 ${latest.lifecycle?.['needs-recheck']??0} · 종결 ${latest.lifecycle?.closed??0}`,
-    `실거래 연결 ${latest.matchedProperties??0}건 · 국토부 요청 ${run.summary.molit.used}/${run.summary.molit.limit??10000}`].join('\n');
+    `실거래 연결 ${latest.matchedProperties??0}건 · 국토부 요청 ${run.summary.molit.used}/${run.summary.molit.limit??10000}`,
+    ...(fullPass?[`주간 전체 목록 확인 · 숨은 아파트 새 등록 ${hidden?.result?.added??'—'}건 (전체 ${hidden?.result?.registered??'—'}건)`]:[])].join('\n');
    const failure=[!listOk&&`목록·상세: ${collector.error??collector.status??list.result}`,!pipelineOk&&`DB·실거래: ${latest.errors?.[0]?.message??latest.status??pipeline.result}`].filter(Boolean).join('\n');
    await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,run.status==='completed'?message:`${failure}\n${message}`);
   }

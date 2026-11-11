@@ -26,7 +26,7 @@ export const BUNDLES={
  market:{include:['data/molit/warehouse.sqlite','data/molit/published-*','data/complex','data/building','data/calc','data/stations','data/schools','data/neighborhood','data/detail']},
  // raw/ holds list pages cached for one day; detail-raw/ holds the detail answers photos read.
  onbid:{include:['data/onbid'],exclude:[/^data\/onbid\/(raw|test-[^/]*|history)\//]},
- court:{include:['data/court/current.json','data/court/media','data/court/pipeline','data/court/standalone','data/court/results','data/court/progress','data/court/coverage.json','data/court/finalization.json'],
+ court:{include:['data/court/current.json','data/court/media','data/court/pipeline','data/court/standalone','data/court/results','data/court/progress','data/court/coverage.json','data/court/finalization.json','data/court/hidden-apartments.json'],
   exclude:[/^data\/court\/standalone\/(case-repair|all-photo|results-repair)/]},
 };
 export const JOB_BUNDLES={market:['shared','market'],onbid:['shared','onbid'],court:['shared','court']};

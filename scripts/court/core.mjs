@@ -179,6 +179,9 @@ export function reconcile(previous, run, { inPlace = false } = {}) {
       item.assets = [...before.assets, ...item.assets.filter(a => !before.assets.some(b => b.raw === a.raw))];
     }
     item.assetsStatus = complete ? 'complete-query' : 'partial-query';
+    // A hidden apartment (filed under another use, matched to a complex) stays an apartment;
+    // the court's own label is kept in sourceUse.
+    if (before?.hiddenApartment) Object.assign(item, { hiddenApartment: before.hiddenApartment, sourceUse: item.use, use: '아파트' });
     const changes = before ? tracked.filter(k => JSON.stringify(before[k]) !== JSON.stringify(item[k])) : [];
     events.push({ key: item.key, type: before ? changes.length ? 'changed' : 'unchanged' : 'new',
       changes: Object.fromEntries(changes.map(k => [k, { before: before[k], after: item[k] }])) });

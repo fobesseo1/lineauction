@@ -19,7 +19,7 @@ export function resolvedByRerun(run, reruns = []) {
 }
 
 // Plain-language reason for a failed run: which steps failed and, when recognisable, why.
-const STEP_LABELS = { 'court-list': '목록·사진 수집', 'court-past-results': '매각결과 수집', 'court-pipeline': 'DB 반영', 'refresh-current': '현재목록 갱신', 'fill-pnu': '지번 채우기', alerts: '알림 발송' };
+const STEP_LABELS = { 'court-list': '목록·사진 수집', 'court-hidden-apartments': '숨은 아파트 찾기', 'court-past-results': '매각결과 수집', 'court-pipeline': 'DB 반영', 'refresh-current': '현재목록 갱신', 'fill-pnu': '지번 채우기', alerts: '알림 발송' };
 export function failureReason(run) {
   if (run?.error) return run.error;
   const failed = (run?.steps ?? []).filter(s => s.code !== 0);

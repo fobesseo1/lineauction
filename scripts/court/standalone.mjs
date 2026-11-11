@@ -26,6 +26,17 @@ const allCourts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).s
 const selected=option('court',null);
 if(selected&&!allCourts.includes(selected))throw Error('Court outside Seoul/Gyeonggi jurisdiction scope');
 const courts=selected?[selected]:allCourts;
+// Daily runs search 건물 > 주거용건물 > 아파트 only; the weekly full pass (--uses=all) reads every use
+// so hidden-apartments.mjs can find apartments the court filed under another use.
+const uses=option('uses','apartment');
+if(!['apartment','all'].includes(uses))throw Error('--uses must be apartment or all');
+const DETAIL_SEARCH_URL='https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml';
+const hiddenRegistry=JSON.parse(await readFile('data/court/hidden-apartments.json','utf8').catch(e=>{if(e.code==='ENOENT')return '{"items":{}}';throw e;}));
+const hiddenKeys=new Set(Object.keys(hiddenRegistry.items??{}));
+// Hidden apartments are not in the apartment search, so the apartment run looks each case up by number.
+const caseTargets=uses==='apartment'&&(!selected||args.includes('--cases-only'))?[...new Map(Object.values(hiddenRegistry.items??{}).map(h=>[`${h.court}#${h.caseNumber}`,{id:`${h.court}#${h.caseNumber}`,court:h.court,caseNumber:h.caseNumber}])).values()]:[];
+// --cases-only: look up just the hidden apartments (manual check or rerun).
+const targets=args.includes('--cases-only')?caseTargets:[...courts.map(court=>({id:court,court})),...caseTargets];
 const atomic=async(path,value)=>{const temporary=`${path}.${randomUUID()}.tmp`;await writeFile(temporary,JSON.stringify(value,null,2),{flush:true});await replaceFile(temporary,path);};
 const load=async(path,fallback)=>{try{return JSON.parse(await readFile(path,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return fallback;}};
 const lockPath=`${root}/running.lock`;
@@ -53,7 +64,7 @@ const checks=await load(`${root}/photo-checks.json`,{});
 const checkpointPath=`${root}/${repairPass?'repair-checkpoint':'checkpoint'}.json`;
 const checkpoint=await load(checkpointPath,{date:null,courts:{}});
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
-if(checkpoint.date!==today){checkpoint.date=today;checkpoint.courts={};}
+if(checkpoint.date!==today||(checkpoint.uses??'all')!==uses){checkpoint.date=today;checkpoint.uses=uses;checkpoint.courts={};}
 const repairSeen=repairPass?await load(`${root}/repair-seen.json`,{date:today,keys:[]}):{date:today,keys:[]};
 const seen=new Set(repairSeen.date===today?repairSeen.keys:[]);
 try{
@@ -102,19 +113,46 @@ try{
  };
  progress.status='running';await record({stage:'start',courts,limit});
  let consecutiveFailures=0;
- outer:for(const court of courts){
-  if(checkpoint.courts[court]?.complete)continue;
-  const outcome=await withCourtRecovery(async()=>{
-  await page.goto(COURT_URL,{waitUntil:'domcontentloaded',timeout:45000});
-  await page.locator('#mf_sbx_rletRpdtCortLst').selectOption({label:court});
-  await page.getByRole('button',{name:'검색하기',exact:true}).click();
+ // Full pass: the main page's court search (every use). Apartment pass: the detailed search with
+ // 건물 > 주거용건물 > 아파트, or one case number for a hidden apartment.
+ const search=async target=>{
+  if(uses==='all'&&!target.caseNumber){
+   await page.goto(COURT_URL,{waitUntil:'domcontentloaded',timeout:45000});
+   await page.locator('#mf_sbx_rletRpdtCortLst').selectOption({label:target.court});
+   await page.getByRole('button',{name:'검색하기',exact:true}).click();
+  }else{
+   const p='#mf_wfm_mainFrame_';
+   await page.goto(DETAIL_SEARCH_URL,{waitUntil:'domcontentloaded',timeout:45000});
+   await page.locator(p+'sbx_rletCortOfc').selectOption({label:target.court});
+   if(target.caseNumber){
+    const [year,number]=target.caseNumber.split('타경');
+    await page.locator(p+'sbx_rletCsYear').selectOption({label:year});
+    await page.locator(p+'ibx_rletCsNo').fill(number);
+   }else{
+    await page.locator(p+'sbx_rletLclLst').selectOption({label:'건물'});
+    await page.waitForFunction(s=>Array.from(document.querySelectorAll(s+' option')).some(o=>o.text==='주거용건물'),p+'sbx_rletMclLst',{timeout:15000});
+    await page.locator(p+'sbx_rletMclLst').selectOption({label:'주거용건물'});
+    await page.waitForFunction(s=>Array.from(document.querySelectorAll(s+' option')).some(o=>o.text==='아파트'),p+'sbx_rletSclLst',{timeout:15000});
+    await page.locator(p+'sbx_rletSclLst').selectOption({label:'아파트'});
+   }
+   await page.locator(p+'btn_gdsDtlSrch').click();
+  }
   await table().waitFor({timeout:20000});await guard();
   await page.waitForFunction(()=>document.body.innerText.includes('총 물건수'),null,{timeout:20000});
-  const initialQuery=await page.getByRole('table',{name:'검색조건 을(를) 나타낸 표',exact:true}).innerText();
-  if(!initialQuery.includes(court))throw Error('Selected court mismatch');
+  const query=await page.getByRole('table',{name:'검색조건 을(를) 나타낸 표',exact:true}).innerText();
+  if(!query.includes(target.court))throw Error('Selected court mismatch');
+  if(target.caseNumber&&!query.includes(target.caseNumber))throw Error('Selected case mismatch');
+  if(uses==='apartment'&&!target.caseNumber&&!/주거용건물\s*>\s*아파트/.test(query))throw Error('Apartment filter not applied');
+  return query;
+ };
+ outer:for(const target of targets){
+  const court=target.court;
+  if(checkpoint.courts[target.id]?.complete)continue;
+  const outcome=await withCourtRecovery(async()=>{
+  const initialQuery=await search(target);
   if(/총 물건수\s*0건/.test(initialQuery)){
    await saveRun({schemaVersion:1,court,pageSize:40,pages:[{court,page:1,displayedTotal:0,rows:[],observedAt:new Date().toISOString(),sourceUrl:page.url()}],details:{},detailJobs:[],errors:[],pagination:{startPage:1,lastPage:1,reachedLastPage:true,nextPage:null}});
-   checkpoint.courts[court]={nextPage:1,complete:true,total:0,checkedAt:new Date().toISOString()};await atomic(checkpointPath,checkpoint);return;
+   checkpoint.courts[target.id]={nextPage:1,complete:true,total:0,checkedAt:new Date().toISOString()};await atomic(checkpointPath,checkpoint);return;
   }
   await page.getByRole('combobox',{name:'페이지당 수 선택',exact:true}).selectOption('40');
   await stableRows();
@@ -127,7 +165,7 @@ try{
   const lastPage=end.find(p=>p.selected)?.number;
   if(!lastPage||lastPage<Math.ceil(total/40)||lastPage!==Math.max(...end.map(p=>p.number)))throw Error('Last page not verified');
   await page.getByRole('button',{name:'첫 페이지',exact:true}).click();await stableRows();
-  for(let number=Math.max(startPage,checkpoint.courts[court]?.nextPage??1);number<=lastPage;number++){
+  for(let number=Math.max(startPage,checkpoint.courts[target.id]?.nextPage??1);number<=lastPage;number++){
    if(stop)return 'stop';
    try{await readFile(`${root}/STOP`);stop=true;return 'stop';}catch(e){if(e.code!=='ENOENT')throw e;}
    await goPage(number);
@@ -160,8 +198,8 @@ try{
    await saveRun(base);
    let state=await load('data/court/current.json',{});
    // The official list mixes every type, so it is still read in full; only apartments go further.
-   const eligible=items.filter(item=>item.assetCategory==='real-estate'&&inSeoulGyeonggi(item)&&isApartmentUse(item.use));
-   for(const item of items)if(inSeoulGyeonggi(item)&&!isApartmentUse(item.use)){const use=item.use??'미상';progress.excludedByUse[use]=(progress.excludedByUse[use]??0)+1;}
+   const eligible=items.filter(item=>item.assetCategory==='real-estate'&&inSeoulGyeonggi(item)&&(isApartmentUse(item.use)||hiddenKeys.has(item.key)));
+   for(const item of items)if(inSeoulGyeonggi(item)&&!isApartmentUse(item.use)&&!hiddenKeys.has(item.key)){const use=item.use??'미상';progress.excludedByUse[use]=(progress.excludedByUse[use]??0)+1;}
    for(const item of eligible)seen.add(item.key);
    for(const item of eligible){
     if(!needsCourtDetail(state.items[item.key],checks[item.key])){progress.skipped++;continue;}
@@ -204,7 +242,7 @@ try{
     state=await load('data/court/current.json',{});
     await delay(500);
    }
-   checkpoint.courts[court]={nextPage:number+1,complete:number===lastPage,total,checkedAt:new Date().toISOString()};
+   checkpoint.courts[target.id]={nextPage:number+1,complete:number===lastPage,total,checkedAt:new Date().toISOString()};
    await atomic(checkpointPath,checkpoint);
    if(repairPass)await atomic(`${root}/repair-seen.json`,{date:today,keys:[...seen]});
    await record({stage:'page-checked',court,page:number,eligible:eligible.length,nextPage:number+1,complete:number===lastPage});
