@@ -1,7 +1,7 @@
 export function isRecoverableError(error){
  const message=error?.message??String(error);
  if(/denied access|access challenge|403|429|lock exists|mismatch|not verified|Pagination limit/i.test(message))return false;
- return /Timeout \d+ms exceeded|List changed during details; refresh on resume|List failed to stabilize/.test(message);
+ return /Timeout \d+ms exceeded|exceeded host deadline|List changed during details; refresh on resume|List failed to stabilize/.test(message);
 }
 
 // Restart only a validated court search, never continue using stale row positions.

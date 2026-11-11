@@ -8,6 +8,7 @@ import { parseList, parseDetail, COURT_URL } from './core.mjs';
 import { inSeoulGyeonggi } from './scope.mjs';
 import { saveRun, replaceFile } from './store.mjs';
 import { withCourtRecovery } from './recovery-core.mjs';
+import { withOperationDeadline } from './operation-deadline.mjs';
 import { needsCourtDetail, repairAudit } from './repair-audit.mjs';
 import { isApartmentUse } from '../property-section.mjs';
 
@@ -93,7 +94,11 @@ try{
  const table=()=>page.getByRole('table',{name:'물건번호,소재지 및 내역,비고,용도 을(를) 나타낸 표',exact:true});
  // WebSquare keeps old rows hidden on a short final page. They are not current results.
  const rows=()=>table().locator('tbody tr:visible').evaluateAll(es=>es.map(row=>Array.from(row.querySelectorAll('td')).map(c=>({text:c.innerText,rowSpan:c.rowSpan,links:Array.from(c.querySelectorAll('a')).map(a=>a.innerText)}))));
- const stableRows=async()=>{
+ // Host deadlines: a frozen page (2026-11-11: one detail hung 15 min, one page move 26 min) fails fast
+ // and goes to the browser restart in withCourtRecovery instead of waiting.
+ const STEP_DEADLINE_MS=Number(process.env.COURT_STEP_DEADLINE_MS??180000);
+ const deadline=(work,label)=>withOperationDeadline(work,STEP_DEADLINE_MS,label);
+ const stableRowsRaw=async()=>{
   await table().waitFor({state:'visible'});
   await page.waitForFunction(()=>document.body.innerText.includes('총 물건수'),null,{timeout:20000});
   let previous=JSON.stringify(await rows()),same=0;
@@ -101,7 +106,8 @@ try{
   await atomic(`${root}/list-loading.json`,{pending:[...pendingRequests].map(request=>request.url()),quietMs:Date.now()-lastNetworkActivity,rows:await rows()});
   throw Error('List failed to stabilize');
  };
- const goPage=async(number)=>{
+ const stableRows=()=>deadline(stableRowsRaw,'list read');
+ const goPageRaw=async(number)=>{
   await page.waitForFunction(()=>document.body.innerText.includes('총 물건수'),null,{timeout:20000});
   for(let n=0;n<100;n++){
    await guard();
@@ -111,11 +117,12 @@ try{
    await page.getByRole('button',{name:number<Math.min(...numbers)?'이전 목록':'다음 목록',exact:true}).click();await delay(350);
   }throw Error('Pagination limit');
  };
+ const goPage=number=>deadline(()=>goPageRaw(number),'page move');
  progress.status='running';await record({stage:'start',courts,limit});
  let consecutiveFailures=0;
  // Full pass: the main page's court search (every use). Apartment pass: the detailed search with
  // 건물 > 주거용건물 > 아파트, or one case number for a hidden apartment.
- const search=async target=>{
+ const searchRaw=async target=>{
   if(uses==='all'&&!target.caseNumber){
    await page.goto(COURT_URL,{waitUntil:'domcontentloaded',timeout:45000});
    await page.locator('#mf_sbx_rletRpdtCortLst').selectOption({label:target.court});
@@ -145,10 +152,13 @@ try{
   if(uses==='apartment'&&!target.caseNumber&&!/주거용건물\s*>\s*아파트/.test(query))throw Error('Apartment filter not applied');
   return query;
  };
+ const search=target=>deadline(()=>searchRaw(target),'search');
  outer:for(const target of targets){
   const court=target.court;
   if(checkpoint.courts[target.id]?.complete)continue;
-  const outcome=await withCourtRecovery(async()=>{
+  let outcome;
+  try{
+  outcome=await withCourtRecovery(async()=>{
   const initialQuery=await search(target);
   if(/총 물건수\s*0건/.test(initialQuery)){
    await saveRun({schemaVersion:1,court,pageSize:40,pages:[{court,page:1,displayedTotal:0,rows:[],observedAt:new Date().toISOString(),sourceUrl:page.url()}],details:{},detailJobs:[],errors:[],pagination:{startPage:1,lastPage:1,reachedLastPage:true,nextPage:null}});
@@ -208,6 +218,7 @@ try{
     const began=Date.now();progress.attempted++;progress.current={court,page:number,key:item.key};
     let detailSaved=false;
     try{
+     const raw=await deadline(async()=>{
      await guard();
      const index=observedRows.findIndex(c=>c.length===8&&c[1].text.match(/\d{4}타경\d+/)?.[0]===item.caseNumber&&Number(c[2].text.trim())===item.itemNumber);
      if(index<0)throw Error('Item absent from validated list');
@@ -217,7 +228,8 @@ try{
       return text.match(/사건번호\s*(\d{4}타경\d+)/)?.[1]===caseNumber&&text.replace(/\s/g,'').includes(`물건번호${itemNumber}물건종류`);
      },item,{timeout:20000});
      await guard();
-     const raw=await page.locator('table:visible').evaluateAll(es=>es.map(e=>e.innerText).join('\n\n'));
+     return page.locator('table:visible').evaluateAll(es=>es.map(e=>e.innerText).join('\n\n'));
+     },'detail');
      parseDetail(raw,item);
      const stamp=new Date().toISOString();
      const run={...base,pages:[{...snapshot,observedAt:stamp}],details:{[item.key]:raw},detailJobs:[{key:item.key,page:number,state:'succeeded',attempts:1}]};
@@ -263,9 +275,19 @@ try{
    await record({stage:'recovery-restart',court,attempt,total});
    return true;
   }});
+  }catch(error){
+   // Retries used up on one court: note it and go on with the next court (2026-11-11 a stuck 고양지원
+   // ended the run and nine courts went unchecked). Access refusals still stop everything.
+   if(blocked||/denied access|access challenge|lock exists/i.test(error.message))throw error;
+   progress.failedCourts=[...(progress.failedCourts??[]),{court:target.id,message:error.message}];
+   await record({stage:'court-failed',court:target.id,message:error.message});
+   await page.context().close().catch(()=>{});page=await createPage();consecutiveFailures=0;progress.status='running';
+   continue;
+  }
   if(outcome==='stop')break outer;
  }
- progress.status=stop?'stopped':progress.attempted>=limit?'limit-reached':(progress.failed||progress.oddRows||progress.badPages)?'pass-finished-with-errors':'pass-finished';
+ progress.status=stop?'stopped':progress.attempted>=limit?'limit-reached':(progress.failed||progress.oddRows||progress.badPages||progress.failedCourts?.length)?'pass-finished-with-errors':'pass-finished';
+ if(progress.failedCourts?.length){progress.error=`법원 ${progress.failedCourts.length}곳 실패: ${progress.failedCourts.map(c=>c.court).join(', ')} (${progress.failedCourts[0].message.split('\n')[0]})`;process.exitCode=1;}
  if(syncEvery&&(repairPass||progress.succeeded%syncEvery!==0))await sync();
  if(repairPass){
   const ledger=await load('data/court/current.json',{});
