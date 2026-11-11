@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,similarName,nameOrdinals,sharesNamePart,applyManualLinks,newUnlinked} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,saleBasis,similarName,nameOrdinals,sharesNamePart,applyManualLinks,newUnlinked} from './summary.mjs';
 
 test('applyManualLinks replaces a building\'s complex or adds one',()=>{
  const places=new Map([['a',{id:'a',kapt_code:'WRONG',kapt_match:'near_name'}],['b',{id:'b',kapt_code:'RENTAL',kapt_match:'pnu'}]]);
@@ -119,4 +119,24 @@ test('newUnlinked lists capital-area apartments with no link and not confirmed',
  const rental={...c('f'),sale_type:'임대'};
  const got=newUnlinked([c('a'),c('b'),c('c'),c('d','commercial'),c('e','apartment','부산광역시'),rental],new Set(['b']),new Set(['c']));
  assert.deepEqual(got.map(x=>x.kapt_code),['a']);
+});
+
+test('saleBasis picks 3 months, then 6, then the 12-month median, then 36 months',()=>{
+ const s=(amount,deal_date,extra={})=>({deal:'sale',amount,deal_date,dealing:'중개거래',...extra});
+ const start='2025-11-11',end='2026-11-11';
+ // 3 sales within 91 days → their mean; a 직거래 and a cancelled sale do not count.
+ assert.deepEqual(saleBasis([s(100000,'2026-09-01'),s(110000,'2026-10-01'),s(121000,'2026-11-01'),s(50000,'2026-10-02',{dealing:'직거래'}),s(200000,'2026-10-03',{cancel_date:'2026-10-20'}),s(90000,'2026-01-01')],start,end),
+  {sale_basis_price:110333,sale_basis_months:3,sale_basis_n:3});
+ // 2 in 3 months, 3 in 6 months → 6-month mean.
+ assert.deepEqual(saleBasis([s(100000,'2026-06-01'),s(110000,'2026-10-01'),s(120000,'2026-11-01')],start,end),
+  {sale_basis_price:110000,sale_basis_months:6,sale_basis_n:3});
+ // Fewer than 3 in 6 months → 12-month median.
+ assert.deepEqual(saleBasis([s(100000,'2026-01-01'),s(130000,'2026-10-01')],start,end),
+  {sale_basis_price:115000,sale_basis_months:12,sale_basis_n:2});
+ // Nothing in 12 months → mean of older sales.
+ assert.deepEqual(saleBasis([s(100000,'2024-01-01'),s(103000,'2025-05-01'),{deal:'rent',deposit:5000,monthly_rent:0,deal_date:'2026-10-01'}],start,end),
+  {sale_basis_price:101500,sale_basis_months:36,sale_basis_n:2});
+ assert.deepEqual(saleBasis([],start,end),{sale_basis_price:null,sale_basis_months:null,sale_basis_n:null});
+ // Day 91 counts: 2026-08-12 is 91 days before 2026-11-11.
+ assert.equal(saleBasis([s(1,'2026-08-12'),s(2,'2026-09-01'),s(3,'2026-10-01')],start,end).sale_basis_months,3);
 });

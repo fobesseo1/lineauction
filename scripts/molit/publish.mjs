@@ -12,7 +12,7 @@ import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,applyManualLinks,newUnlinked} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,applyManualLinks,newUnlinked} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -200,7 +200,7 @@ let group=[],groupKey=null;
 const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|');
  // kind and region copied from the place so screens can filter without a join.
  const place=places.get(pid);
- stats.push({place_id:pid,area_type:Number(areaType),kind:place?.kind??null,sido:place?.sido??null,sigungu:place?.sigungu??null,...areaStats(group),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
+ stats.push({place_id:pid,area_type:Number(areaType),kind:place?.kind??null,sido:place?.sido??null,sigungu:place?.sigungu??null,...areaStats(group),...saleBasis(group,start,end),history:null,period_start:start,period_end:end,refreshed_at:runAt});group=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
@@ -211,10 +211,11 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
 }
 flush();
 
-// 36-month chart history per building+평형, attached to the stats rows that exist.
+// 36-month chart history per building+평형, attached to the stats rows that exist, and the
+// representative sale price (saleBasis) from the same 36 months.
 const statByKey=new Map(stats.map(r=>[`${r.place_id}|${r.area_type}`,r]));
 let hGroup=[],hKey=null;
-const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length)row.history=monthlyHistory(hGroup,months,row.jeonse_basis);hGroup=[];};
+const hFlush=()=>{const row=statByKey.get(hKey);if(row&&hGroup.length){row.history=monthlyHistory(hGroup,months,row.jeonse_basis);Object.assign(row,saleBasis(hGroup,start,end));}hGroup=[];};
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
@@ -233,7 +234,7 @@ for(const plan of splitPlaces.values()){
  for(const r of plan.rows){const key=`${r.place_id}|${Math.floor(r.t.area)}`;(groups.get(key)??groups.set(key,[]).get(key)).push(r);}
  for(const [key,g] of groups){
   const [pid,areaType]=key.split('|'),place=places.get(pid),all=g.filter(r=>!r.common).map(r=>r.t),period=all.filter(t=>t.deal_date>=start);
-  if(period.length){const row={place_id:pid,area_type:Number(areaType),kind:place.kind,sido:place.sido,sigungu:place.sigungu,...areaStats(period),history:null,period_start:start,period_end:end,refreshed_at:runAt};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);}
+  if(period.length){const row={place_id:pid,area_type:Number(areaType),kind:place.kind,sido:place.sido,sigungu:place.sigungu,...areaStats(period),...saleBasis(all,start,end),history:null,period_start:start,period_end:end,refreshed_at:runAt};row.history=monthlyHistory(all,months,row.jeonse_basis);stats.push(row);}
   for(const {t,id,statOnly} of g){
    if(statOnly)continue;
    if(t.deal==='rent'&&t.deal_date>=start){rents.push({id,place_id:pid,area:t.area,area_type:Number(areaType),floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});splitIds.add(id);}

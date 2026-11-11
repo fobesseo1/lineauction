@@ -116,6 +116,21 @@ export function areaStats(trades){
  };
 }
 
+// lineestate's representative sale price (request 15, "C안"), from a building+area's trades:
+//   last 91 days with 3+ valid sales → their mean; else last 183 days with 3+ → mean;
+//   else the 12-month period (from `start`) with 1+ → median (= sale_median); else any sale in `trades`
+//   (the 36-month chart window) → mean. Days count back from `end`, the KST 'YYYY-MM-DD' of the run.
+export function saleBasis(trades,start,end){
+ const sales=trades.filter(validSale);
+ const since=days=>{const d=new Date(`${end}T00:00:00Z`);d.setUTCDate(d.getUTCDate()-days);return d.toISOString().slice(0,10);};
+ const mean=v=>Math.round(v.reduce((a,b)=>a+b,0)/v.length);
+ for(const [months,from,need,pick] of [[3,since(91),3,mean],[6,since(183),3,mean],[12,start,1,median],[36,'',1,mean]]){
+  const v=sales.filter(t=>t.deal_date>=from&&t.deal_date<=end).map(t=>t.amount);
+  if(v.length>=need)return {sale_basis_price:pick(v),sale_basis_months:months,sale_basis_n:v.length};
+ }
+ return {sale_basis_price:null,sale_basis_months:null,sale_basis_n:null};
+}
+
 // 'YYYY-MM-DD' twelve months before the KST day of `now`.
 export function periodStart(now){
  const d=new Date(now.getTime()+9*3600000);d.setUTCFullYear(d.getUTCFullYear()-1);
