@@ -111,6 +111,7 @@ if(stale){run.stale=stale;await noticeStale({job,day,machine,reason:stale}).catc
 // finished in an earlier run today are skipped (alerts always run).
 const doneToday=new Set(trigger==='manual'?[]:(await history()).filter(r=>r.job===job&&r.day===day&&r.status==='failed').flatMap(r=>(r.steps??[]).filter(s=>s.code===0).map(s=>s.name)));
 doneToday.delete('alerts');
+doneToday.delete('indexnow'); // watermark-based: a rerun sends only what changed since
 async function courtStateGuard(){
  const {readdir,copyFile}=await import('node:fs/promises');
  const valid=async path=>{try{const s=JSON.parse(await readFile(path,'utf8'));return !!s&&typeof s.items==='object';}catch{return false;}};
@@ -180,6 +181,8 @@ try{
   await step('fill-pnu','scripts/geo/fill-pnu.mjs',[],30*60_000);
   // Member alerts (saved conditions, watched properties) for what changed in this run.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
+  // Changed lineestate pages to Bing/Naver (IndexNow); only recorded, never fails the run.
+  await step('indexnow','scripts/indexnow.mjs',[],5*60_000);
   const progress=await readJson('data/onbid/progress.json',{}),detailState=await readJson('data/onbid/detail-progress.json',{}),budget=await readJson('data/onbid/budget.json',{});
   const {runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt,excludedByUse}=progress;
   run.summary={list:{runStartedAt,status,properties,conditions,requests,refresh,added,removed,listFinishedAt,excludedByUse},lifecycle:lifecycle?.code===0?progress.lifecycle:null,detail:{processed:detailState.processed,total:detailState.total,remaining:detailState.remaining,status:detailState.status},usage:budget.serviceDays?.[day]??{list:0,detail:0}};
@@ -240,6 +243,9 @@ try{
   const revalidateStep=await step('revalidate','scripts/revalidate-lineestate.mjs',[],85*60_000);
   // New discounts can make properties match saved 할인율 conditions.
   await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
+  // Changed lineestate pages (properties, complexes, market places, today's changed 역 pages) to
+  // Bing/Naver via IndexNow, after revalidate so the pages are fresh. Only recorded, never fails the run.
+  await step('indexnow','scripts/indexnow.mjs',['--near'],5*60_000);
   const last=s=>String(s.result??'').slice(0,160);
   run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),official:last(official),parcels:last(parcels),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
   run.status=[complex,trades,publish,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
@@ -268,6 +274,7 @@ try{
    await step('refresh-current','scripts/refresh-current.mjs',[],10*60_000);
    await step('fill-pnu','scripts/geo/fill-pnu.mjs',[],30*60_000);
    await step('alerts','scripts/alerts/send.mjs',[],15*60_000);
+   await step('indexnow','scripts/indexnow.mjs',[],5*60_000);
    const collector=await readJson('data/court/standalone/progress.json',{}),latest=await readJson('data/court/pipeline/latest.json',{}),molit=await readJson('data/court/pipeline/molit-request-budget.json',{});
    run.summary={collector:{status:collector.status,attempted:collector.attempted,succeeded:collector.succeeded,failed:collector.failed,skipped:collector.skipped,excludedByUse:collector.excludedByUse,error:collector.error},
     pipeline:{status:latest.status,properties:latest.properties,lifecycle:latest.lifecycle,matchedProperties:latest.matchedProperties,matchedTrades:latest.matchedTrades,unmatched:latest.unmatched,errors:latest.errors?.length??null},
