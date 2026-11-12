@@ -4,7 +4,8 @@
 //   - /properties/<id>        current 아파트·주상복합 rounds whose updated_at moved
 //   - /complexes/<kapt_code>  apartment complexes whose linked market_places.refreshed_at moved
 //   - /market/<id>            apartment market places without a kapt_code whose refreshed_at moved
-//   - /near/<역>/<평형>        (--near) pages whose content changed today (app.near_pages data.asOf = today KST)
+//   - /near/<역>/<평형>        (--near) pages whose content changed today (app.near_pages data.asOf = today KST),
+//     plus /near/<역> of each such station
 // The watermark (data/daily/indexnow.json) is advanced only after every batch is accepted, so a failed
 // send is retried by the next job instead of being lost, and the same address is not resent daily.
 //   node scripts/indexnow.mjs [--near] [--dry] [--since <iso>]
@@ -57,13 +58,16 @@ if(withNear){
  near=await all(()=>db.schema('app').from('near_pages').select('slug,band').eq('data->>asOf',today).order('slug').order('band'));
 }
 
+const nearStations=[...new Set(near.filter(n=>BANDS[n.band]).map(n=>n.slug))];
 const urls=[
  ...properties.map(p=>`${SITE}/properties/${p.id}`),
  ...complexes.sort().map(k=>`${SITE}/complexes/${k}`),
  ...market.map(id=>`${SITE}/market/${encodeURIComponent(id)}`),
  ...near.filter(n=>BANDS[n.band]).map(n=>`${SITE}/near/${encodeURIComponent(n.slug)}/${encodeURIComponent(BANDS[n.band])}`),
+ // The station overview /near/<역> lists its 평형 pages, so it changes with any of them.
+ ...nearStations.map(slug=>`${SITE}/near/${encodeURIComponent(slug)}`),
 ];
-const counts={properties:properties.length,complexes:complexes.length,market:market.length,near:near.length};
+const counts={properties:properties.length,complexes:complexes.length,market:market.length,near:near.length,nearStations:nearStations.length};
 
 const sent=[];
 if(!dry){
