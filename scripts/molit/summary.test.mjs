@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,saleBasis,similarName,nameOrdinals,sharesNamePart,applyManualLinks,newUnlinked} from './summary.mjs';
+import {jibunPnu,median,areaStats,periodStart,placeId,monthlyHistory,saleBasis,similarName,nameOrdinals,sharesNamePart,applyManualLinks,newUnlinked,uniqueLinks} from './summary.mjs';
 
 test('applyManualLinks replaces a building\'s complex or adds one',()=>{
  const places=new Map([['a',{id:'a',kapt_code:'WRONG',kapt_match:'near_name'}],['b',{id:'b',kapt_code:'RENTAL',kapt_match:'pnu'}]]);
@@ -8,6 +8,12 @@ test('applyManualLinks replaces a building\'s complex or adds one',()=>{
  assert.deepEqual(places.get('a'),{id:'a',kapt_code:'K1',kapt_match:'manual'});
  assert.equal(places.get('b').kapt_code,'RENTAL');
  assert.deepEqual(out,{extra:[{place_id:'b',kapt_code:'K2',kapt_match:'manual'}],missing:['gone']});
+});
+
+test("uniqueLinks keeps a building's own link when a manual extra repeats it",()=>{
+ const rows=[{place_id:'apt:28290:백석동:가-',kapt_code:'A10023127',kapt_match:'name'},{place_id:'apt:28290:백석동:가-',kapt_code:'A10023127',kapt_match:'manual'},{place_id:'apt:28290:백석동:가-',kapt_code:'K2',kapt_match:'manual'}];
+ assert.deepEqual(uniqueLinks(rows).map(r=>r.kapt_match),['name','manual']);
+ assert.equal(uniqueLinks(rows).length,2);
 });
 
 test('nameOrdinals reads 차수, 단지 lists and a trailing number',()=>{

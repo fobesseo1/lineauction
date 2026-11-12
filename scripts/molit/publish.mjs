@@ -12,7 +12,7 @@ import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked} from './summary.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked,uniqueLinks} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -282,8 +282,8 @@ for(const t of wh.prepare(`select key,lawd,umd,jibun,name,area,floor,deal_date,a
 const placeRows=[...places.values()].map(({_d,...p})=>p);
 const matched=placeRows.filter(p=>p.kapt_code).length;
 // Every building ↔ complex link: each building's own kapt_code plus the extra 'split' links.
-const linkRows=[...placeRows.filter(p=>p.kapt_code),...extraLinks.map(l=>({id:l.place_id,...l}))]
- .map(p=>({place_id:p.id,kapt_code:p.kapt_code,kapt_match:p.kapt_match,refreshed_at:runAt}));
+const linkRows=uniqueLinks([...placeRows.filter(p=>p.kapt_code),...extraLinks.map(l=>({id:l.place_id,...l}))]
+ .map(p=>({place_id:p.id,kapt_code:p.kapt_code,kapt_match:p.kapt_match,refreshed_at:runAt})));
 {const linked=new Set(linkRows.map(l=>l.kapt_code)),withPresale=new Set(presale.map(t=>t.kapt_code).filter(Boolean));
  const open=complexList.filter(c=>c.sale_type!=='임대'&&!linked.has(c.kapt_code));
  console.log(`complex links ${linkRows.length} (split ${extraLinks.length}); complexes without a building (임대 excluded) ${open.length}, of which with 분양권 trades ${open.filter(c=>withPresale.has(c.kapt_code)).length}`);

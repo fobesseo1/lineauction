@@ -60,6 +60,14 @@ export function sharesNamePart(molitName,complexName){
   .some(p=>p.length>=2&&!GENERIC.has(p)&&!/마을$/.test(p)&&target.includes(p));   // "양지마을" names a neighbourhood, not a complex
 }
 
+// One row per building ↔ complex pair, the first kept: a building's own complex can also come in as
+// an extra link (a manual 'also' that a name rule later picked as primary), and a repeated pair in
+// one upsert fails with "ON CONFLICT DO UPDATE command cannot affect row a second time".
+export function uniqueLinks(rows){
+ const seen=new Set();
+ return rows.filter(r=>{const k=`${r.place_id}|${r.kapt_code}`;if(seen.has(k))return false;seen.add(k);return true;});
+}
+
 // Hand-checked building ↔ complex pairs (manual-place-links.json) that the lot and name rules miss.
 // 'primary' makes it the building's own complex, replacing whatever a rule picked; 'also' adds a link
 // and leaves the building's own complex as it is. Buildings no longer in the warehouse are listed.
