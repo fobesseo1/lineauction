@@ -23,3 +23,5 @@
 ## 3. 서비스 테이블
 
 lineestate의 회원·관심·알림 테이블은 `app` 스키마에 있고, lineestate 저장소가 관리한다. `public.lineestate_*`는 자매사이트(realestate-sanbon)의 것이다.
+
+`sns` 스키마(2026-11-13)는 SNS 공장(snsfactory_lineestate) 것이다. `sns.interest_ranking` 표와 `sns.complex_candidates(시군구)` 함수가 있다. 함수는 SECURITY DEFINER이고 `public.complexes`에서 단지 이름·동·kapt_code만 읽는다. `sns_writer` 역할은 sns 표 쓰기와 이 함수 실행만 할 수 있고, public 표에는 직접 권한이 없다. `public.complexes`의 열(kapt_code, name, sigungu, dong, section, sido, households) 이름을 바꾸면 이 함수가 깨지므로, 바꾸기 전에 SNS 공장에 알린다.
