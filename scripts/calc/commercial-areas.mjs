@@ -65,7 +65,7 @@ for(const full of names){
  value[full]={lat:Math.round(point.lat*1e5)/1e5,lng:Math.round(point.lng*1e5)/1e5,area:full.split('>').length>=3?full.split('>').slice(0,2).join('>'):null,matched:c.matched,address:c.address};
 }
 const {error}=await supa.from('calc_constants').upsert({key:'commercial.areas',value,unit:'위경도',as_of:new Date().toISOString().slice(0,10),
- source:'선자산 계산 (한국부동산원 상권 이름 → 대표 필지, 좌표 출처: 국토교통부 브이월드)',source_url:null,
+ source:'선아파트 계산 (한국부동산원 상권 이름 → 대표 필지, 좌표 출처: 국토교통부 브이월드)',source_url:null,
  note:'상권 대표 지점(공식 경계 아님). area는 서울 권역(서울>강남 등). 물건과 가장 가까운 상권(예: 2km 이내)을 쓰고, 없으면 권역·시도 값',updated_at:new Date().toISOString()},{onConflict:'key'});
 if(error)throw Error(error.message);
 console.log(JSON.stringify({areas:names.size,looked,located:Object.keys(value).length,missing}));

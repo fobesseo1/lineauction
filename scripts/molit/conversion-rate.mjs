@@ -40,7 +40,7 @@ if(import.meta.url===`file:///${process.argv[1].replace(/\\/g,'/')}`){
   const all=[...byLawd.values()].flat();
   value.all=Math.round(median(all.map(r=>r*100))/10)/10;
   rows.push({key:`conversion_rate.${kind}`,value,unit:'%',as_of:new Date().toISOString().slice(0,10),
-   source:'선자산 계산 (국토교통부 실거래가 공개시스템 전월세 자료)',source_url:null,
+   source:'선아파트 계산 (국토교통부 실거래가 공개시스템 전월세 자료)',source_url:null,
    note:`최근 12개월, 같은 건물·평형의 월세×12 ÷ (전세 중앙값 − 월세 보증금 중앙값). 시군구별 ${MIN_GROUPS}개 건물 이상만, all은 수도권 전체`,
    updated_at:new Date().toISOString()});
   console.log(kind,'lawds',Object.keys(value).length-1,'all',value.all,'groups',all.length);

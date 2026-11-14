@@ -29,7 +29,7 @@ async function link(chat,username,code){
   // The START button and a typed "/start CODE" arrive together; the second finds the code used.
   const linked=await app.from('notification_channels').select('user_id').eq('telegram_chat_id',chat).maybeSingle();
   if(linked.data)return '이미 연결돼 있습니다. 알림을 끄려면 /stop 을 보내세요.';
-  return '코드가 틀렸거나 만료됐습니다. 선자산 사이트의 알림 설정에서 새 코드를 받아 주세요.';
+  return '코드가 틀렸거나 만료됐습니다. 선아파트 사이트의 알림 설정에서 새 코드를 받아 주세요.';
  }
  // One chat belongs to one member: a chat linked elsewhere moves to this member.
  const moved=await app.from('notification_channels').update({telegram_chat_id:null,telegram_username:null,telegram_linked_at:null}).eq('telegram_chat_id',chat).neq('user_id',row.user_id);
@@ -46,7 +46,7 @@ async function unlink(chat){
  return r.data.length?'알림 연결을 해제했습니다. 다시 받으려면 사이트에서 새 코드를 받아 주세요.':'연결된 계정이 없습니다.';
 }
 
-const HELP=`선자산 알림 봇입니다.\n사이트 알림 설정(${SITE}/me/notifications)에서 코드를 받아 /start 코드 를 보내면 연결됩니다.\n/stop 알림 해제`;
+const HELP=`선아파트 알림 봇입니다.\n사이트 알림 설정(${SITE}/me/notifications)에서 코드를 받아 /start 코드 를 보내면 연결됩니다.\n/stop 알림 해제`;
 
 const res=await getUpdates(offset);
 if(!res.ok){console.error(res.description);process.exit(1);}
@@ -62,7 +62,7 @@ for(const u of res.result){
  await writeJson(seenPath,seen);
  const isStaff=staff.some(s=>String(s.chat_id)===String(msg.chat.id));
  const cmd=parseCommand(msg.text);
- let reply=isStaff?'선자산 운영자 알림이 켜져 있습니다. 수집이 끝날 때마다 조건에 맞는 새 물건을 보내 드립니다.':HELP;
+ let reply=isStaff?'선아파트 운영자 알림이 켜져 있습니다. 수집이 끝날 때마다 조건에 맞는 새 물건을 보내 드립니다.':HELP;
  try{
   if(cmd?.command==='start'&&cmd.arg)reply=await link(msg.chat.id,msg.from?.username??null,cmd.arg);
   else if(cmd?.command==='stop')reply=await unlink(msg.chat.id);
