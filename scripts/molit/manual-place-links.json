@@ -89,6 +89,7 @@
  {"place_id":"apt:28185:연수동:582-2","kapt_code":"A40681703","action":"also","note":"연수승기마을","checked":"2026-11-09 이름·동·연도"},
  {"place_id":"apt:28185:동춘동:가-","kapt_code":"A10025586","action":"also","note":"송도동일하이빌파크포레아파트","checked":"2026-11-09 이름·동·연도"},
  {"place_id":"apt:28185:동춘동:가-","kapt_code":"A10025594","action":"also","note":"송도 파크레인 동일하이빌아파트","checked":"2026-11-09 이름·동·연도"},
+ {"place_id":"apt:28185:동춘동:가-","kapt_code":"A10025531","action":"also","note":"송도파크자이 (1,023세대, 2019): 지번 미부여, 같은 가- 묶음에 거래 250건","checked":"2026-11-16 이름·동·연도"},
  {"place_id":"apt:28200:구월동:1476","kapt_code":"A40522001","action":"also","note":"대우재엘에이치","checked":"2026-11-09 이름·동·연도"},
  {"place_id":"apt:28200:간석동:774-8","kapt_code":"A10021517","action":"primary","note":"간석동 팬더아파트","checked":"2026-11-09 이름·동·연도"},
  {"place_id":"apt:28200:만수동:1005","kapt_code":"A40577204","action":"also","note":"인천만수7(공단)","checked":"2026-11-09 이름·동·연도"},
