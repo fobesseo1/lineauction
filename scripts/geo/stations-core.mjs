@@ -1,24 +1,40 @@
-// 수도권 전철역 (OpenStreetMap, © OpenStreetMap contributors, ODbL) → stations and each complex's
-// nearest two. Pure functions only.
+// 전철역 of the enabled regions (OpenStreetMap, © OpenStreetMap contributors, ODbL) → stations and each
+// complex's nearest two. Pure functions only. One Overpass query per OSM area (scripts/regions.json areas).
 export const OVERPASS_URL='https://overpass-api.de/api/interpreter';
-// 서울·경기·인천 plus the ends of lines that leave it (천안·춘천 side stations are harmless).
-const BBOX='36.9,126.3,38.3,127.9';
-export const OVERPASS_QUERY=`[out:json][timeout:170];
-relation["type"="route"]["route"~"^(subway|light_rail|train|monorail)$"](${BBOX})->.r;.r out body;
+export const overpassQuery=bbox=>`[out:json][timeout:170];
+relation["type"="route"]["route"~"^(subway|light_rail|train|monorail)$"](${bbox})->.r;.r out body;
 node(r.r)->.n;.n out body;
-(nwr["railway"="station"](${BBOX});nwr["public_transport"="station"]["train"="yes"](${BBOX});nwr["station"~"subway|light_rail"](${BBOX}););out center tags;`;
+(nwr["railway"="station"](${bbox});nwr["public_transport"="station"]["train"="yes"](${bbox});nwr["station"~"subway|light_rail"](${bbox}););out center tags;`;
+// 서울·경기·인천 plus the ends of lines that leave it (천안·춘천 side stations are harmless).
+export const OVERPASS_QUERY=overpassQuery('36.9,126.3,38.3,127.9');
 
-// Route ref (or name prefix when a route has no ref) → the line name K-APT and the site use.
+// Route ref (or name prefix when a route has no ref) → the line name K-APT and the site use, per OSM area.
 // Routes not listed (KTX, ITX, 무궁화, AREX 직통, airport shuttles, 월미바다열차) are not commuter lines.
-const LINE_BY_REF={'1':'1호선','2':'2호선','3':'3호선','4':'4호선','5':'5호선','6':'6호선','7':'7호선','8':'8호선','9':'9호선',
- '수인·분당':'수인분당선','신분당':'신분당선','경의·중앙':'경의중앙선','경춘':'경춘선','경강':'경강선','서해':'서해선','공항철도':'공항철도',
- 'GTX-A':'GTX-A','인천1':'인천1호선','I2':'인천2호선','U':'의정부경전철','용인':'용인에버라인','김포 골드라인':'김포골드라인','W':'우이신설선','Silim':'신림선'};
-const LINE_BY_NAME=[[/^의정부경전철/,'의정부경전철'],[/^우이신설선/,'우이신설선'],[/^김포 골드라인/,'김포골드라인'],[/^용인 경전철/,'용인에버라인'],[/신림선/,'신림선']];
-export function lineOf(tags={}){
- if(tags.ref&&LINE_BY_REF[tags.ref])return LINE_BY_REF[tags.ref];
+// Outside the capital area the city goes in front ("부산 1호선"), so equal numbers never meet in one name.
+// ⚠️ 광역시 refs and names are a first guess: check them against the Overpass answer before turning a region on.
+const LINES={
+ capital:{city:null,refs:{'1':'1호선','2':'2호선','3':'3호선','4':'4호선','5':'5호선','6':'6호선','7':'7호선','8':'8호선','9':'9호선',
+  '수인·분당':'수인분당선','신분당':'신분당선','경의·중앙':'경의중앙선','경춘':'경춘선','경강':'경강선','서해':'서해선','공항철도':'공항철도',
+  'GTX-A':'GTX-A','인천1':'인천1호선','I2':'인천2호선','U':'의정부경전철','용인':'용인에버라인','김포 골드라인':'김포골드라인','W':'우이신설선','Silim':'신림선'},
+  names:[[/^의정부경전철/,'의정부경전철'],[/^우이신설선/,'우이신설선'],[/^김포 골드라인/,'김포골드라인'],[/^용인 경전철/,'용인에버라인'],[/신림선/,'신림선']]},
+ '26':{city:'부산',refs:{'1':'1호선','2':'2호선','3':'3호선','4':'4호선'},names:[[/^부산.?김해.?경전철/,'김해경전철'],[/^동해선/,'동해선']]},
+ '27':{city:'대구',refs:{'1':'1호선','2':'2호선','3':'3호선'},names:[[/^대경선/,'대경선']]},
+ '30':{city:'대전',refs:{'1':'1호선'},names:[]},
+ '36':{city:'세종',refs:{},names:[]},
+ '29':{city:'광주',refs:{'1':'1호선'},names:[]},
+ '31':{city:'울산',refs:{},names:[[/^동해선/,'동해선']]},
+};
+const linesOfArea=area=>{
+ const l=LINES[area];if(!l)throw Error(`NO_LINES:${area}`);
+ const named=n=>l.city?`${l.city} ${n}`:n;
+ return {refs:Object.fromEntries(Object.entries(l.refs).map(([k,v])=>[k,named(v)])),names:l.names.map(([re,n])=>[re,named(n)])};
+};
+export function lineOf(tags={},area='capital'){
+ const {refs,names}=linesOfArea(area);
+ if(tags.ref&&refs[tags.ref])return refs[tags.ref];
  if(tags.ref)return null;
  const name=tags['name:ko']??tags.name??'';
- return LINE_BY_NAME.find(([re])=>re.test(name))?.[1]??null;
+ return names.find(([re])=>re.test(name))?.[1]??null;
 }
 
 export function distanceM(a,b){
@@ -32,7 +48,7 @@ const stationName=t=>(t['name:ko']??t.name??'').replace(/역$/,'').trim();
 // Stop nodes of a route are often bare track nodes, so each stop is tied to the nearest station node
 // (within 400 m). Some stations are drawn as areas (ways), which come with a centre point. Station
 // points with one name within 600 m (환승역 drawn per line) become one station.
-export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
+export function buildStations(elements,{stopRadius=400,mergeRadius=600,area='capital'}={}){
  const nodes=new Map();
  for(const e of elements)if(e.type==='node'){const p=nodes.get(e.id);if(!p||e.tags)nodes.set(e.id,e);}
  const isStation=t=>t&&(t.railway==='station'||t.public_transport==='station')&&stationName(t);
@@ -41,7 +57,7 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
  const linesOf=new Map(),sequences=[];let unmatchedStops=0;
  for(const r of elements){
   if(r.type!=='relation')continue;
-  const line=lineOf(r.tags);if(!line)continue;
+  const line=lineOf(r.tags,area);if(!line)continue;
   const seq=[];sequences.push({line,keys:seq});
   for(const m of r.members??[]){
    if(m.type!=='node'||!/^stop/.test(m.role))continue;
@@ -62,7 +78,7 @@ export function buildStations(elements,{stopRadius=400,mergeRadius=600}={}){
   else clusters.push({name,nodes:[n],lines:new Set(linesOf.get(n.key))});
  }
  const clusterOf=new Map(clusters.flatMap(c=>c.nodes.map(n=>[n.key,`osm:${c.nodes[0].key}`])));
- const order=Object.values(LINE_BY_REF);
+ const order=Object.values(linesOfArea(area).refs);
  const stations=clusters.map(c=>({
   id:`osm:${c.nodes[0].key}`,name:c.name,
   lines:[...c.lines].sort((a,b)=>order.indexOf(a)-order.indexOf(b)),

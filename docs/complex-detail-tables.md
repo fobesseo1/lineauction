@@ -1,7 +1,7 @@
 # 단지 상세 자료 표 (lineestate가 읽는 것)
 
 모두 `public` 스키마, anon·authenticated `select` 가능. 단지와는 `kapt_code`(`complexes.kapt_code`)로 잇는다.
-수집기: `scripts/detail/`. 지역 설정: `scripts/detail/regions.json`. 연결 비율 확인: `node scripts/detail/coverage.mjs`.
+수집기: `scripts/detail/`. 지역 설정: `scripts/regions.json` (데이터 공장 전체가 같이 쓰는 지역 표, `enabled`인 시도만 모은다). 연결 비율 확인: `node scripts/detail/coverage.mjs`.
 
 ## 관리비 `complex_maintenance_fees` (PK `kapt_code, ym`)
 

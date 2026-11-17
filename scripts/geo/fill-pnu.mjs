@@ -12,6 +12,7 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {vworldFeatures,bboxCenter,boxOf} from './vworld.mjs';
+import {sidoSearchPattern} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const NUM='(?:산\\s*)?\\d+(?:-\\d+)?';
@@ -21,11 +22,12 @@ export function roadAddress(address){
  return m?m[1].trim():null;
 }
 // "경기도 부천시 원미구 심곡동 385 외 3필지 …" / "… 풍산동 243-32외 6필지" / "… 은행동607번지" → "… 심곡동 385"
+const SIDO_SEARCH=sidoSearchPattern();
 export function lotAddress(text){
  const t=String(text??'');
  // Usually the text starts with the address; Onbid titles may carry it in brackets instead
  // ("고덕강일지구 근린생활시설용지7-2(서울특별시 강동구 강일동 산22-1 일원)").
- const from=t.search(/(서울특별시|경기도|인천광역시)\s/);
+ const from=t.search(SIDO_SEARCH);
  const m=t.slice(Math.max(from,0)).match(new RegExp(`^(.*?\\S(?:동|리|가|읍|면))\\s*(${NUM})(?=번지|외|일원|[\\s,()]|$)`));
  return m?`${m[1].trim()} ${m[2].replace(/\s+/g,'')}`:null;
 }

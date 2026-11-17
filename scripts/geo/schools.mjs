@@ -1,7 +1,8 @@
 // 초등학교 통학구역 (vworld) + 학교 위치 (OpenStreetMap) → public.elementary_zones / elementary_schools,
 // then each complex's 배정 초등학교 and distance.
 //   node scripts/geo/schools.mjs [--refresh]
-// Sources are cached in data/schools/raw and refetched when older than 30 days (학구도 changes yearly);
+// Sources are cached in data/schools/raw, one set per OSM area of the enabled regions (scripts/regions.json;
+// the capital area keeps zones.json and tile1..4.json), and refetched when older than 30 days (학구도 changes yearly);
 // the assignment pass is local and writes only changed complexes.
 import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
@@ -9,16 +10,18 @@ import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {allFeatures} from './vworld.mjs';
 import {OVERPASS_URL} from './stations-core.mjs';
-import {ZONE_LAYER,BBOX,SCHOOL_TILES,schoolQuery,osmSchools,buildZones,assignSchool} from './schools-core.mjs';
+import {ZONE_LAYER,schoolQuery,osmSchools,buildZones,assignSchool} from './schools-core.mjs';
+import {geoAreas} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/schools';await mkdir(`${root}/raw`,{recursive:true});
 if(!await singleRun(root,'scripts/geo/schools.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
-const zonesPath=`${root}/raw/zones.json`,tilePath=i=>`${root}/raw/tile${i+1}.json`;
+const areas=geoAreas();
+const zonesPath=a=>`${root}/raw/zones${a.tag}.json`,tilePath=t=>`${root}/raw/tile${t.name}.json`;
 const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
-const [x0,y0,x1,y1]=(()=>{const [s,w,n,e]=BBOX.split(',');return [w,s,e,n];})();
+const lonLatBox=bbox=>{const [s,w,n,e]=bbox.split(',');return [w,s,e,n];};
 
 async function overpass(query){
  for(let attempt=0;;attempt++){
@@ -56,13 +59,21 @@ const round6=g=>JSON.parse(JSON.stringify(g,(k,v)=>typeof v==='number'?Math.roun
 try{
  const refresh=process.argv.includes('--refresh');
  let refreshed=false;
- if(refresh||await ageDays(zonesPath)>30){
-  await writeJson(zonesPath,{fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})});
+ for(const a of areas)if(refresh||await ageDays(zonesPath(a))>30){
+  const [x0,y0,x1,y1]=lonLatBox(a.bbox);
+  await writeJson(zonesPath(a),{fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})});
   refreshed=true;
  }
- for(const [i,tile] of SCHOOL_TILES.entries())if(refresh||refreshed||await ageDays(tilePath(i))>30){await writeJson(tilePath(i),await overpass(schoolQuery(tile)));refreshed=true;await sleep(5000);}
- const features=JSON.parse(await readFile(zonesPath,'utf8')).features;
- const elements=[];for(let i=0;i<SCHOOL_TILES.length;i++)elements.push(...JSON.parse(await readFile(tilePath(i),'utf8')).elements);
+ for(const a of areas)for(const t of a.tiles)if(refresh||refreshed||await ageDays(tilePath(t))>30){await writeJson(tilePath(t),await overpass(schoolQuery(t.bbox)));refreshed=true;await sleep(5000);}
+ // Each area keeps only its own 시도's zones, so overlapping boxes (대전·세종) never doubles a zone.
+ const features=[];
+ for(const a of areas){const sd=new Set(a.sido);features.push(...JSON.parse(await readFile(zonesPath(a),'utf8')).features.filter(f=>sd.has(f.properties.sd_cd)));}
+ // Schools: a later area skips elements an earlier area already gave (tiles inside one area are kept as they come).
+ const elements=[],seen=new Set();
+ for(const a of areas){
+  const mine=[];for(const t of a.tiles)mine.push(...JSON.parse(await readFile(tilePath(t),'utf8')).elements);
+  elements.push(...mine.filter(e=>!seen.has(`${e.type}/${e.id}`)));for(const e of mine)seen.add(`${e.type}/${e.id}`);
+ }
  const zones=buildZones(features,osmSchools(elements));
  // A broken answer must never empty the tables: the capital area has ~2,600 zones.
  if(zones.length<2000)throw Error(`TOO_FEW_ZONES:${zones.length}`);

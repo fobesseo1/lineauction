@@ -6,6 +6,7 @@
 //   rent (천원/㎡·월), vacancy (%), conversion (%), income_yield / capital_yield (% per year,
 //   the last four quarters added up), floor_ratio ({층: 1층=100 효용비율}) where published.
 import {createClient} from '@supabase/supabase-js';
+import {shortPattern} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 export const TABLES={
@@ -14,7 +15,8 @@ export const TABLES={
  small_shop:{label:'소규모 상가',yield:'T246253134913401',rent:'T248223134698125',vacancy:'T241833134686576',conversion:'T246253134905233',floor:'T246233134891629'},
  unit_shop:{label:'집합 상가',yield:'T246393134978815',rent:'T244913134948657',vacancy:'T243283134931290',conversion:'T243133134985812',floor:'T249023134703697'},
 };
-export const CAPITAL=/^(서울|경기|인천)(>|$)/;
+// /^(서울|경기|인천)(>|$)/ for the enabled regions (scripts/regions.json).
+export const CAPITAL=shortPattern();
 const round=v=>v==null?null:Math.round(v*100)/100;
 
 async function rows(id){

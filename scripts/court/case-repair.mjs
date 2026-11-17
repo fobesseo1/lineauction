@@ -16,6 +16,7 @@ import {settleSearchTables} from './search-settle.mjs';
 import {withOperationDeadline} from './operation-deadline.mjs';
 import {unavailableCaseEvidence} from './case-unavailable.mjs';
 import {recoverBlankDetail} from './blank-detail-recovery.mjs';
+import {courtList} from '../regions.mjs';
 const root='data/court/standalone';
 const load=async(p,f)=>{try{return JSON.parse(await readFile(p,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;return f;}};
 const atomic=async(p,v)=>{const t=`${p}.${randomUUID()}.tmp`;await writeFile(t,JSON.stringify(v,null,2),{flush:true});await replaceFile(t,p);};
@@ -23,7 +24,7 @@ const stopped=async()=>{try{await readFile(`${root}/STOP`);return true;}catch(e)
 if(await stopped())throw Error('User STOP exists');
 const limit=Number(process.argv.find(x=>x.startsWith('--limit='))?.split('=')[1]??100000);
 if(!Number.isInteger(limit)||limit<1)throw Error('Invalid limit');
-const courts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).slice(0,16);
+const courts=courtList();
 const audit=await load(`${root}/repair-audit.json`,null);
 if(!audit?.allCourtsTraversed)throw Error('Complete list comparison required before case follow-up');
 let state=await load('data/court/current.json',null);

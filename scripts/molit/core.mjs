@@ -1,6 +1,7 @@
 // MOLIT 실거래 (아파트·오피스텔 매매·전월세) → local warehouse rows. Pure functions only.
 import {createHash} from 'node:crypto';
 import {XMLParser} from 'fast-xml-parser';
+import {SIDO_NAMES,inSidoList} from '../regions.mjs';
 
 export const APIS={
  aptSale:{kind:'apt',deal:'sale',url:'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade'},
@@ -20,10 +21,10 @@ export const APIS={
  silvSale:{kind:'silv',deal:'sale',months:12,url:'https://apis.data.go.kr/1613000/RTMSDataSvcSilvTrade/getRTMSDataSvcSilvTrade'},
 };
 
-// Leaf 시군구 codes for the capital area: a city whose 구 are listed separately is not
-// queried itself (MOLIT files trades under the 구 code).
-export function leafRegions(codes){
- const names=Object.keys(codes).filter(n=>/^(서울특별시|경기도|인천광역시) /.test(n));
+// Leaf 시군구 codes of the enabled regions (scripts/regions.json): a city whose 구 are listed separately
+// is not queried itself (MOLIT files trades under the 구 code). 세종 has no 시군구: its key is the 시도 name.
+export function leafRegions(codes,sidoNames=SIDO_NAMES){
+ const names=Object.keys(codes).filter(n=>inSidoList(n,sidoNames));
  return names.filter(n=>!names.some(o=>o.startsWith(`${n} `))).map(n=>({name:n,code:codes[n]})).filter(r=>/^\d{5}$/.test(r.code));
 }
 

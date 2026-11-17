@@ -10,6 +10,7 @@
 // send is retried by the next job instead of being lost, and the same address is not resent daily.
 //   node scripts/indexnow.mjs [--near] [--dry] [--since <iso>]
 import {createClient} from '@supabase/supabase-js';
+import {SIDO_NAMES} from './regions.mjs';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 process.loadEnvFile('.env.local');
 
@@ -17,7 +18,7 @@ const SITE='https://lineestate.co.kr';
 const KEY='fe61cd23970087bccfcb064d13d49167'; // public value, served at SITE/KEY.txt
 const ENDPOINT='https://api.indexnow.org/indexnow';
 const BATCH=10_000;
-const SIDO=['서울특별시','경기도','인천광역시'];
+const SIDO=SIDO_NAMES;
 const STATE='data/daily/indexnow.json';
 const BANDS={t:'10평대',b:'20평대',m:'30평대',l:'40평대이상'}; // lineestate lib/data/near-core.ts NEAR_BANDS
 

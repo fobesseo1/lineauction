@@ -6,6 +6,7 @@
 import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {regionCode} from '../court/regions.mjs';
+import {SIDO_NAMES} from '../regions.mjs';
 import {placeId} from './summary.mjs';
 import {tradeKind,pnuLot,courtAddress,findPlace,marketPrice,shopFloor,outlier,offAppraisal,dealScore,villaPrice,sameDong} from './match.mjs';
 import {commercialKind,floorClass,landPrice,housePrice,unitPrice,buildingPrice,houseIncome} from './commercial.mjs';
@@ -57,7 +58,7 @@ const villaSalesIn=lawd=>{if(!villaLawdCache.has(lawd))villaLawdCache.set(lawd,v
 // 시군구 code(s) from the start of a court address ("경기도 용인시 처인구 ...").
 function lawdsOf(address){
  const t=String(address??'').split(/\s+/);
- for(const n of [3,2]){const code=regionCode(t.slice(0,n).join(' '));if(code)return String(code).split(',');}
+ for(const n of [3,2,1]){const code=regionCode(t.slice(0,n).join(' '));if(code)return String(code).split(',');}
  return [];
 }
 
@@ -66,7 +67,7 @@ const refreshed=await supa.rpc('refresh_current_rounds');if(refreshed.error)thro
 const properties=[];
 for(let from=0;;from+=1000){
  const {data,error}=await supa.from('properties').select('id,source,usage_type,section,address,sido,dong,pnu,exclusive_area,building_area,land_area,build_year,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
-  .eq('section','apartment').eq('is_current',true).in('sido',['서울특별시','경기도','인천광역시']).order('id').range(from,from+999);
+  .eq('section','apartment').eq('is_current',true).in('sido',SIDO_NAMES).order('id').range(from,from+999);
  if(error)throw Error(error.message);properties.push(...data);if(data.length<1000)break;
 }
 
@@ -155,7 +156,7 @@ for(const p of properties){
 const commercialProps=[];
 for(let from=0;;from+=1000){
  const {data,error}=await supa.from('properties').select('id,source,usage_type,title,section,address,dong,pnu,exclusive_area,building_area,land_area,build_year,minimum_bid_price,appraisal_price,risk_flags,failed_bid_count')
-  .eq('section','commercial').eq('is_current',true).in('sido',['서울특별시','경기도','인천광역시']).order('id').range(from,from+999);
+  .eq('section','commercial').eq('is_current',true).in('sido',SIDO_NAMES).order('id').range(from,from+999);
  if(error)throw Error(error.message);commercialProps.push(...data);if(data.length<1000)break;
 }
 const parcels=new Map();

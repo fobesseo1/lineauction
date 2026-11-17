@@ -4,15 +4,17 @@ import {access,appendFile,mkdir,readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {regionCatalog} from '../court/regions.mjs';
 import {leafRegions} from '../molit/core.mjs';
+import {ENABLED_REGIONS,inSido} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
-export const REGIONS=JSON.parse(readFileSync(new URL('./regions.json',import.meta.url),'utf8')).sido;
+// Enabled regions from scripts/regions.json (was detail/regions.json): {code, name, seoulBusFile?}.
+export const REGIONS=ENABLED_REGIONS.map(r=>({code:r.code,name:r.name,...(r.seoulBusFile?{seoulBusFile:true}:{})}));
 export const SIDO_NAMES=REGIONS.map(r=>r.name);
-export const inRegion=name=>SIDO_NAMES.some(s=>(name??'').startsWith(s));
+export const inRegion=name=>SIDO_NAMES.some(s=>inSido(name??'',s));
 // Leaf 시군구 of the configured 시도 (cities with 구 are split into their 구).
 export const leafSigungu=()=>{
  const names=Object.keys(regionCatalog.codes).filter(n=>inRegion(n));
- return names.filter(n=>!names.some(o=>o.startsWith(`${n} `))).map(n=>({name:n,code:regionCatalog.codes[n],sido:REGIONS.find(r=>n.startsWith(r.name))})).filter(r=>/^\d{5}$/.test(r.code));
+ return names.filter(n=>!names.some(o=>o.startsWith(`${n} `))).map(n=>({name:n,code:regionCatalog.codes[n],sido:REGIONS.find(r=>inSido(n,r.name))})).filter(r=>/^\d{5}$/.test(r.code));
 };
 export {leafRegions};
 

@@ -1,8 +1,10 @@
 // K-APT (공동주택 단지 목록·기본정보) → public.complexes rows. Pure functions only.
+import {sidoByCode} from '../regions.mjs';
 export const LIST_ENDPOINT='https://apis.data.go.kr/1613000/AptListService4/getSidoAptList4';
 export const BASIS_ENDPOINT='https://apis.data.go.kr/1613000/AptBasisInfoServiceV5/getAphusBassInfoV5';
 export const DETAIL_ENDPOINT='https://apis.data.go.kr/1613000/AptBasisInfoServiceV5/getAphusDtlInfoV5';
-export const SIDO={'11':'서울특별시','41':'경기도','28':'인천광역시'};
+// Enabled 시도 code → name (scripts/regions.json).
+export const SIDO=sidoByCode;
 export const LIST_PAGE_SIZE=1000;
 
 // The gateway answers JSON on success but a gateway envelope (XML or JSON

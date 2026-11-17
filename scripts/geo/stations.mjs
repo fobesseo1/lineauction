@@ -1,28 +1,31 @@
-// 수도권 전철역 from OpenStreetMap (Overpass) → public.rail_stations, then each complex's nearest two
+// 전철역 of the enabled regions from OpenStreetMap (Overpass) → public.rail_stations, then each complex's nearest two
 // and its 업무지구 commute estimates (public.complex_commutes) plus 역↔역 minutes (public.station_to_station_minutes).
 //   node scripts/geo/stations.mjs [--refresh]
-// The Overpass answer is cached in data/stations/raw/overpass.json and refetched when older than
-// 7 days (or with --refresh); both passes are local and write only what changed.
+// One Overpass answer per OSM area (scripts/regions.json), cached in data/stations/raw/overpass.json
+// (capital area) or overpass-<area>.json and refetched when older than 7 days (or with --refresh); both
+// passes are local and write only what changed. Areas are joined before the 500-station check and before
+// stale stations are deleted, so a new area never removes another area's stations.
 import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
-import {OVERPASS_URL,OVERPASS_QUERY,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
-import {DESTINATIONS,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
+import {OVERPASS_URL,overpassQuery,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
+import {DESTINATIONS,DESTINATION_AREA,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
+import {geoAreas} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/stations';await mkdir(`${root}/raw`,{recursive:true});
 if(!await singleRun(root,'scripts/geo/stations.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
-const cache=`${root}/raw/overpass.json`;
+const cacheOf=area=>`${root}/raw/overpass${area.tag}.json`;
 const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
 
-async function fetchOverpass(){
+async function fetchOverpass(query){
  for(let attempt=0;;attempt++){
   try{
    // overpass-api.de answers 406 to requests without a User-Agent.
-   const r=await fetch(OVERPASS_URL,{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:OVERPASS_QUERY}),signal:AbortSignal.timeout(200_000)});
+   const r=await fetch(OVERPASS_URL,{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
    const text=await r.text();
    if(!r.ok)throw Error(`OVERPASS_${r.status}`);
    const json=JSON.parse(text);
@@ -50,10 +53,17 @@ async function write(table,rows,onConflict){
 
 try{
  let refreshed=false;
- if(process.argv.includes('--refresh')||await ageDays(cache)>7){await writeJson(cache,await fetchOverpass());refreshed=true;}
- const osm=JSON.parse(await readFile(cache,'utf8'));
- const {stations,routes,unmatchedStops}=buildStations(osm.elements);
- // A broken answer must never empty the table: the capital area has 600+ stations.
+ const stations=[],routes=[],areaOf=new Map();let unmatchedStops=0;
+ for(const area of geoAreas()){
+  const cache=cacheOf(area);
+  if(process.argv.includes('--refresh')||await ageDays(cache)>7){await writeJson(cache,await fetchOverpass(overpassQuery(area.bbox)));refreshed=true;}
+  const osm=JSON.parse(await readFile(cache,'utf8'));
+  const built=buildStations(osm.elements,{area:area.key});
+  // A station drawn in two overlapping areas is kept once (the first area's).
+  for(const s of built.stations)if(!areaOf.has(s.id)){areaOf.set(s.id,area.key);stations.push(s);}
+  routes.push(...built.routes);unmatchedStops+=built.unmatchedStops;
+ }
+ // A broken answer must never empty the table: the capital area alone has 600+ stations.
  if(stations.length<500)throw Error(`TOO_FEW_STATIONS:${stations.length}`);
  if(refreshed){
   const now=new Date().toISOString();
@@ -76,7 +86,7 @@ try{
  await write('complexes',changed,'kapt_code');
  // Commutes: one shortest-path run per destination covers every station.
  const graph=buildGraph(stations,routes);const nameOf=new Map(stations.map(s=>[s.id,s.name]));
- const rides=Object.entries(DESTINATIONS).map(([d,names])=>[d,fromDestination(graph,stations,new Set(stations.filter(s=>names.includes(s.name)).map(s=>s.id)))]);
+ const rides=Object.entries(DESTINATIONS).map(([d,names])=>[d,fromDestination(graph,stations,new Set(stations.filter(s=>names.includes(s.name)&&areaOf.get(s.id)===DESTINATION_AREA[d]).map(s=>s.id)))]);
  const commutes=new Map();
  for(const c of complexes){
   if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;

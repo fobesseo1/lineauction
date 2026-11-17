@@ -1,12 +1,15 @@
 // 초등학교 통학구역 (vworld LT_C_DESCH, 교육부 학구도) + 학교 위치 (OpenStreetMap) → each complex's
 // 배정 초등학교 and the straight-line distance to it. Pure functions only.
 import {distanceM} from './stations-core.mjs';
+import {SIDO_CODES,regionConfig} from '../regions.mjs';
 
 export const ZONE_LAYER='LT_C_DESCH';
-export const CAPITAL_SD=new Set(['11','41','28']);
-export const BBOX='36.9,126.3,38.3,127.9';
-// overpass-api.de times out on the whole area in one query, so schools come in four tiles.
-export const SCHOOL_TILES=['36.9,126.3,37.45,127.1','36.9,127.1,37.45,127.9','37.45,126.3,38.3,127.1','37.45,127.1,38.3,127.9'];
+// 시도 codes of the enabled regions (scripts/regions.json; 서울·경기·인천 today). Name kept for callers.
+export const CAPITAL_SD=new Set(SIDO_CODES);
+// Capital-area box and its four Overpass tiles (overpass-api.de times out on the whole area in one query).
+// The collectors walk geoAreas() from scripts/regions.json; these stay for callers that want the capital only.
+export const BBOX=regionConfig.areas.capital.bbox;
+export const SCHOOL_TILES=regionConfig.areas.capital.tiles;
 export const schoolQuery=bbox=>`[out:json][timeout:180];nwr["amenity"="school"](${bbox});out center tags;`;
 
 // "서울서이초통학구역" → ['서울서이초']. A 공동통학구역 runs its schools together

@@ -8,6 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCode} from '../court/regions.mjs';
+import {SIDO_NAMES} from '../regions.mjs';
 import {singleRun} from '../single-run.mjs';
 import {jibunPnu,placeId} from '../molit/summary.mjs';
 import {courtAddress,sameDong} from '../molit/match.mjs';
@@ -30,7 +31,7 @@ function bjdOf(lawd,dong){
  const hits=Object.entries(t).filter(([umd])=>sameDong(umd,dong));
  return hits.length===1?hits[0][1]:null;
 }
-const lawdsOf=address=>{const t=String(address??'').split(/\s+/);for(const n of [3,2]){const c=regionCode(t.slice(0,n).join(' '));if(c)return String(c).split(',');}return [];};
+const lawdsOf=address=>{const t=String(address??'').split(/\s+/);for(const n of [3,2,1]){const c=regionCode(t.slice(0,n).join(' '));if(c)return String(c).split(',');}return [];};
 
 async function fetchAll(table,columns,filter=q=>q){
  const out=[];
@@ -45,7 +46,7 @@ const places=[...wh.prepare("select distinct kind,lawd,umd,jibun from trades whe
 wh.close();
 const allComplexes=await fetchAll('complexes','id,kapt_code,pnu,name,sido,sigungu,road_address,jibun_address');
 const complexes=allComplexes.filter(c=>c.pnu);
-const properties=await fetchAll('properties','id,source,address,dong,pnu',q=>q.in('sido',['서울특별시','경기도','인천광역시']));
+const properties=await fetchAll('properties','id,source,address,dong,pnu',q=>q.in('sido',SIDO_NAMES));
 const courtPnu=new Map();
 for(const p of properties){
  if(p.source!=='court')continue;

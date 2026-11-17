@@ -10,9 +10,10 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {vworldFeatures,bboxCenter,boxOf} from '../geo/vworld.mjs';
 import {shortAddress} from '../geo/fill-pnu.mjs';
+import {ENABLED_REGIONS} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
-const SIDO={서울:'서울특별시',경기:'경기도',인천:'인천광역시'};
+const SIDO=Object.fromEntries(ENABLED_REGIONS.map(r=>[r.short,r.name]));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 await mkdir('data/calc',{recursive:true});
 const cachePath='data/calc/areas.json';

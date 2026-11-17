@@ -1,4 +1,5 @@
 // Pure helpers that turn warehouse trades into market_* summary rows.
+import {SIDO_NAMES} from '../regions.mjs';
 export const placeId=(kind,lawd,umd,jibun)=>`${kind}:${lawd}:${umd}:${jibun}`;
 
 // PNU from a 10-digit 법정동 code and a MOLIT 지번 ("236-8", "산69-1", "1050").
@@ -82,8 +83,8 @@ export function applyManualLinks(places,manual){
  return {extra,missing};
 }
 
-// 수도권 apartment complexes with no building link and not yet confirmed as having none.
-const CAPITAL=new Set(['서울특별시','경기도','인천광역시']);
+// Apartment complexes of the enabled regions with no building link and not yet confirmed as having none.
+const CAPITAL=new Set(SIDO_NAMES);
 // Rental and company-housing complexes are left out: they have no sales to miss.
 const NO_SALE=new Set(['임대','사택 및 관사 등']);
 export const newUnlinked=(complexes,linked,confirmed)=>complexes.filter(c=>c.section==='apartment'&&CAPITAL.has(c.sido)&&!NO_SALE.has(c.sale_type)&&!linked.has(c.kapt_code)&&!confirmed.has(c.kapt_code));

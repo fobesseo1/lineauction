@@ -11,6 +11,7 @@ import { withCourtRecovery } from './recovery-core.mjs';
 import { withOperationDeadline } from './operation-deadline.mjs';
 import { needsCourtDetail, repairAudit } from './repair-audit.mjs';
 import { isApartmentUse } from '../property-section.mjs';
+import {courtList} from '../regions.mjs';
 
 const root='data/court/standalone';
 await mkdir(root,{recursive:true});
@@ -23,7 +24,7 @@ const syncEvery=Number(option('sync-every','0'));
 if(!Number.isInteger(syncEvery)||syncEvery<0)throw Error('Invalid synchronization interval');
 const startPage=Number(option('start-page','1'));
 if(!Number.isInteger(startPage)||startPage<1)throw Error('Invalid start page');
-const allCourts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).slice(0,16);
+const allCourts=courtList();
 const selected=option('court',null);
 if(selected&&!allCourts.includes(selected))throw Error('Court outside Seoul/Gyeonggi jurisdiction scope');
 const courts=selected?[selected]:allCourts;

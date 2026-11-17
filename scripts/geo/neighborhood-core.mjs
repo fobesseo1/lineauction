@@ -1,6 +1,7 @@
 // 동네 환경 per complex: 공원 거리·면적 and 대형마트·백화점 거리·개수 from OpenStreetMap (© OpenStreetMap
 // contributors, ODbL); 종합병원·의원·학원 from 소상공인시장진흥공단 상가(상권)정보. Pure functions only.
 import {distanceM} from './stations-core.mjs';
+import {SIDO_CODES} from '../regions.mjs';
 
 // overpass-api.de times out on the whole area with geometry, so parks come in the school tiles.
 export const parkQuery=bbox=>`[out:json][timeout:180];nwr["leisure"="park"](${bbox});out geom tags;`;
@@ -124,7 +125,7 @@ export function neighborhoodFor(point,nearParks,nearMarts,{step=20}={}){
 }
 
 // 상가(상권)정보 (B553077 storeListInDong), fetched per 시도 and 업종 대분류: Q1 보건의료, P1 교육.
-export const STORE_SIDO=['11','41','28'],STORE_GROUPS=['Q1','P1'];
+export const STORE_SIDO=SIDO_CODES,STORE_GROUPS=['Q1','P1'];
 export const GENERAL_HOSPITAL='Q10101',CLINIC=/^Q102/;
 // 학원가 means school-subject academies: 입시·교과학원 and 외국어학원 (not 예체능, 운전, 자격증, 요가).
 export const ACADEMY=new Set(['P10501','P10615']);

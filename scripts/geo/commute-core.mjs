@@ -6,6 +6,7 @@
 // the region: checked against 카카오맵 for 28 complexes (2026-10-25, Sunday), 18 were within ±10 min with
 // 2 min and 26 with this rule (mean +0.3 min). Express lines (GTX-A, 신분당선, 공항철도) use their own speed.
 import {distanceM} from './stations-core.mjs';
+import {geoAreas} from '../regions.mjs';
 
 export const FIRST_WAIT=3,TRANSFER=5,LAST_WALK=5,MAX_ORIGIN_M=2000;
 // km per minute between stations, stops included, from 수서→동탄 19분, 강남→판교 16분, 서울역→김포공항 22분.
@@ -13,11 +14,39 @@ const EXPRESS_SPEED={'GTX-A':1.6,'신분당선':1.0,'공항철도':0.8};
 const STOP_MIN=0.5,SPEED=0.9;
 export const hopMinutes=(line,m)=>EXPRESS_SPEED[line]?Math.max(2,m/1000/EXPRESS_SPEED[line]):STOP_MIN+m/1000/SPEED;
 
+// 업무지구 → the station names that stand for it, per OSM area (scripts/regions.json areas). A destination
+// counts only stations of its own area, so 대전 시청 never stands for 서울 시청. Names must be unique across areas
+// (they are complex_commutes.destination).
 // 송도 is the 국제업무지구 (인천1호선), not 수인분당선 송도역.
-export const DESTINATIONS={
- 여의도:['여의도'],강남:['강남'],광화문:['광화문','시청'],판교:['판교'],마곡:['마곡나루','마곡'],
- 잠실:['잠실'],구로디지털단지:['구로디지털단지'],성수:['성수'],용산:['용산'],송도:['센트럴파크','인천대입구'],
+// 광역시·세종: lineestate docs/metro-destinations-research.md (2026-11-18, ⚠️ station names unchecked against OSM).
+// Places with no station (대덕연구단지, 하남·첨단산단, 울산 공장·산단, 세종) need a car/bus estimate, not this
+// rail graph: they are listed in NO_STATION_DESTINATIONS and get no rows yet.
+export const DESTINATIONS_BY_AREA={
+ capital:{
+  여의도:['여의도'],강남:['강남'],광화문:['광화문','시청'],판교:['판교'],마곡:['마곡나루','마곡'],
+  잠실:['잠실'],구로디지털단지:['구로디지털단지'],성수:['성수'],용산:['용산'],송도:['센트럴파크','인천대입구'],
+ },
+ '26':{서면:['서면'],센텀시티:['센텀시티'],문현금융단지:['문현','국제금융센터·부산은행']},
+ '27':{'동성로·반월당':['반월당','중앙로'],범어:['범어'],성서산단:['성서산업단지']},
+ '30':{둔산:['시청','정부청사']},
+ '36':{},
+ '29':{상무지구:['상무']},
+ '31':{},
 };
+export const NO_STATION_DESTINATIONS={'30':['대덕연구단지','대덕테크노밸리'],'36':['정부세종청사','나성동'],'29':['하남산단','첨단산단'],'31':['현대자동차 울산공장','HD현대중공업','울산석유화학단지']};
+// Destinations of the given areas (the enabled ones by default), name → {area, stations}.
+export function destinationsFor(areas){
+ const out={};
+ for(const area of areas)for(const [d,names] of Object.entries(DESTINATIONS_BY_AREA[area]??{})){
+  if(out[d])throw Error(`DUPLICATE_DESTINATION:${d}`);
+  out[d]={area,stations:names};
+ }
+ return out;
+}
+const ENABLED_AREAS=geoAreas().map(a=>a.key);
+// name → station names, for the enabled areas (the capital area alone today: the same ten as before).
+export const DESTINATIONS=Object.fromEntries(Object.entries(destinationsFor(ENABLED_AREAS)).map(([d,v])=>[d,v.stations]));
+export const DESTINATION_AREA=Object.fromEntries(Object.entries(destinationsFor(ENABLED_AREAS)).map(([d,v])=>[d,v.area]));
 
 // opts let a calibration run try other hop and transfer times.
 export function buildGraph(stations,routes,{hop=hopMinutes,transfer=TRANSFER}={}){

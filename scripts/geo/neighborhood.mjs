@@ -1,14 +1,15 @@
 // 동네 환경 per complex → public.complexes: 공원 거리·면적, 대형마트·백화점 (OpenStreetMap) and 종합병원,
 // 의원·학원 수 (소상공인시장진흥공단 상가(상권)정보, quarterly).
 //   node scripts/geo/neighborhood.mjs [--refresh]
-// Overpass and 상가정보 answers are cached in data/neighborhood/raw and refetched when older than 30 days;
+// Overpass and 상가정보 answers are cached in data/neighborhood/raw (Overpass per OSM area of the enabled regions,
+// scripts/regions.json; the capital area keeps park1..4/mart1..4) and refetched when older than 30 days;
 // the per-complex pass is local and writes only changed complexes.
 import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {OVERPASS_URL} from './stations-core.mjs';
-import {SCHOOL_TILES} from './schools-core.mjs';
+import {geoAreas} from '../regions.mjs';
 import {parkQuery,martQuery,osmParks,osmMarts,gridIndex,neighborhoodFor,MAX_SEARCH,STORE_SIDO,STORE_GROUPS,storeRows,servicesFor,GENERAL_HOSPITAL,CLINIC,ACADEMY,ACADEMY_FAR} from './neighborhood-core.mjs';
 process.loadEnvFile('.env.local');
 
@@ -67,10 +68,18 @@ try{
  const refresh=process.argv.includes('--refresh');
  const sources={park:parkQuery,mart:martQuery};
  const elements={park:[],mart:[]};let refreshed=false;
- for(const [kind,query] of Object.entries(sources))for(const [i,tile] of SCHOOL_TILES.entries()){
-  const path=`${root}/raw/${kind}${i+1}.json`;
-  if(refresh||await ageDays(path)>30){await writeJson(path,await overpass(query(tile)));refreshed=true;await sleep(5000);}
-  elements[kind].push(...JSON.parse(await readFile(path,'utf8')).elements);
+ // A later area skips elements an earlier area already gave (overlapping boxes such as 대전·세종).
+ for(const [kind,query] of Object.entries(sources)){
+  const seen=new Set();
+  for(const area of geoAreas()){
+   const mine=[];
+   for(const tile of area.tiles){
+    const path=`${root}/raw/${kind}${tile.name}.json`;
+    if(refresh||await ageDays(path)>30){await writeJson(path,await overpass(query(tile.bbox)));refreshed=true;await sleep(5000);}
+    mine.push(...JSON.parse(await readFile(path,'utf8')).elements);
+   }
+   elements[kind].push(...mine.filter(e=>!seen.has(`${e.type}/${e.id}`)));for(const e of mine)seen.add(`${e.type}/${e.id}`);
+  }
  }
  const shops=[];
  for(const sido of STORE_SIDO)for(const group of STORE_GROUPS){

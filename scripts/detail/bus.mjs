@@ -1,7 +1,7 @@
 // 버스 정류장 → public.bus_stops, public.complex_bus_stops.
 //   node scripts/detail/bus.mjs [--phase all|routes|stops] [--refresh]
 // Stops: TAGO's yearly file (국토교통부_전국 버스정류장 위치정보, data.go.kr 15067528) plus, for 시도 flagged
-// seoulBusFile in regions.json, 서울 열린데이터광장 OA-15067 (TAGO lists only other cities' stops inside Seoul).
+// seoulBusFile in scripts/regions.json, 서울 열린데이터광장 OA-15067 (TAGO lists only other cities' stops inside Seoul).
 // Express: TAGO routes per city (needs 버스노선정보 15098529 on the key); only 광역·직행좌석 routes are walked,
 // so this costs a few thousand calls. Without the service, is_express stays null and everything else still runs.
 import {readFile,writeFile,stat,mkdir,rm} from 'node:fs/promises';

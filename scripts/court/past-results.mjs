@@ -12,6 +12,7 @@ import {parseResults} from './results.mjs';
 import {selectTargetResults} from './results-repair-core.mjs';
 import {inCapitalArea} from './scope.mjs';
 import {isApartmentUse} from '../property-section.mjs';
+import {courtList} from '../regions.mjs';
 
 const root='data/court/standalone';
 const days=Number(process.argv.find(x=>x.startsWith('--days='))?.slice(7)??7);
@@ -28,7 +29,7 @@ function pastDueKeys(state,courts,today,from){
   &&!(i.resultEvidence&&i.resultEvidence.auctionDate>=i.auctionDate)).map(([k])=>k);
 }
 
-const courts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).slice(0,16);
+const courts=courtList();
 let state=await load('data/court/current.json',null);if(!state)throw Error('Court state missing');
 const targets=new Set(pastDueKeys(state,courts,kst(0),kst(days)));
 const runCourts=courts.filter(c=>[...targets].some(k=>k.startsWith(`${c}:`)));

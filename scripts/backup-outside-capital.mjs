@@ -7,6 +7,9 @@ import {createGzip} from 'node:zlib';
 import {pipeline} from 'node:stream/promises';
 import {Readable} from 'node:stream';
 import {createClient} from '@supabase/supabase-js';
+// One-off (2026-10, before properties outside 서울·경기·인천 were removed). Not to be run again: once
+// 광역시 are turned on in scripts/regions.json, "outside the capital" would sweep up rows we keep on purpose.
+console.error('backup-outside-capital.mjs was a one-off (2026-10) and is retired; see scripts/regions.json.');process.exit(2);
 process.loadEnvFile('.env.local');
 
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});

@@ -12,6 +12,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { parseList, COURT_URL } from './core.mjs';
 import { inSeoulGyeonggi } from './scope.mjs';
 import { sendWindowsNotification } from './windows-notify.mjs';
+import {courtList} from '../regions.mjs';
 
 const root='data/court/parallel-test',collector='data/court/standalone';
 await mkdir(root,{recursive:true});
@@ -87,7 +88,7 @@ const goPage=async number=>{
 // 2) Walk courts in reverse, opening a few details per page, until the collector finishes.
 let outcome='collector-finished';
 try{
- const courts=JSON.parse(await readFile('scripts/court/courts.json','utf8')).slice(0,16).reverse();
+ const courts=courtList().reverse();
  outer:for(;;)for(const court of courts){
   await page.goto(COURT_URL,{waitUntil:'domcontentloaded',timeout:45000});
   await page.locator('#mf_sbx_rletRpdtCortLst').selectOption({label:court});
