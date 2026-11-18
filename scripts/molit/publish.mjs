@@ -335,6 +335,7 @@ async function knownDigests(table,cols){
 // Every table is planned before anything is written, so a run that would delete far more than usual
 // (an empty or partial warehouse) stops with nothing changed (scripts/daily/delete-guard.mjs).
 // "apt:41670:…|84" → "41": the 시도 code of a place key, for checking which regions a run touches.
+// 분양권 rows have no place id; their lawd is used ("x:12330").
 const sidoOfKey=k=>String(String(k).split('|')[0].split(':')[1]??'??').slice(0,2);
 function countBySido(keys){const out={};for(const k of keys){const c=sidoOfKey(k);out[c]=(out[c]??0)+1;}return out;}
 async function planTable(table,rows,cols){
@@ -402,7 +403,7 @@ async function planById(table,rows,windowStart){
  const head=q=>q.then(({count,error})=>{if(error)throw Error(`${table} count: ${error.message}`);return count??0;});
  const [expiring,total]=await Promise.all([head(supa.from(table).select('id',{count:'exact',head:true}).lt('deal_date',windowStart)),head(supa.from(table).select('id',{count:'exact',head:true}))]);
  return [
-  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,table,gone,added,removed:gone.length,total:existing.size,addedCount:added.length,moved:moved.length,bySido:{added:countBySido(added.map(r=>r.place_id)),moved:countBySido(moved.map(r=>r.place_id))},apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
+  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,table,gone,added,removed:gone.length,total:existing.size,addedCount:added.length,moved:moved.length,bySido:{added:countBySido(added.map(r=>r.place_id??`x:${r.lawd}`)),moved:countBySido(moved.map(r=>r.place_id??`x:${r.lawd}`))},apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
   {name:`${table} 기간 만료`,removed:expiring,total},
  ];
 }
