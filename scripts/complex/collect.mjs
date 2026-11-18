@@ -8,6 +8,7 @@ import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {singleRun} from '../single-run.mjs';
 import {LIST_ENDPOINT,BASIS_ENDPOINT,DETAIL_ENDPOINT,SIDO,LIST_PAGE_SIZE,decode,listItems,fromList,fromBasis,fromDetail} from './core.mjs';
+import {keepBjd} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
@@ -108,7 +109,10 @@ async function listRows(){
  const rows=new Map();
  for(const f of (await readdir(dir)).sort()){
   const sido=f.split('-')[0];
-  for(const item of listItems(decode(await readFile(`${dir}/${f}`,'utf8'))))rows.set(item.kaptCode,fromList(item,sido,meta.completedAt,REGION_NAMES));
+  // Only enabled 시도 (an old cache file of a renamed 시도, e.g. 29-1.json, is skipped), and in a partial
+  // region (전남광주) only its listed 시군구 by bjdCode.
+  if(!SIDO[sido])continue;
+  for(const item of listItems(decode(await readFile(`${dir}/${f}`,'utf8'))))if(keepBjd(sido,item.bjdCode))rows.set(item.kaptCode,fromList(item,sido,meta.completedAt,REGION_NAMES));
  }
  return rows;
 }

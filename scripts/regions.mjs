@@ -26,6 +26,34 @@ export const shortPattern=(shorts=SIDO_SHORTS)=>new RegExp(`^(${shorts.map(escap
 // PostgREST `not in` list: ("서울특별시","경기도","인천광역시").
 export const sidoInList=(sidoNames=SIDO_NAMES)=>`(${sidoNames.map(s=>`"${s}"`).join(',')})`;
 
+// Partial regions (regions.json "partial": true) cover only their listed 시군구 of a larger 시도:
+// 전남광주통합특별시 (2026-07-01) is collected as the old 광주 5개 구 only, not the old 전남 시·군.
+// "oldNames" are earlier 시도 names still found in addresses (court registries keep "광주광역시 …").
+const sigunguShort=r=>Object.keys(r.sigungu).map(k=>k.slice(r.name.length).trim()).filter(Boolean);
+const namePattern=name=>new RegExp(`^${escape(name)}(\\s|$)`);
+// An address (or "시도 시군구" pair) inside an enabled region; for a partial region its 시군구 must be
+// one of the listed ones. Non-partial regions behave like sidoPrefixPattern / inSido.
+export function inEnabledArea(address,regions=ENABLED_REGIONS){
+ const a=String(address??'').trim();
+ for(const r of regions){
+  for(const name of [r.name,...(r.oldNames??[])]){
+   if(!namePattern(name).test(a))continue;
+   if(!r.partial)return true;
+   const rest=a.slice(name.length).trim();
+   return sigunguShort(r).some(s=>rest===s||rest.startsWith(`${s} `));
+  }
+ }
+ return false;
+}
+// 시도 code → the 시군구 codes (5 digits) kept, for partial regions only.
+export const partialSigunguCodes=(regions=ENABLED_REGIONS)=>Object.fromEntries(regions.filter(r=>r.partial).map(r=>[r.code,new Set(Object.values(r.sigungu))]));
+// K-APT list rows carry a 10-digit bjdCode: keep a row of a partial 시도 only inside its listed 시군구.
+export function keepBjd(sidoCode,bjdCode,regions=ENABLED_REGIONS){
+ const partial=partialSigunguCodes(regions)[sidoCode];
+ if(!partial)return true;
+ return /^\d{10}$/.test(bjdCode??'')&&partial.has(String(bjdCode).slice(0,5));
+}
+
 // 시군구 catalog in the shape court/regions.json used to have: {codes, aliases}.
 export function catalogOf(regions=ENABLED_REGIONS){
  const src=regionConfig.sigunguSource;

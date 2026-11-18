@@ -1,13 +1,14 @@
 import {parse} from 'lossless-json';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {sectionOf,isApartmentUse} from '../property-section.mjs';
-import {SIDO_NAMES} from '../regions.mjs';
+import {SIDO_NAMES,inEnabledArea} from '../regions.mjs';
 export const LIST_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstListSrvc2/getRlstCltrList2';
 export const DETAIL_ENDPOINT='https://apis.data.go.kr/B010003/OnbidRlstDtlSrvc2/getRlstDtlInf2';
 export const PROPERTY_CODES='0007,0010,0005,0004,0002,0003,0006,0008,0011,0013';
 // Enabled regions (scripts/regions.json). 인천 added 2026-10-12 (list ~+15%, details join the deadline-ordered queue).
 export const REGIONS=SIDO_NAMES;
-export const scope=r=>REGIONS.includes(r.lctnSdnm)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
+// A partial region (전남광주: 광주 5개 구 only) also needs its 시군구 (lctnSggnm).
+export const scope=r=>REGIONS.includes(r.lctnSdnm)&&inEnabledArea(`${r.lctnSdnm} ${String(r.lctnSggnm??'').trim()}`)&&r.dspsMthodCd==='0001'&&(!r.cltrUsgLclsCtgrNm||r.cltrUsgLclsCtgrNm==='부동산');
 export const onbidUse=r=>String(r.cltrUsgSclsCtgrNm??'').trim()||String(r.cltrUsgMclsCtgrNm??'').trim()||null;
 export const isApartmentRow=r=>isApartmentUse(onbidUse(r));
 export const identity=r=>`${r.cltrMngNo}:${r.pbctCdtnNo}`;
