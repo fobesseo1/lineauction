@@ -483,7 +483,7 @@ if(listPath){
   const byPlace=new Map();for(const r of all){const k=`${r.sido??''} ${r.sigungu??''} ${r.dong??''} ${r.place??r.place_id}`.trim();byPlace.set(k,(byPlace.get(k)??0)+1);}
   const lines=[...byPlace].sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,n])=>`• ${k}: ${n}건`);
   const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
-  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>실거래 전체 비교: 지울 후보 ${all.length}건 (지우지 않음${noDelete?'':', 확인 필요'})</b>\n${esc(lines.join('\n'))}${byPlace.size>15?`\n외 ${byPlace.size-15}곳`:''}\n목록: ${esc(listPath)}`);
+  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>${noDelete?`실거래 전체 비교: 지울 후보 ${all.length}건 (지우지 않음, 확인 필요)`:`실거래 정리: ${all.length}건 지움`}</b>\n${esc(lines.join('\n'))}${byPlace.size>15?`\n외 ${byPlace.size-15}곳`:''}\n목록: ${esc(listPath)}`);
   if(!r.ok)console.error('telegram failed',r.description);
  }
 }
