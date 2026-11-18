@@ -448,12 +448,12 @@ if(listPath){
   const placeIds=[...new Set(rows.map(r=>r.place_id).filter(Boolean))];
   const places=new Map();
   for(let i=0;i<placeIds.length;i+=200){
-   const {data,error}=await supa.from('market_places').select('id,sido,sigungu,dong,name,kapt_code').in('id',placeIds.slice(i,i+200));
+   const {data,error}=await supa.from('market_places').select('id,sido,sigungu,umd,jibun,name,kapt_code').in('id',placeIds.slice(i,i+200));
    if(error)throw Error(`places: ${error.message}`);
    for(const pl of data)places.set(pl.id,pl);
   }
   out[p.table]=rows.map(r=>{const pl=places.get(r.place_id);const twins=addedByBase.get(baseOf(r.id))??[];
-   return {id:r.id,deal_date:r.deal_date,area_type:r.area_type,place_id:r.place_id,sido:pl?.sido??null,sigungu:pl?.sigungu??null,dong:pl?.dong??null,place:pl?.name??null,
+   return {id:r.id,deal_date:r.deal_date,area_type:r.area_type,place_id:r.place_id,sido:pl?.sido??null,sigungu:pl?.sigungu??null,dong:pl?.umd??null,jibun:pl?.jibun??null,place:pl?.name??null,
     replacedBy:twins.map(t=>({id:t.id,place_id:t.place_id,deal_date:t.deal_date}))};});
  }
  await writeJson(listPath,out);
