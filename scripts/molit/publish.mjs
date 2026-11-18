@@ -391,7 +391,7 @@ async function planById(table,rows,windowStart){
  const head=q=>q.then(({count,error})=>{if(error)throw Error(`${table} count: ${error.message}`);return count??0;});
  const [expiring,total]=await Promise.all([head(supa.from(table).select('id',{count:'exact',head:true}).lt('deal_date',windowStart)),head(supa.from(table).select('id',{count:'exact',head:true}))]);
  return [
-  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,removed:gone.length,total:existing.size,added:added.length,moved:moved.length,apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
+  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,table,gone,added,removed:gone.length,total:existing.size,addedCount:added.length,moved:moved.length,apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
   {name:`${table} 기간 만료`,removed:expiring,total},
  ];
 }
@@ -429,7 +429,36 @@ const plans=[
  ...await planById('market_commercial_trades',commercial,salesStart),
  ...await planById('market_presale_trades',presale,start),
 ];
-console.log(JSON.stringify({plan:plans.map(({name,removed,total,changed,added,moved})=>({name,removed,total,changed,added,moved}))}));
+console.log(JSON.stringify({plan:plans.map(({name,removed,total,changed,addedCount:added,moved})=>({name,removed,total,changed,added,moved}))}));
+// --list-removed <file> (with --dry-run): which trade rows would be deleted, read back from the DB, and
+// whether a row with the same trade key (the part before "~", split buildings) is being added in their
+// place (a split reassignment) — for checking deletions before a --full run (2026-11-18).
+const listPath=process.argv.includes('--list-removed')?process.argv[process.argv.indexOf('--list-removed')+1]:null;
+if(listPath){
+ const out={};
+ for(const p of plans.filter(p=>p.gone?.length)){
+  const baseOf=id=>String(id).split('~')[0];
+  const addedByBase=new Map();for(const r of p.added)addedByBase.set(baseOf(r.id),[...(addedByBase.get(baseOf(r.id))??[]),r]);
+  const rows=[];
+  for(let i=0;i<p.gone.length;i+=200){
+   const {data,error}=await supa.from(p.table).select('*').in('id',p.gone.slice(i,i+200));
+   if(error)throw Error(`${p.table} removed rows: ${error.message}`);
+   rows.push(...data);
+  }
+  const placeIds=[...new Set(rows.map(r=>r.place_id).filter(Boolean))];
+  const places=new Map();
+  for(let i=0;i<placeIds.length;i+=200){
+   const {data,error}=await supa.from('market_places').select('id,sido,sigungu,dong,name,kapt_code').in('id',placeIds.slice(i,i+200));
+   if(error)throw Error(`places: ${error.message}`);
+   for(const pl of data)places.set(pl.id,pl);
+  }
+  out[p.table]=rows.map(r=>{const pl=places.get(r.place_id);const twins=addedByBase.get(baseOf(r.id))??[];
+   return {id:r.id,deal_date:r.deal_date,area_type:r.area_type,place_id:r.place_id,sido:pl?.sido??null,sigungu:pl?.sigungu??null,dong:pl?.dong??null,place:pl?.name??null,
+    replacedBy:twins.map(t=>({id:t.id,place_id:t.place_id,deal_date:t.deal_date}))};});
+ }
+ await writeJson(listPath,out);
+ console.log(JSON.stringify({listRemoved:listPath,counts:Object.fromEntries(Object.entries(out).map(([t,rs])=>[t,{removed:rs.length,replaced:rs.filter(r=>r.replacedBy.length).length,olderThan3Months:rs.filter(r=>r.deal_date<recheckFrom).length}]))}));
+}
 if(dryRun){wh.close();process.exit(0);}
 await guardDeletes('실거래 요약 업로드',plans);
 for(const p of plans.slice(0,3))await p.apply();
