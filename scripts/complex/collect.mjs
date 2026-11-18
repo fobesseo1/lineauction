@@ -85,19 +85,28 @@ async function collectList(){
  const listDay=refreshList?day():(await readJson(`${root}/list-day.json`,null))?.day??day();
  const dir=`${root}/raw/list/${listDay}`;await mkdir(dir,{recursive:true});
  let listFetched=0;
+ const freshKapt=new Set(); // complexes on list pages fetched in this run
  for(const sido of Object.keys(SIDO)){
   for(let page=1;;page++){
    const file=`${dir}/${sido}-${page}.json`;
    let raw;
    if(await exists(file))raw=await readFile(file,'utf8');
-   else{raw=await request('list',LIST_ENDPOINT,{sidoCode:sido,pageNo:String(page),numOfRows:String(LIST_PAGE_SIZE)});await writeJson(file,JSON.parse(raw));raw=await readFile(file,'utf8');listFetched++;}
+   else{
+    raw=await request('list',LIST_ENDPOINT,{sidoCode:sido,pageNo:String(page),numOfRows:String(LIST_PAGE_SIZE)});await writeJson(file,JSON.parse(raw));raw=await readFile(file,'utf8');listFetched++;
+    for(const item of listItems(decode(raw)))if(item.kaptCode)freshKapt.add(item.kaptCode);
+   }
    const body=decode(raw);
    if(page*LIST_PAGE_SIZE>=Number(body.totalCount))break;
   }
  }
  await writeJson(`${root}/list-day.json`,{day:listDay,completedAt:new Date().toISOString()});
  const rows=await listRows();
- if(listFetched||fullWrite)await upsert([...rows.values()]);
+ // Only the complexes of newly fetched pages are written (a new 시도, or a new list day). Rewriting every
+ // row gave all ~10k capital complexes a new updated_at on 2026-11-18 when the 광역시 pages came in,
+ // which moved their sitemap dates although nothing about them changed. --full still writes all.
+ const toWrite=fullWrite?[...rows.values()]:[...rows.values()].filter(r=>freshKapt.has(r.kapt_code));
+ if(toWrite.length)await upsert(toWrite);
+ console.log(`LIST rows written: ${toWrite.length}${fullWrite?' (--full)':''}`);
  await event({phase:'list',day:listDay,complexes:rows.size});
  console.log(`LIST ${listDay}: ${rows.size} complexes`);
 }

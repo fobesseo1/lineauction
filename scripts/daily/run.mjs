@@ -199,7 +199,11 @@ try{
   // 실거래 대비 할인율 (property_analysis).
   const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
-  const publish=await step('publish','scripts/molit/publish.mjs',['--with-villas'],60*60_000);
+  // Daily: the recent 3 months only. Sundays (2026-11-18): the whole window, adding what the daily runs
+  // never recheck (late reports older than 3 months) and only listing what would be removed, to the
+  // operator chat, so such differences show up weekly instead of piling up unseen.
+  const weekly=kstWeekday()===0;
+  const publish=await step('publish','scripts/molit/publish.mjs',weekly?['--with-villas','--full','--no-delete','--list-removed','data/molit/weekly-removed.json']:['--with-villas'],weekly?90*60_000:60*60_000);
   // Region health (2026-11-18, after 광주's code change went unnoticed): every enabled 시군구 has recent
   // trades, complexes and 법정동, and the official 시군구 list still matches regions.json. A finding
   // fails the run so it shows up as 일부 실패 in the morning report instead of passing silently.

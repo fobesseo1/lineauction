@@ -423,7 +423,7 @@ async function applyById(table,rows,windowStart,added,gone,moved=[],placePath=nu
  else for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
  const {error,count}=noDelete?{error:null,count:0}:await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
  await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
- console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
+ console.log(`${table}: +${added.length} -${noDelete?0:gone.length}${noDelete&&gone.length?` (kept ${gone.length})`:''} expired ${count??0}`);
 }
 const salesStart=`${months[0]}-01`;
 const plans=[
@@ -463,7 +463,19 @@ if(listPath){
     replacedBy:twins.map(t=>({id:t.id,place_id:t.place_id,deal_date:t.deal_date}))};});
  }
  await writeJson(listPath,out);
- console.log(JSON.stringify({listRemoved:listPath,counts:Object.fromEntries(Object.entries(out).map(([t,rs])=>[t,{removed:rs.length,replaced:rs.filter(r=>r.replacedBy.length).length,olderThan3Months:rs.filter(r=>r.deal_date<recheckFrom).length}]))}));
+ const counts=Object.fromEntries(Object.entries(out).map(([t,rs])=>[t,{removed:rs.length,replaced:rs.filter(r=>r.replacedBy.length).length,olderThan3Months:rs.filter(r=>r.deal_date<recheckFrom).length}]));
+ console.log(JSON.stringify({listRemoved:listPath,counts}));
+ // Weekly full comparison (run.mjs, Sundays, with --no-delete): the rows a sync would remove are only
+ // listed. They go to the operator chat by place, to be checked under the complex-matching rules
+ // (e.g. 2026-11-18: 22 루원시티 rents left on 가정2지구3단지) instead of piling up unseen.
+ const all=Object.entries(out).flatMap(([t,rs])=>rs.map(r=>({...r,table:t})));
+ if(!dryRun&&all.length&&process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){
+  const byPlace=new Map();for(const r of all){const k=`${r.sido??''} ${r.sigungu??''} ${r.dong??''} ${r.place??r.place_id}`.trim();byPlace.set(k,(byPlace.get(k)??0)+1);}
+  const lines=[...byPlace].sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,n])=>`• ${k}: ${n}건`);
+  const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>실거래 전체 비교: 지울 후보 ${all.length}건 (지우지 않음${noDelete?'':', 확인 필요'})</b>\n${esc(lines.join('\n'))}${byPlace.size>15?`\n외 ${byPlace.size-15}곳`:''}\n목록: ${esc(listPath)}`);
+  if(!r.ok)console.error('telegram failed',r.description);
+ }
 }
 if(dryRun){wh.close();process.exit(0);}
 await guardDeletes('실거래 요약 업로드',plans);
