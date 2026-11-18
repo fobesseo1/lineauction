@@ -16,6 +16,10 @@ import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesN
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
+// --no-delete: write new and changed rows only; rows that would be removed (gone, and trades past the
+// window) are kept. For adding a region with --full without touching rows already published elsewhere,
+// e.g. the 2026-11-18 광역시 first load, where 22 인천 루원시티 rents wait for a manual re-link.
+const noDelete=process.argv.includes('--no-delete');
 // 빌라 buildings (kind 'rh') are published only with --with-villas until lineestate filters every
 // market_places read by kind; then the daily job turns it on.
 const KINDS=process.argv.includes('--with-villas')?"'apt','offi','rh'":"'apt','offi'";
@@ -342,6 +346,7 @@ async function planTable(table,rows,cols){
 async function applyTable(table,rows,cols,have,keyOf,gone){
  const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
  await upsert(table,changed,cols.join(','));
+ if(noDelete&&gone.length){console.log(`${table}: --no-delete keeps ${gone.length} rows`);gone=[];}
  for(let i=0;i<gone.length;i+=200){
   const batch=gone.slice(i,i+200).map(k=>k.split('|'));
   const del=cols.length===1?supa.from(table).delete().in(cols[0],batch.map(b=>b[0]))
@@ -414,8 +419,9 @@ async function applyById(table,rows,windowStart,added,gone,moved=[],placePath=nu
    await new Promise(r=>setTimeout(r,5000*attempt));
   }
  }
- for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
- const {error,count}=await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
+ if(noDelete)console.log(`${table}: --no-delete keeps ${gone.length} rows and skips expiry`);
+ else for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
+ const {error,count}=noDelete?{error:null,count:0}:await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
  await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
  console.log(`${table}: +${added.length} -${gone.length} expired ${count??0}`);
 }
@@ -429,7 +435,7 @@ const plans=[
  ...await planById('market_commercial_trades',commercial,salesStart),
  ...await planById('market_presale_trades',presale,start),
 ];
-console.log(JSON.stringify({plan:plans.map(({name,removed,total,changed,addedCount:added,moved})=>({name,removed,total,changed,added,moved}))}));
+console.log(JSON.stringify({noDelete,plan:plans.map(({name,removed,total,changed,addedCount:added,moved})=>({name,removed:noDelete?0:removed,wouldRemove:removed,total,changed,added,moved}))}));
 // --list-removed <file> (with --dry-run): which trade rows would be deleted, read back from the DB, and
 // whether a row with the same trade key (the part before "~", split buildings) is being added in their
 // place (a split reassignment) — for checking deletions before a --full run (2026-11-18).
