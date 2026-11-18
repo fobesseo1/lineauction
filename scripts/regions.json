@@ -1,5 +1,5 @@
 {
-  "note": "Regions the data factory collects. One place: every collector reads the enabled regions from here (scripts/regions.mjs). Turning a region on starts its first collection on the next night run; 광역시 첫 수집은 사용자가 \"광역시 수집 시작\"이라고 할 때만 켠다. Order inside the file is the order collectors walk (keep 서울·경기·인천 first).",
+  "note": "Regions the data factory collects. One place: every collector reads the enabled regions from here (scripts/regions.mjs). Turning a region on starts its first collection on the next night run; 광역시·세종 6곳은 2026-11-18 사용자 결정으로 수집 시작(사이트 공개는 lineestate app.service_regions가 따로 정하고, IndexNow·알림도 그 공개 지역만 보낸다). 켤 때 data/court/current.json의 옛 지방 물건은 scripts/court/prune-stale-metro.mjs로 뺀다. Order inside the file is the order collectors walk (keep 서울·경기·인천 first).",
   "fields": "code: 시도 2자리. sigungu: 행정표준코드 시군구 (시도 2 + 시군구 3; 하위 구가 있는 시는 그 시 코드와 구 코드를 다 적고, MOLIT는 구 코드만 묻는다). 세종은 시군구가 없어 시도 이름 하나가 키다. courts: 이 지역 물건을 맡는 법원·지원 이름 (courts.json의 이름, 여러 지역에 걸친 지원은 한쪽에만 적어도 된다). area: 역·학교·공원 OSM 범위 키 (areas). seoulBusFile: TAGO 정류장 파일에 없어 서울 열린데이터광장 OA-15067에서 받는 시도.",
   "sigunguSource": {
     "sourceUrl": "https://www.code.go.kr/stdcode/regCodeL.do",
@@ -162,7 +162,7 @@
       "code": "26",
       "name": "부산광역시",
       "short": "부산",
-      "enabled": false,
+      "enabled": true,
       "area": "26",
       "courts": [
         "부산지방법원",
@@ -192,7 +192,7 @@
       "code": "27",
       "name": "대구광역시",
       "short": "대구",
-      "enabled": false,
+      "enabled": true,
       "area": "27",
       "courts": [
         "대구지방법원",
@@ -215,7 +215,7 @@
       "code": "30",
       "name": "대전광역시",
       "short": "대전",
-      "enabled": false,
+      "enabled": true,
       "area": "30",
       "courts": [
         "대전지방법원"
@@ -232,7 +232,7 @@
       "code": "36",
       "name": "세종특별자치시",
       "short": "세종",
-      "enabled": false,
+      "enabled": true,
       "area": "36",
       "courts": [
         "대전지방법원"
@@ -245,7 +245,7 @@
       "code": "29",
       "name": "광주광역시",
       "short": "광주",
-      "enabled": false,
+      "enabled": true,
       "area": "29",
       "courts": [
         "광주지방법원"
@@ -262,7 +262,7 @@
       "code": "31",
       "name": "울산광역시",
       "short": "울산",
-      "enabled": false,
+      "enabled": true,
       "area": "31",
       "courts": [
         "울산지방법원"

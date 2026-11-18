@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {leafRegions,monthsBack,decode,toRow,cancelDate} from './core.mjs';
 
 test('leafRegions drops cities whose 구 are listed and keeps capital-area codes only',()=>{
- const r=leafRegions({'서울특별시 강남구':'11680','경기도 고양시':'41280','경기도 고양시 덕양구':'41281','경기도 과천시':'41290','부산광역시 중구':'26110'});
+ const r=leafRegions({'서울특별시 강남구':'11680','경기도 고양시':'41280','경기도 고양시 덕양구':'41281','경기도 과천시':'41290','경상북도 포항시 남구':'47111'});
  assert.deepEqual(r.map(x=>x.code),['11680','41281','41290']);
 });
 
