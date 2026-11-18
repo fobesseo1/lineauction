@@ -200,6 +200,10 @@ try{
   const complex=await step('complex','scripts/complex/collect.mjs',['--phase','all'],4*3600_000);
   const trades=await step('molit','scripts/molit/collect.mjs',['--months','36'],6*3600_000);
   const publish=await step('publish','scripts/molit/publish.mjs',['--with-villas'],60*60_000);
+  // Region health (2026-11-18, after 광주's code change went unnoticed): every enabled 시군구 has recent
+  // trades, complexes and 법정동, and the official 시군구 list still matches regions.json. A finding
+  // fails the run so it shows up as 일부 실패 in the morning report instead of passing silently.
+  const health=await step('region-health','scripts/daily/region-health.mjs',[],10*60_000);
   // 시군구 전월세 전환율 for the price calculator; rates move slowly, so Mondays only.
   if(kstWeekday()===1)await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
   // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
@@ -248,8 +252,8 @@ try{
   await step('indexnow','scripts/indexnow.mjs',['--near'],5*60_000);
   const last=s=>String(s.result??'').slice(0,160);
   run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),official:last(official),parcels:last(parcels),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
-  run.status=[complex,trades,publish,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
-  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`,`역 근처 TOP 3: ${String(revalidateStep.result?.near??revalidateStep.result??'').slice(0,240)}`].join('\n');
+  run.status=[complex,trades,publish,health,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`지역 점검: ${health.code===0?'정상':`확인 필요 (${last(health)})`}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`,`역 근처 TOP 3: ${String(revalidateStep.result?.near??revalidateStep.result??'').slice(0,240)}`].join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
