@@ -1,5 +1,5 @@
 // Rebuild the Supabase market_* summary tables from the local trade warehouse.
-//   node scripts/molit/publish.mjs --with-villas [--dry-run] [--full] [--allow-large-delete]
+//   node scripts/molit/publish.mjs [--dry-run] [--full] [--no-delete] [--allow-large-delete]
 // Only new or changed rows are written (content digest) and vanished rows deleted,
 // so screens never see an empty table mid-run.
 import {DatabaseSync} from 'node:sqlite';
@@ -20,9 +20,12 @@ const dryRun=process.argv.includes('--dry-run');
 // window) are kept. For adding a region with --full without touching rows already published elsewhere,
 // e.g. the 2026-11-18 광역시 first load, where 22 인천 루원시티 rents wait for a manual re-link.
 const noDelete=process.argv.includes('--no-delete');
-// 빌라 buildings (kind 'rh') are published only with --with-villas until lineestate filters every
-// market_places read by kind; then the daily job turns it on.
-const KINDS=process.argv.includes('--with-villas')?"'apt','offi','rh'":"'apt','offi'";
+// Apartments only (2026-11-18, lineestate docs/apartment-only-plan.md 2-1): offi and rh buildings are read
+// only so that rh buildings hand-linked to a K-APT complex (manual-place-links.json, 231 on 11-18) keep
+// being published. Every other offi/rh building is "retired": nothing of it is written, changed or deleted
+// here (its old rows stay until the backed-up cleanup, step 3). --with-villas is no longer needed (ignored).
+const KINDS="'apt','offi','rh'";
+const retired=new Set();
 const runAt=new Date().toISOString();
 const start=periodStart(new Date());
 const end=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
@@ -137,6 +140,9 @@ for(const c of complexList){
  if(free.length===1)pushTo(primaryClaims,free[0].id,c.kapt_code);
 }
 for(const [id,codes] of primaryClaims)if(codes.length===1)Object.assign(places.get(id),{kapt_code:codes[0],kapt_match:'same_point'});
+// Apartments only: a non-apartment building stays only when hand-linked to a K-APT complex.
+for(const [id,p] of places)if(p.kind!=='apt'&&!p.kapt_code){retired.add(id);places.delete(id);}
+console.log(`apartment only: ${retired.size} offi/rh buildings retired (kept as they are), ${[...places.values()].filter(p=>p.kind!=='apt').length} rh buildings linked to a complex kept`);
 
 const months=Array.from({length:36},(_,i)=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-35+i);return d.toISOString().slice(0,7);});
 
@@ -209,6 +215,7 @@ const flush=()=>{if(!group.length)return;const [pid,areaType]=groupKey.split('|'
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
+ if(retired.has(pid)){frozenIds.add(t.key);continue;}
  if(splitPlaces.has(pid)||frozenPlaces.has(pid))continue;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
@@ -233,6 +240,7 @@ const hFlush=()=>{
 for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,deal,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
+ if(retired.has(key.split('|')[0])){frozenIds.add(t.key);continue;}
  if(splitPlaces.has(key.split('|')[0])||frozenPlaces.has(key.split('|')[0]))continue;
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
@@ -258,17 +266,9 @@ for(const plan of splitPlaces.values()){
  }
 }
 
-// 토지·상업업무용·단독다가구 sales (36 months), by 법정동; MOLIT masks most of their lot numbers.
-const COMMERCIAL_KIND={land:'land',nrg:'commercial',sh:'house'};
+// 토지·상업업무용·단독다가구 sales (market_commercial_trades) are no longer rebuilt (apartments only, 2026-11-18,
+// apartment-only-plan 2-2): the table is left as it is, neither written nor expired, until the step-3 cleanup.
 const commercial=[];
-for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,use_type,house_type,zone,land_area,building_area,total_floor_area,floor,build_year,building_type,share,deal_date,amount,dealing,cancel_date
-  from trades where kind in ('land','nrg','sh') and deal='sale' and deal_date>=? and amount is not null`).iterate(`${months[0]}-01`)){
- const [sido,...rest]=(regionName.get(t.lawd)??'').split(' ');
- commercial.push({id:t.key,kind:COMMERCIAL_KIND[t.kind],lawd:t.lawd,sido:sido||null,sigungu:rest.join(' ')||null,umd:t.umd,jibun:t.jibun,
-  use_type:t.use_type||t.house_type||null,zone:t.zone||null,land_area:t.land_area,building_area:t.building_area,total_floor_area:t.total_floor_area,
-  floor:t.floor,build_year:t.build_year,building_type:t.building_type||null,share:t.share==='지분',deal_date:t.deal_date,amount:t.amount,
-  direct:t.dealing==='직거래',cancelled:!!t.cancel_date});
-}
 
 // 분양권·입주권 전매 (last 12 months), linked to a complex by lot, name or a nearby similar name.
 const presale=[],presaleLink=new Map();
@@ -298,7 +298,7 @@ const linkRows=uniqueLinks([...placeRows.filter(p=>p.kapt_code),...extraLinks.ma
   presale:withPresale.has(c.kapt_code),near:c.latitude==null?null:[...placePoint.values()].filter(p=>places.has(p.id)&&Math.abs(p.latitude-c.latitude)<0.003&&Math.abs(p.longitude-c.longitude)<0.004)
    .map(p=>({d:Math.round(metres(p,c)),name:places.get(p.id).name,kapt:places.get(p.id).kapt_code})).sort((x,y)=>x.d-y.d).slice(0,3)})));}
 console.log('kapt_match',JSON.stringify(placeRows.reduce((m,p)=>(p.kapt_match&&(m[p.kapt_match]=(m[p.kapt_match]??0)+1),m),{})));
-console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length} (36-month-only apt ${olderRows}), sales ${sales.length}, rents ${rents.length}, commercial ${commercial.length}, period ${start}..${end}`);
+console.log(`places ${placeRows.length} (K-APT matched ${matched} of ${placeRows.filter(p=>p.kind==='apt').length} apt), area stats ${stats.length} (36-month-only apt ${olderRows}), sales ${sales.length}, rents ${rents.length}, period ${start}..${end}`);
 
 // Batches of 500 with up to 3 tries: a busy free-tier DB occasionally times out one batch.
 async function upsert(table,rows,onConflict){
@@ -343,7 +343,7 @@ async function planTable(table,rows,cols){
  const have=await knownDigests(table,cols);
  const keyOf=r=>cols.map(c=>r[c]).join('|');
  const current=new Set(rows.map(keyOf));
- const frozen=k=>{const id=k.split('|')[0];return [...frozenPlaces].some(f=>id===f||id.startsWith(`${f}:`));};
+ const frozen=k=>{const id=k.split('|')[0];return retired.has(id)||[...frozenPlaces].some(f=>id===f||id.startsWith(`${f}:`));};
  const gone=[...have.keys()].filter(k=>!current.has(k)&&!frozen(k));
  const changedRows=rows.filter(r=>have.get(keyOf(r))!==digestOf(r));
  const changed=changedRows.length;
@@ -440,7 +440,6 @@ const plans=[
  await planTable('market_place_complexes',linkRows,['place_id','kapt_code']),
  ...await planById('market_trades',sales,salesStart),
  ...await planById('market_rents',rents,start),
- ...await planById('market_commercial_trades',commercial,salesStart),
  ...await planById('market_presale_trades',presale,start),
 ];
 console.log(JSON.stringify({noDelete,plan:plans.map(({name,removed,total,changed,addedCount:added,moved})=>({name,removed:noDelete?0:removed,wouldRemove:removed,total,changed,added,moved}))}));

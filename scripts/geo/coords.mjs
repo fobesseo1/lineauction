@@ -41,8 +41,12 @@ async function fetchAll(table,columns,filter=q=>q){
 
 // 1. Targets and their PNUs.
 const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
+// Apartments only (2026-11-18, lineestate docs/apartment-only-plan.md): apartment buildings, plus the 빌라 buildings
+// hand-linked to a K-APT complex (manual-place-links.json); other 오피스텔·빌라 parcels are no longer fetched.
+const linkedNonApt=new Set(JSON.parse(await readFile(new URL('../molit/manual-place-links.json',import.meta.url),'utf8')).map(m=>m.place_id).filter(id=>!id.startsWith('apt:')));
 const places=[...wh.prepare("select distinct kind,lawd,umd,jibun from trades where kind in ('apt','offi','rh') and umd is not null and jibun is not null").iterate()]
- .map(r=>({id:placeId(r.kind,r.lawd,r.umd,r.jibun),pnu:jibunPnu(bjdOf(r.lawd,r.umd),r.jibun)}));
+ .map(r=>({id:placeId(r.kind,r.lawd,r.umd,r.jibun),pnu:jibunPnu(bjdOf(r.lawd,r.umd),r.jibun)}))
+ .filter(p=>p.id.startsWith('apt:')||linkedNonApt.has(p.id));
 wh.close();
 const allComplexes=await fetchAll('complexes','id,kapt_code,pnu,name,sido,sigungu,road_address,jibun_address');
 const complexes=allComplexes.filter(c=>c.pnu);

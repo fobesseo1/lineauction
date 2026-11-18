@@ -7,6 +7,9 @@ import {createClient} from '@supabase/supabase-js';
 import {writeJson} from './onbid/atomic.mjs';
 import {singleRun} from './single-run.mjs';
 import {VILLA_USES} from './molit/match.mjs';
+// Apartments only (2026-11-18, lineestate docs/apartment-only-plan.md 2-4): only apartment-type properties
+// (the uses analyze.mjs prices) are looked up; 빌라·오피스텔·상가 are no longer collected.
+const APARTMENT_USE=/^(아파트|도시형생활주택|주상복합)$/;
 process.loadEnvFile('.env.local');
 
 const limitArg=process.argv.indexOf('--limit');const limit=limitArg>0?Number(process.argv[limitArg+1]):3000;
@@ -20,7 +23,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const props=[];
 for(let from=0;;from+=1000){
  const {data,error}=await db.from('properties').select('id,usage_type,pnu,build_year').eq('is_current',true).not('pnu','is',null).order('id').range(from,from+999);
- if(error)throw Error(error.message);props.push(...data);if(data.length<1000)break;
+ if(error)throw Error(error.message);props.push(...data.filter(p=>APARTMENT_USE.test(p.usage_type??'')));if(data.length<1000)break;
 }
 const todo=[...new Set(props.filter(p=>!(p.pnu in cache)).sort((a,b)=>Number(VILLA_USES.test(b.usage_type))-Number(VILLA_USES.test(a.usage_type))).map(p=>p.pnu))];
 

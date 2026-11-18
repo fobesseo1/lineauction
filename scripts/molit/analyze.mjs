@@ -71,9 +71,17 @@ for(let from=0;;from+=1000){
  if(error)throw Error(error.message);properties.push(...data);if(data.length<1000)break;
 }
 
-const rows=[],stats={properties:properties.length,eligible:0,linked:0,priced:0,via:{},confidence:{}};
+// Apartments only (2026-11-18, lineestate docs/apartment-only-plan.md 2-3): 아파트·주상복합·도시형생활주택
+// (tradeKind 'apt', compared with apartment buildings only) are priced. 오피스텔·빌라 and the 상가·건물·토지
+// section are no longer priced; their old analyses are kept as they are (not rewritten, not removed)
+// until the backed-up cleanup (step 3). The villa and 2단계 code below stays unused until then.
+const APARTMENT_ONLY=true;
+const retiredIds=new Set();
+const rows=[],stats={properties:properties.length,eligible:0,linked:0,priced:0,via:{},confidence:{},retired:0};
 for(const p of properties){
- const kind=tradeKind(p.usage_type,p.section);if(!kind||shopFloor(p.usage_type,p.address))continue;
+ const kind=tradeKind(p.usage_type,p.section);
+ if(APARTMENT_ONLY&&kind!=='apt'){retiredIds.add(p.id);stats.retired++;continue;}
+ if(!kind||shopFloor(p.usage_type,p.address))continue;
  const area=Number(p.exclusive_area??p.building_area);
  // Apartments without a 전용면적 still get their building (no price); villas need the area.
  if(!(area>0)&&kind==='rh')continue;
@@ -170,7 +178,8 @@ const rentCache=new Map();
 const houseRents=lawd=>{if(!rentCache.has(lawd))rentCache.set(lawd,rentsIn.all(lawd,kstDay(24)));return rentCache.get(lawd);};
 const sinceMonths=m=>kstDay(m);
 const tradesFor=(kind,lawd,months)=>{const k=`${kind}:${lawd}:${months}`;if(!tradeCache.has(k))tradeCache.set(k,tradesIn.all(kind,lawd,sinceMonths(months)));return tradeCache.get(k);};
-stats.commercial={eligible:0,priced:0,basis:{}};
+stats.commercial={eligible:0,priced:0,basis:{},retired:0};
+if(APARTMENT_ONLY)for(const p of commercialProps.splice(0)){retiredIds.add(p.id);stats.commercial.retired++;}
 for(const p of commercialProps){
  const text=`${p.address??''} ${p.title??''}`;
  const ck=commercialKind(p.usage_type,text);if(!ck)continue;
@@ -222,11 +231,18 @@ for(let i=0;i<rows.length;i+=500){
  const {error}=await supa.from('property_analysis').upsert(rows.slice(i,i+500),{onConflict:'property_id'});
  if(error)throw Error(`property_analysis: ${error.message}`);
 }
-// Analyses for properties that no longer link (or left the section) are removed.
-for(;;){
- const {data,error}=await supa.from('property_analysis').select('id').lt('calculated_at',runAt).limit(500);
- if(error)throw Error(error.message);if(!data.length)break;
- const del=await supa.from('property_analysis').delete().in('id',data.map(r=>r.id));if(del.error)throw Error(del.error.message);
+// Analyses for properties that no longer link (or left the section) are removed; those of retired
+// (non-apartment) properties are kept until the step-3 cleanup.
+{
+ const stale=[];
+ for(let after='00000000-0000-0000-0000-000000000000';;){
+  const {data,error}=await supa.from('property_analysis').select('id,property_id').lt('calculated_at',runAt).gt('id',after).order('id').limit(1000);
+  if(error)throw Error(error.message);if(!data.length)break;
+  for(const r of data)if(!retiredIds.has(r.property_id))stale.push(r.id);
+  after=data.at(-1).id;if(data.length<1000)break;
+ }
+ for(let i=0;i<stale.length;i+=500){const del=await supa.from('property_analysis').delete().in('id',stale.slice(i,i+500));if(del.error)throw Error(del.error.message);}
+ console.log(`stale analyses removed ${stale.length}, non-apartment analyses kept (${retiredIds.size} properties)`);
 }
 // Linked apartments/officetels without a register year take their building's 건축연도.
 const filled=await supa.rpc('fill_build_year_from_places');if(filled.error)throw Error(filled.error.message);

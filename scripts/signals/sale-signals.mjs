@@ -14,7 +14,9 @@ async function pages(query){const out=[];for(let from=0;;from+=1000){const rows=
 const now=new Date();
 const day=d=>new Date(now.getTime()+9*3600e3-d*86400e3).toISOString().slice(0,10);
 
-const places=await pages(()=>supa.from('market_places').select('id,kapt_code').order('id'));
+// Apartments only (2026-11-18, lineestate docs/apartment-only-plan.md): apartment buildings and buildings linked
+// to a K-APT complex. 오피스텔·빌라 signals are no longer made (this table is rebuilt daily from these places).
+const places=(await pages(()=>supa.from('market_places').select('id,kind,kapt_code').order('id'))).filter(p=>p.kind==='apt'||p.kapt_code);
 const known=new Set(places.map(p=>p.id));
 const approved=new Map((await pages(()=>supa.from('complexes').select('kapt_code,approved_on').not('approved_on','is',null).order('kapt_code'))).map(c=>[c.kapt_code,c.approved_on]));
 

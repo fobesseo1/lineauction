@@ -203,23 +203,23 @@ try{
   // never recheck (late reports older than 3 months) and only listing what would be removed, to the
   // operator chat, so such differences show up weekly instead of piling up unseen.
   const weekly=kstWeekday()===0;
-  const publish=await step('publish','scripts/molit/publish.mjs',weekly?['--with-villas','--full','--no-delete','--list-removed','data/molit/weekly-removed.json']:['--with-villas'],weekly?90*60_000:60*60_000);
+  const publish=await step('publish','scripts/molit/publish.mjs',weekly?['--full','--no-delete','--list-removed','data/molit/weekly-removed.json']:[],weekly?90*60_000:60*60_000);
   // Region health (2026-11-18, after 광주's code change went unnoticed): every enabled 시군구 has recent
   // trades, complexes and 법정동, and the official 시군구 list still matches regions.json. A finding
   // fails the run so it shows up as 일부 실패 in the morning report instead of passing silently.
   const health=await step('region-health','scripts/daily/region-health.mjs',[],10*60_000);
   // 시군구 전월세 전환율 for the price calculator; rates move slowly, so Mondays only.
   if(kstWeekday()===1)await step('conversion-rate','scripts/molit/conversion-rate.mjs',[],10*60_000);
-  // 한국부동산원 상가·오피스 임대동향 (quarterly), refreshed on Mondays.
-  // 상권 map points are cached; only new 상권 names are looked up.
-  if(kstWeekday()===1){await step('r-one','scripts/calc/r-one.mjs',[],20*60_000);await step('commercial-areas','scripts/calc/commercial-areas.mjs',[],20*60_000);}
+  // 한국부동산원 상가·오피스 임대동향 (r-one, commercial-areas) stopped 2026-11-18: apartments only
+  // (lineestate docs/apartment-only-plan.md 2-4), the site no longer shows 상권 income prices.
   // Build years (빌라 comparison, filters) for properties whose PNU is new, then the discounts.
   // Daily lookup limits keep the job to ~1–2 hours so the 10:00 Onbid job is not held up; backlogs
   // (e.g. after a PNU fix) are spread over several days.
   const years=await step('build-year','scripts/building-year.mjs',['--limit','600'],2*3600_000);
   // 공시가격 for new auction units and complexes, parcel facts for the 상가·건물·토지 section.
   const official=await step('official-price','scripts/geo/official-price.mjs',['--limit','3000'],3*3600_000);
-  const parcels=await step('parcel-info','scripts/geo/parcel-info.mjs',['--limit','500'],2*3600_000);
+  // 필지 정보 (parcel-info, for the 상가·건물·토지 section) stopped 2026-11-18: apartments only (apartment-only-plan 2-4).
+  const parcels={code:0,result:'아파트만이라 멈춤'};
   const analyze=await step('analyze','scripts/molit/analyze.mjs',[],30*60_000);
   // 매물화 신호 per building (auctions linked by analyze, 입주 연차, 거래 급증).
   await step('sale-signals','scripts/signals/sale-signals.mjs',[],20*60_000);
