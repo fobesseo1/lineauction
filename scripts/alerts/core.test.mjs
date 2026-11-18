@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {usableDiscount,isOpen,matchesRule,ruleKey,snapshot,watchChanges,won,message,MAX_ITEMS} from './core.mjs';
+import {usableDiscount,isOpen,matchesRule,ruleKey,snapshot,watchChanges,won,message,MAX_ITEMS,splitPublic} from './core.mjs';
+import {isPublicSido} from '../public-regions.mjs';
 
 const p={id:'p1',source:'court',section:'apartment',sido:'서울특별시',sigungu:'마포구',usage_type:'아파트',minimum_bid_price:500000000,failed_bid_count:2,sale_date:'2026-10-20'};
 const a={market_price_method:'median-6m',confidence:'high',discount_rate:25};
@@ -45,6 +46,32 @@ test('watchChanges reports price, 유찰 and result changes but not first sight'
  assert.deepEqual(watchChanges(null,before),[]);
  assert.deepEqual(watchChanges(before,snapshot({...p,minimum_bid_price:400000000,failed_bid_count:3})),['최저가 5억 → 4억','유찰 3회']);
  assert.deepEqual(watchChanges(before,snapshot({...p,last_result:'매각'})),['결과: 매각']);
+});
+
+test('splitPublic keeps closed-region matches out of the sent list',()=>{
+ const busan={...p,id:'b1',sido:'부산광역시',sigungu:'해운대구'};
+ const incheon={...p,id:'i1',sido:'인천광역시'};
+ const pub=isPublicSido(['서울특별시','경기도','인천광역시']);
+ const {shown,quiet}=splitPublic([p,busan,incheon],pub);
+ assert.deepEqual(shown.map(x=>x.id),['p1','i1']);
+ assert.deepEqual(quiet.map(x=>x.id),['b1']);
+ // A rule with no 시도 condition matches 부산 too; splitPublic is what keeps it quiet.
+ assert.equal(matchesRule({id:'r'},busan,a),true);
+ // Everything closed: nothing shown.
+ assert.deepEqual(splitPublic([p,busan],isPublicSido([])).shown,[]);
+ // 부산 opened: shown.
+ assert.deepEqual(splitPublic([busan],isPublicSido(['부산광역시'])).shown.map(x=>x.id),['b1']);
+});
+
+test('opening day: matches seen while closed are not re-sent, a later 유찰 is',()=>{
+ // Mirrors send.mjs: quiet matches are recorded in state.sent with the same ruleKey.
+ const rule={id:'r'},busan={...p,id:'b1',sido:'부산광역시'};
+ const sent={};
+ for(const x of splitPublic([busan],isPublicSido(['서울특별시'])).quiet)sent[ruleKey(rule,x)]='t0';
+ const afterOpen=splitPublic([busan],isPublicSido(['서울특별시','부산광역시'])).shown.filter(x=>!sent[ruleKey(rule,x)]);
+ assert.deepEqual(afterOpen,[]);
+ const dropped={...busan,minimum_bid_price:400000000};
+ assert.deepEqual(splitPublic([dropped],isPublicSido(['부산광역시'])).shown.filter(x=>!sent[ruleKey(rule,x)]).map(x=>x.id),['b1']);
 });
 
 test('won and message formatting',()=>{

@@ -34,6 +34,15 @@ export function matchesRule(rule,p,a){
  return true;
 }
 
+// Matches in a region that is collected but not public on the site yet (scripts/public-regions.mjs) are
+// not sent. send.mjs records them as already seen, so the day the region opens its existing properties
+// do not arrive as a flood of "new" ones; only properties (or 유찰) after that day are sent.
+export function splitPublic(hits,isPublic){
+ const shown=[],quiet=[];
+ for(const p of hits)(isPublic(p.sido)?shown:quiet).push(p);
+ return {shown,quiet};
+}
+
 // A rule fires again for the same property when its minimum price changes (a 유찰).
 export const ruleKey=(rule,p)=>`${rule.id}:${p.id}:${p.minimum_bid_price}`;
 

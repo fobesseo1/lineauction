@@ -8,9 +8,11 @@
 //     plus /near/<역> of each such station
 // The watermark (data/daily/indexnow.json) is advanced only after every batch is accepted, so a failed
 // send is retried by the next job instead of being lost, and the same address is not resent daily.
-//   node scripts/indexnow.mjs [--near] [--dry] [--since <iso>]
+//   node scripts/indexnow.mjs [--near] [--dry] [--since <iso>] [--only-sido <시도>]
+// Only regions that are collected (scripts/regions.json) AND public on the site (app.service_regions).
 import {createClient} from '@supabase/supabase-js';
 import {SIDO_NAMES} from './regions.mjs';
+import {publicSidoNames,publicOf} from './public-regions.mjs';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 process.loadEnvFile('.env.local');
 
@@ -18,7 +20,6 @@ const SITE='https://lineestate.co.kr';
 const KEY='fe61cd23970087bccfcb064d13d49167'; // public value, served at SITE/KEY.txt
 const ENDPOINT='https://api.indexnow.org/indexnow';
 const BATCH=10_000;
-const SIDO=SIDO_NAMES;
 const STATE='data/daily/indexnow.json';
 const BANDS={t:'10평대',b:'20평대',m:'30평대',l:'40평대이상'}; // lineestate lib/data/near-core.ts NEAR_BANDS
 
@@ -26,6 +27,16 @@ const args=process.argv.slice(2);
 const dry=args.includes('--dry'),withNear=args.includes('--near');
 const sinceArg=args[args.indexOf('--since')+1];
 const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
+// Collected and open on the site: a collected-but-closed 광역시 has no pages yet, so none of its
+// addresses are sent (scripts/public-regions.mjs). When a region opens, its pages go out with a
+// one-off --since run from lineestate's opening checklist. Throws if the region table is unreadable.
+// --only-sido <시도 full name>: that one public region only, for its opening day (with --since); the
+// daily watermark is left alone so the regular run is not disturbed.
+const onlySido=args.includes('--only-sido')?args[args.indexOf('--only-sido')+1]:null;
+const PUBLIC=publicOf(SIDO_NAMES,await publicSidoNames(db));
+if(onlySido&&!PUBLIC.includes(onlySido))throw Error(`NOT_PUBLIC_OR_NOT_COLLECTED: ${onlySido}`);
+const SIDO=onlySido?[onlySido]:PUBLIC;
+if(!SIDO.length)throw Error('NO_PUBLIC_REGIONS');
 
 const state=JSON.parse(await readFile(STATE,'utf8').catch(()=>'{}'));
 // First run on a PC: the last day only (the full first send was done from lineestate on 2026-11-12).
@@ -85,7 +96,9 @@ if(!dry){
   }
   sent.push(urlList.length);
  }
- await mkdir('data/daily',{recursive:true});
- await writeFile(STATE,JSON.stringify({sentUntil:until,last:{at:until,since,...counts}},null,1));
+ if(!onlySido){
+  await mkdir('data/daily',{recursive:true});
+  await writeFile(STATE,JSON.stringify({sentUntil:until,last:{at:until,since,...counts}},null,1));
+ }
 }
-console.log(JSON.stringify({since,...counts,urls:urls.length,sent:dry?'dry':sent.reduce((a,b)=>a+b,0)}));
+console.log(JSON.stringify({since,sido:SIDO.length,...counts,urls:urls.length,sent:dry?'dry':sent.reduce((a,b)=>a+b,0)}));
