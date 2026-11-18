@@ -334,14 +334,20 @@ async function knownDigests(table,cols){
 }
 // Every table is planned before anything is written, so a run that would delete far more than usual
 // (an empty or partial warehouse) stops with nothing changed (scripts/daily/delete-guard.mjs).
+// "apt:41670:…|84" → "41": the 시도 code of a place key, for checking which regions a run touches.
+const sidoOfKey=k=>String(String(k).split('|')[0].split(':')[1]??'??').slice(0,2);
+function countBySido(keys){const out={};for(const k of keys){const c=sidoOfKey(k);out[c]=(out[c]??0)+1;}return out;}
 async function planTable(table,rows,cols){
  const have=await knownDigests(table,cols);
  const keyOf=r=>cols.map(c=>r[c]).join('|');
  const current=new Set(rows.map(keyOf));
  const frozen=k=>{const id=k.split('|')[0];return [...frozenPlaces].some(f=>id===f||id.startsWith(`${f}:`));};
  const gone=[...have.keys()].filter(k=>!current.has(k)&&!frozen(k));
- const changed=rows.filter(r=>have.get(keyOf(r))!==digestOf(r)).length;
- return {name:table,removed:gone.length,total:have.size,changed,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
+ const changedRows=rows.filter(r=>have.get(keyOf(r))!==digestOf(r));
+ const changed=changedRows.length;
+ // By 시도 code (from the place id "kind:lawd:…"): rows that already existed and change, new rows, removals.
+ const bySido={changedExisting:countBySido(changedRows.filter(r=>have.has(keyOf(r))).map(keyOf)),added:countBySido(changedRows.filter(r=>!have.has(keyOf(r))).map(keyOf)),removed:countBySido(gone)};
+ return {name:table,removed:gone.length,total:have.size,changed,bySido,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
 }
 async function applyTable(table,rows,cols,have,keyOf,gone){
  const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
@@ -396,7 +402,7 @@ async function planById(table,rows,windowStart){
  const head=q=>q.then(({count,error})=>{if(error)throw Error(`${table} count: ${error.message}`);return count??0;});
  const [expiring,total]=await Promise.all([head(supa.from(table).select('id',{count:'exact',head:true}).lt('deal_date',windowStart)),head(supa.from(table).select('id',{count:'exact',head:true}))]);
  return [
-  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,table,gone,added,removed:gone.length,total:existing.size,addedCount:added.length,moved:moved.length,apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
+  {name:`${table} (최근 ${cached?RECHECK_MONTHS+'개월':'전체'})`,table,gone,added,removed:gone.length,total:existing.size,addedCount:added.length,moved:moved.length,bySido:{added:countBySido(added.map(r=>r.place_id)),moved:countBySido(moved.map(r=>r.place_id))},apply:()=>applyById(table,rows,windowStart,added,gone,moved,placePath,splitRows)},
   {name:`${table} 기간 만료`,removed:expiring,total},
  ];
 }
@@ -436,6 +442,8 @@ const plans=[
  ...await planById('market_presale_trades',presale,start),
 ];
 console.log(JSON.stringify({noDelete,plan:plans.map(({name,removed,total,changed,addedCount:added,moved})=>({name,removed:noDelete?0:removed,wouldRemove:removed,total,changed,added,moved}))}));
+// Which 시도 each table's changes fall in (2026-11-18: to show a region's first load leaves the capital alone).
+console.log(JSON.stringify({bySido:Object.fromEntries(plans.filter(p=>p.bySido).map(p=>[p.name,p.bySido]))}));
 // --list-removed <file> (with --dry-run): which trade rows would be deleted, read back from the DB, and
 // whether a row with the same trade key (the part before "~", split buildings) is being added in their
 // place (a split reassignment) — for checking deletions before a --full run (2026-11-18).
