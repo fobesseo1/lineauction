@@ -117,11 +117,21 @@ function manualOwner(t,rule){
  const byName=rule.names?.find(n=>String(t.name??'').includes(n.contains));
  return deal?.owner??byName?.owner??rule.dong?.[dongKey(t.building)]??rule.area?.[Math.floor(t.area)]??null;
 }
-export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,override=null}={}){
+// A rental complex only takes copies of rents of sizes it has (K-APT 면적별 세대수). 2026-11-18: 85·101㎡
+// rents no name settled were copied onto 가정2지구3단지 (246 units, all 60㎡ or less) in 인천 가정동 "가-".
+// Without K-APT size data the copy is kept as before.
+export const rentalFits=(c,area)=>{
+ const total=(c.units_le60??0)+(c.units_le85??0)+(c.units_le135??0)+(c.units_gt135??0);
+ return !(total>0)||unitsAt(c,area)>0;
+};
+// nameLinks (shared-name-links.json, per building): MOLIT names the name rules cannot read, hand-checked
+// against 호갱노노·K-APT, e.g. "루원시티SKLeaders'VIEW" → 루원시티 SK리더스뷰. They settle sales and rents.
+export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,override=null,nameLinks=null}={}){
  if(complexes.length<2)return null;
  const ordered=[...complexes].sort((a,b)=>a.kapt_code<b.kapt_code?-1:1);
  const {result,sale,dropped,agree}=splitTrades(ordered,trades,buildings);
  if(!sale.length)return null;
+ if(nameLinks){const known=new Set(ordered.map(c=>c.kapt_code));for(const t of trades){const k=nameLinks[String(t.name??'').trim()];if(k&&known.has(k))result.set(t.key,{owner:k,method:'name_link'});}}
  // Several K-APT codes for what people call one complex: nothing is divided among them.
  if(asOne)for(const t of trades)result.set(t.key,{owner:null,method:'shared'});
  // With a hand-checked rule, only that rule places this building's sales; rents stay common.
@@ -142,13 +152,13 @@ export function planPlaceSplit(parentId,complexes,trades,buildings,{asOne=false,
   const common=many&&t.deal==='sale'&&!owner;
   rows.push({t,id:t.key,place_id:parentId,method,common});
   if(common)for(const c of sale){used.add(c.kapt_code);rows.push({t,id:t.key,place_id:childPlaceId(parentId,c.kapt_code),method:'common',statOnly:true});}
-  if(t.deal==='rent'&&!owner)for(const r of rental){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
+  if(t.deal==='rent'&&!owner)for(const r of rental){if(!rentalFits(r,t.area))continue;used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
  }
  // A building left to one complex goes by that name, not whichever complex filed the latest trade.
  // A rental complex with no rents of its own in the filings still shows the building's rents.
  for(const r of rental){
   if(used.has(r.kapt_code))continue;
-  for(const t of trades)if(t.deal==='rent'){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
+  for(const t of trades)if(t.deal==='rent'&&rentalFits(r,t.area)){used.add(r.kapt_code);rows.push({t,id:rentCopyId(t.key,r.kapt_code),place_id:childPlaceId(parentId,r.kapt_code),method:'rental_copy'});}
  }
  return {primary:sale[0].kapt_code,primaryMatch:many?'shared_lot':'shared_sale',parentName:many?null:sale[0].name,alsoLinked:sale.slice(1).map(c=>c.kapt_code),
   children:ordered.filter(c=>used.has(c.kapt_code)).map(c=>({kapt_code:c.kapt_code,name:c.name})),rows,dropped,agree};

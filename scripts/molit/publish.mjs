@@ -161,12 +161,13 @@ if(process.env.SHARED_SPLIT!=='off'){
  const known=new Set(JSON.parse(await readFile(new URL('./shared-places.json',import.meta.url),'utf8')));
  const saleOverrides=JSON.parse(await readFile(new URL('./shared-sale-overrides.json',import.meta.url),'utf8'));
  const oneComplex=new Set(JSON.parse(await readFile(new URL('./shared-one-complex.json',import.meta.url),'utf8')));
+ const nameLinks=JSON.parse(await readFile(new URL('./shared-name-links.json',import.meta.url),'utf8'));
  for(const [id,kapts] of shared){
   const p=places.get(id);
   if(!known.has(id))newShared.push(id);
   const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`);
   let plan;
-  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,{asOne:oneComplex.has(id),override:saleOverrides[id]??null});}
+  try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,{asOne:oneComplex.has(id),override:saleOverrides[id]??null,nameLinks:nameLinks[id]??null});}
   catch(e){
    // A building the rules fail on keeps yesterday's rows untouched: nothing here is written or removed.
    failedSplits.push(`${id}: ${e.message}`);frozenPlaces.add(id);for(const t of trades)frozenIds.add(t.key);places.delete(id);

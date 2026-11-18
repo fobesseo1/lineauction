@@ -138,3 +138,33 @@ test('an area rule places sales by floor area',()=>{
  const p=planPlaceSplit('P',cs,[{...sale('a',49.56,'','솔밭마을아파트'),deal_date:'2026-01-01'},{...sale('b',26.3,'','승기마을,연수1차시영'),deal_date:'2026-01-01'}],none,{override:{area:{49:'S',26:'G'}}});
  assert.deepEqual(p.rows.map(r=>r.place_id),['P:S','P:G']);
 });
+
+// 2026-11-18 인천 가정동 "가-": 8 complexes on one lot. Names the rules cannot read put 85·101㎡ rents
+// on the rental 가정2지구3단지 (60㎡ or less only) as copies.
+const ruwon=[
+ c('A10022850','가정2지구3단지','임대',{units_le60:246,units_le85:0,units_le135:0,units_gt135:0}),
+ c('A10023964','루원시티 SK리더스뷰','분양',{units_le60:0,units_le85:2000,units_le135:378,units_gt135:0}),
+ c('A10023254','루원대성베르힐더센트로','분양'),
+ c('A10023430','포레나루원시티아파트','분양'),
+];
+const ruwonTrades=[rent('sk85',84.9,"루원시티SKLeaders'VIEW"),rent('sk101',101.2,"루원시티SKLeaders'VIEW"),rent('ds',84.9,'루원시티대성베르힐더센트로'),
+ rent('fo',59.8,'포레나루원시티'),rent('small',36.1,'루원'),sale('s1',84.9,'',"루원시티SKLeaders'VIEW")];
+const rowsOf=(plan,key)=>plan.rows.filter(r=>r.t.key===key).map(r=>`${r.place_id.split(':').at(-1)}:${r.method}`);
+
+test('가정동 가-: without name links, unread names are no longer copied onto a rental complex of the wrong size',()=>{
+ const plan=planPlaceSplit('P',ruwon,ruwonTrades,none);
+ assert.deepEqual(rowsOf(plan,'sk85'),['P:shared'],'85㎡ does not fit a 60㎡-or-less rental complex');
+ assert.deepEqual(rowsOf(plan,'sk101'),['P:shared']);
+ assert.deepEqual(rowsOf(plan,'fo'),['A10023430:name'],'포레나 is read by name, no copy');
+ assert.deepEqual(rowsOf(plan,'small'),['P:shared','A10022850:rental_copy'],'a 36㎡ rent nobody claims still reaches the rental complex');
+});
+
+test('가정동 가-: hand-checked name links settle 루원시티SKLeaders\'VIEW and 대성 rents and sales',()=>{
+ const nameLinks={"루원시티SKLeaders'VIEW":'A10023964','루원시티대성베르힐더센트로':'A10023254',_checked:'x'};
+ const plan=planPlaceSplit('P',ruwon,ruwonTrades,none,{nameLinks});
+ assert.deepEqual(rowsOf(plan,'sk85'),['A10023964:name_link']);
+ assert.deepEqual(rowsOf(plan,'sk101'),['A10023964:name_link']);
+ assert.deepEqual(rowsOf(plan,'ds'),['A10023254:name_link']);
+ assert.deepEqual(rowsOf(plan,'s1'),['A10023964:name_link']);
+ assert.ok(!plan.rows.some(r=>r.method==='rental_copy'&&r.t.area>60),'no large rent copied onto the rental complex');
+});
