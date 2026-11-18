@@ -241,6 +241,9 @@ try{
   await step('complex-briefs','scripts/refresh-complex-briefs.mjs',[],10*60_000);
   // lineestate's recommendation table (app.recommend_base, ~10 s) reads the summaries, complexes and commutes above.
   await step('recommend','scripts/refresh-recommend.mjs',[],10*60_000);
+  // Daily region baseline (2026-11-18): per-시도 counts and complex fingerprints against yesterday;
+  // only unexplained changes (fewer complexes, complexes gone, >1% changed, trades down >1% …) fail it.
+  const watch=await step('region-watch','scripts/daily/region-watch.mjs',[],10*60_000);
   // lineestate's 역 근처 TOP 3 table recomputed (~2 min), its caches cleared now that their tables are
   // fresh, and re-warmed (~10k complex pages) unless LINEESTATE_WARM=off. A failure is only recorded;
   // it does not fail the run.
@@ -252,8 +255,8 @@ try{
   await step('indexnow','scripts/indexnow.mjs',['--near'],5*60_000);
   const last=s=>String(s.result??'').slice(0,160);
   run.summary={complex:last(complex),trades:last(trades),publish:last(publish),years:last(years),official:last(official),parcels:last(parcels),analyze:last(analyze),geo:last(geo),stats:last(statsStep)};
-  run.status=[complex,trades,publish,health,years,official,parcels,analyze,geo,statsStep].every(s=>s.code===0)?'completed':'failed';
-  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`지역 점검: ${health.code===0?'정상':`확인 필요 (${last(health)})`}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`,`역 근처 TOP 3: ${String(revalidateStep.result?.near??revalidateStep.result??'').slice(0,240)}`].join('\n');
+  run.status=[complex,trades,publish,health,years,official,parcels,analyze,geo,statsStep,watch].every(s=>s.code===0)?'completed':'failed';
+  const message=[`단지: ${last(complex)}`,`실거래: ${last(trades)}`,`요약 업로드: ${last(publish)}`,`지역 점검: ${health.code===0?'정상':`확인 필요 (${last(health)})`}`,`준공연도: ${last(years)}`,`공시가격: ${last(official)}`,`필지 정보: ${last(parcels)}`,`할인율: ${last(analyze)}`,`좌표: ${last(geo)}`,`통계: ${last(statsStep)}`,`기준값 비교: ${watch.code===0?'어제와 같음(설명되는 변화만)':`확인 필요 (${last(watch)})`}`,`역 근처 TOP 3: ${String(revalidateStep.result?.near??revalidateStep.result??'').slice(0,240)}`].join('\n');
   await notify(run.status==='completed'?`${label} 완료`:`${label} 일부 실패`,message);
  }else{
   if(await readFile('data/court/standalone/STOP').then(()=>true,()=>false)){
