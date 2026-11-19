@@ -22,7 +22,7 @@ const env={...pick(['SystemRoot','PATH','APPDATA','LOCALAPPDATA','USERPROFILE','
 const tidy=r=>(r.stdout??'')+(r.stderr??'');
 const linesOf=text=>text.split('\n').map(l=>l.trim()).filter(Boolean);
 
-let pulled='skipped: LINEESTATE_DIR missing',near='skipped: LINEESTATE_DIR missing',nearCode=null;
+let pulled='skipped: LINEESTATE_DIR missing',near='skipped: LINEESTATE_DIR missing',nearCode=null,admin='skipped: LINEESTATE_DIR missing';
 if(dir){
  // A failed pull (offline, local changes) still runs with the scripts already there.
  const pull=spawnSync('git',['pull','--ff-only'],{cwd:dir,encoding:'utf8',windowsHide:true,timeout:120_000});
@@ -38,6 +38,19 @@ if(dir){
  // Exit 0 ok, 1 failed (rank, write or revalidate), 2 a missing env var (named in its 멈춤 line).
  const tail=lines.filter(l=>/^(계산 끝|표:|새로 만들기:|멈춤)/.test(l));
  near=nearCode===0?tail.join(' / '):`code ${nearCode??'timeout'}: ${(tail.length?tail:lines.slice(-1)).join(' / ').slice(0,200)}`;
+ // 관리자 대시보드 숫자 (lineestate 요청 19, 2026-11-19): ~30 s, reads its keys (GA_PROPERTY_ID, GA_KEY_FILE,
+ // SUPABASE_SECRET_KEY) from the clone's .env.local. Exit 0 ok, 1 failed, 2 a missing env var. A failure is
+ // only reported: it does not stop warm.mjs or fail this step. Before lineestate ships the script it is absent.
+ if(!existsSync(join(dir,'scripts','admin-metrics.ts')))admin='skipped: scripts/admin-metrics.ts not in the clone yet';
+ else{
+  const aArgs=['--yes','tsx','scripts/admin-metrics.ts'];
+  const aOpts={...opts,timeout:5*60_000};
+  const am=existsSync(npxCli)?spawnSync(process.execPath,[npxCli,...aArgs],aOpts):spawnSync('npx',aArgs.map(a=>`"${a}"`),{...aOpts,shell:true});
+  const aLines=linesOf(tidy(am)+(am.error?`\n${am.error.message}`:''));
+  console.error(aLines.join('\n'));
+  const done=aLines.filter(l=>/^끝:/.test(l)).at(-1);
+  admin=am.status===0?(done??'ok'):`code ${am.status??'timeout'}: ${(aLines.filter(l=>/^(끝|멈춤)/.test(l)).at(-1)??aLines.at(-1)??'').slice(0,200)}`;
+ }
 }
 const nearOk=nearCode===0;
 
@@ -48,7 +61,7 @@ if(process.env.LINEESTATE_WARM==='off'){
  const text=await res.text();
  let body;try{body=JSON.parse(text);}catch{body=text.slice(0,200);}
  if(!res.ok)console.error(`revalidate failed: HTTP ${res.status} ${text.slice(0,200)}`);
- console.log(JSON.stringify({pull:pulled,near,warm:'off',revalidated:res.ok?body?.revalidated??body:`HTTP ${res.status}`,seconds:Math.round((Date.now()-started)/1000)}));
+ console.log(JSON.stringify({pull:pulled,near,admin,warm:'off',revalidated:res.ok?body?.revalidated??body:`HTTP ${res.status}`,seconds:Math.round((Date.now()-started)/1000)}));
  process.exit(res.ok&&(nearOk||!dir)?0:1);
 }
 if(!dir){console.error('LINEESTATE_DIR missing in .env.local');process.exit(1);}
@@ -58,5 +71,5 @@ if(!dir){console.error('LINEESTATE_DIR missing in .env.local');process.exit(1);}
 const warm=spawnSync(process.execPath,['scripts/warm.mjs',site,'--revalidate'],{cwd:dir,encoding:'utf8',windowsHide:true,timeout:60*60_000,env});
 const lines=linesOf(tidy(warm));
 console.error(lines.join('\n'));
-console.log(JSON.stringify({pull:pulled,near,code:warm.status,revalidate:lines.find(l=>l.startsWith('revalidate'))??null,warm:lines.filter(l=>/개 \d+초/.test(l)),seconds:Math.round((Date.now()-started)/1000)}));
+console.log(JSON.stringify({pull:pulled,near,admin,code:warm.status,revalidate:lines.find(l=>l.startsWith('revalidate'))??null,warm:lines.filter(l=>/개 \d+초/.test(l)),seconds:Math.round((Date.now()-started)/1000)}));
 process.exit(warm.status===0&&nearOk?0:1);
