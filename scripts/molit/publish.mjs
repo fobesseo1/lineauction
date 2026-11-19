@@ -188,6 +188,15 @@ if(process.env.SHARED_SPLIT!=='off'){
   for(const c of plan.children){const child=childPlaceId(id,c.kapt_code);places.set(child,{...p,id:child,name:c.name,kapt_code:c.kapt_code,kapt_match:'shared_split'});}
  }
  console.log(`shared buildings ${shared.length}, split ${splitPlaces.size}, small places ${[...splitPlaces.values()].reduce((a,s)=>a+s.children.length,0)}`);
+ // For the hand check before a new building goes into shared-places.json: who got how many sales and
+ // rents, and how many sales stayed common. Local file only, written in --dry-run too.
+ const review=newShared.map(id=>{
+  const plan=splitPlaces.get(id),kapts=[...(linksOf.get(id)??[])];
+  const count={};
+  for(const r of plan?.rows??[]){if(r.statOnly)continue;const who=r.place_id===id?(r.common?'(공통)':'(건물)'):info.get(r.place_id.split(':').at(-1))?.name??r.place_id;const k=`${who} ${r.t.deal}`;count[k]=(count[k]??0)+1;}
+  return {id,complexes:kapts.map(k=>{const c=info.get(k);return `${c?.name??k} ${k} ${c?.sale_type??''}`.trim();}),split:!!plan,rows:count,failed:failedSplits.find(f=>f.startsWith(id+':'))??null};
+ });
+ await writeJson('data/molit/new-shared-review.json',review);
 }
 
 // Complexes whose sales MOLIT files as commercial (집합, nrgSale): they get an apartment place of their own.
