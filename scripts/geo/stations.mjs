@@ -76,11 +76,17 @@ try{
  }
  // A broken answer must never empty the table: the capital area alone has 600+ stations.
  if(stations.length<500)throw Error(`TOO_FEW_STATIONS:${stations.length}`);
- if(refreshed){
+ // The table is rewritten after a new Overpass answer, and also when the stations built from the cached
+ // answers differ from it (a change to the line rules in stations-core.mjs, 2026-11-19 동해선·김해·대경).
+ const same=(a,b)=>a.name===b.name&&JSON.stringify(a.lines)===JSON.stringify(b.lines)&&Math.abs(a.latitude-b.latitude)<1e-6&&Math.abs(a.longitude-b.longitude)<1e-6;
+ const inTable=new Map((await fetchAll('rail_stations','id,name,lines,latitude,longitude')).map(s=>[s.id,s]));
+ const differs=inTable.size!==stations.length||stations.some(s=>!inTable.has(s.id)||!same(s,inTable.get(s.id)));
+ if(refreshed||differs){
   const now=new Date().toISOString();
   await write('rail_stations',stations.map(({points,...s})=>({...s,updated_at:now})),'id');
   const keep=new Set(stations.map(s=>s.id));
-  const gone=(await fetchAll('rail_stations','id')).map(r=>r.id).filter(id=>!keep.has(id));
+  const gone=[...inTable.keys()].filter(id=>!keep.has(id));
+  console.log(`rail_stations: ${stations.filter(s=>!inTable.has(s.id)).length} added, ${stations.filter(s=>inTable.has(s.id)&&!same(s,inTable.get(s.id))).length} changed, ${gone.length} removed${gone.length?` (${gone.map(id=>`${inTable.get(id).name} ${id}`).join(', ')})`:''}`);
   for(let i=0;i<gone.length;i+=200){const {error}=await supa.from('rail_stations').delete().in('id',gone.slice(i,i+200));if(error)throw Error(`DB_${error.code}:${error.message}`);}
  }
  const cols=['nearest_station_name','nearest_station_lines','nearest_station_m','nearest_station_walk_min','second_station_name','second_station_lines','second_station_m','second_station_walk_min'];
