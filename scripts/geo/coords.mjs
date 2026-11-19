@@ -106,13 +106,16 @@ const placePoint=new Map();
 for(const p of await fetchAll('market_places','id,kapt_code,latitude,longitude',q=>q.not('kapt_code','is',null).not('latitude','is',null)))placePoint.set(p.kapt_code,{lat:p.latitude,lng:p.longitude});
 const pnuCachePath=`${root}/address-pnu.json`;
 let pnuCache={};try{pnuCache=JSON.parse(await readFile(pnuCachePath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+// vworld sometimes answers with a stray backslash inside a string (invalid JSON, same answer on every retry,
+// first seen 2026-11-19 on 광역시 complexes): read it with the backslash escaped, else fail that one lookup.
+const parseVworld=text=>{try{return JSON.parse(text);}catch(e){if(!(e instanceof SyntaxError))throw e;return JSON.parse(text.replace(/\\(?!["\\/bfnrtu])/g,'\\\\'));}};
 async function search(query,type,category){
  const u=new URL('https://api.vworld.kr/req/search');
  for(const [k,v] of Object.entries({service:'search',request:'search',version:'2.0',size:'10',type,...(category?{category}:{}),format:'json',key:process.env.VWORLD_API_KEY,query}))u.searchParams.set(k,v);
  for(let attempt=0;;attempt++){
   await sleep(150);
   try{
-   const j=await (await fetch(u,{signal:AbortSignal.timeout(20000)})).json();
+   const j=parseVworld(await (await fetch(u,{signal:AbortSignal.timeout(20000)})).text());
    if(j.response?.status==='ERROR')throw Error(j.response.error?.text??'vworld error');
    return j.response?.result?.items??[];
   }catch(e){if(attempt<2){await sleep(3000*(attempt+1));continue;}throw e;}
@@ -130,11 +133,14 @@ async function geocodeRoad(address){
  const u=new URL('https://api.vworld.kr/req/address');
  for(const [k,v] of Object.entries({service:'address',request:'getcoord',version:'2.0',crs:'epsg:4326',type:'road',refine:'true',simple:'false',format:'json',key:process.env.VWORLD_API_KEY,address}))u.searchParams.set(k,v);
  await sleep(150);
- const j=await (await fetch(u,{signal:AbortSignal.timeout(20000)})).json();
+ const j=parseVworld(await (await fetch(u,{signal:AbortSignal.timeout(20000)})).text());
  const p=j.response?.status==='OK'?j.response.result?.point:null;
  return p?{lat:Number(p.y),lng:Number(p.x)}:null;
 }
-const stats={place:0,searched:0,search:0,missing:0};
+// One complex whose lookup fails (bad answer, timeout) is skipped and not cached, so the next run tries it
+// again; 5 failures in a row stop new searches for this run. Either way the coordinates found so far are
+// still written below.
+const stats={place:0,searched:0,search:0,missing:0,errors:0};let errorsInRow=0,searchOff=null;
 for(const c of allComplexes){
  if(located.has(c.id))continue;
  const fromPlace=c.kapt_code&&placePoint.get(c.kapt_code);
@@ -148,8 +154,9 @@ for(const c of allComplexes){
   c.name&&[`complex-place:${c.sido} ${c.sigungu} ${c.name}`,()=>placePnu(c)],
  ].filter(Boolean);
  let pt=null;
+ try{
  for(const [key,lookup] of tries){
-  if(!(key in pnuCache)){if(plan||stats.searched>=limit)break;pnuCache[key]=await lookup();pnuCache[`${key}@`]=new Date().toISOString();stats.searched++;}
+  if(!(key in pnuCache)){if(plan||searchOff||stats.searched>=limit)break;stats.searched++;const found=await lookup();pnuCache[key]=found;pnuCache[`${key}@`]=new Date().toISOString();}
   const pnu=pnuCache[key];if(!pnu)continue;
   if(!(pnu in await shardOf(pnu))){
    const {features}=await vworldFeatures('LP_PA_CBND_BUBUN',{attrFilter:`pnu:=:${pnu}`,geometry:'true'},{size:1});
@@ -162,13 +169,19 @@ for(const c of allComplexes){
  // lot-0 PNU ("…00000000"), which has no parcel, while the road address already resolves.
  if(!pt&&road){
   const key=`geocode:${road}`;
-  if(!(key in pnuCache)&&!plan&&stats.searched<limit){pnuCache[key]=await geocodeRoad(road);pnuCache[`${key}@`]=new Date().toISOString();stats.searched++;}
+  if(!(key in pnuCache)&&!plan&&!searchOff&&stats.searched<limit){stats.searched++;const found=await geocodeRoad(road);pnuCache[key]=found;pnuCache[`${key}@`]=new Date().toISOString();}
   pt=pnuCache[key]??null;
+ }
+ errorsInRow=0;
+ }catch(e){
+  stats.errors++;errorsInRow++;
+  if(stats.errors<=5)console.log(`address lookup failed, skipped: ${c.id} ${c.name??''}: ${e.message}`);
+  if(errorsInRow>=5&&!searchOff){searchOff=e.message;console.log(`address search stopped after 5 failures in a row: ${e.message}`);}
  }
  if(pt){complexRows.push({id:c.id,lat:pt.lat,lng:pt.lng});stats.search++;}else stats.missing++;
 }
 await writeJson(pnuCachePath,pnuCache);
-console.log(`complexes without a parcel point: from trade places ${stats.place}, from address search ${stats.search} (searched ${stats.searched}), still missing ${stats.missing}`);
+console.log(`complexes without a parcel point: from trade places ${stats.place}, from address search ${stats.search} (searched ${stats.searched}), still missing ${stats.missing}${stats.errors?`, lookups failed ${stats.errors}${searchOff?` (search stopped: ${searchOff})`:''}`:''}`);
 const propertyRows=[];for(const p of properties){const pnu=propertyPnu(p);const c=await point(pnu);if(c||(p.source==='court'&&pnu))propertyRows.push({id:p.id,...(p.source==='court'&&pnu?{pnu}:{}),...(c?{lat:c.lat,lng:c.lng}:{})});}
 await applyGeo('market_places',placeRows);
 await applyGeo('complexes',complexRows);

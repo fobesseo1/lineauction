@@ -21,17 +21,19 @@ const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABAS
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
 
+// The public overpass-api.de is often full (504, "at capacity"); each retry goes to the next server.
+const OVERPASS_URLS=[OVERPASS_URL,'https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 async function fetchOverpass(query){
  for(let attempt=0;;attempt++){
   try{
    // overpass-api.de answers 406 to requests without a User-Agent.
-   const r=await fetch(OVERPASS_URL,{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
+   const r=await fetch(OVERPASS_URLS[attempt%OVERPASS_URLS.length],{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
    const text=await r.text();
    if(!r.ok)throw Error(`OVERPASS_${r.status}`);
    const json=JSON.parse(text);
    if(!json.elements?.length)throw Error('OVERPASS_EMPTY');
    return json;
-  }catch(e){if(attempt>=2)throw e;await sleep(60_000*(attempt+1));}
+  }catch(e){if(attempt>=OVERPASS_URLS.length*2-1)throw e;await sleep(20_000*(attempt+1));}
  }
 }
 
@@ -56,7 +58,16 @@ try{
  const stations=[],routes=[],areaOf=new Map();let unmatchedStops=0;
  for(const area of geoAreas()){
   const cache=cacheOf(area);
-  if(process.argv.includes('--refresh')||await ageDays(cache)>7){await writeJson(cache,await fetchOverpass(overpassQuery(area.bbox)));refreshed=true;}
+  const age=await ageDays(cache);
+  if(process.argv.includes('--refresh')||age>7){
+   // One area that no server answers today must not stop the others: an old answer is used as it is, an
+   // area never fetched is left out for this run (it has no stations in the table to lose).
+   try{await writeJson(cache,await fetchOverpass(overpassQuery(area.bbox)));refreshed=true;}
+   catch(e){
+    if(age===Infinity){console.log(`AREA_SKIPPED ${area.key}: ${e.message}`);continue;}
+    console.log(`AREA_STALE ${area.key}: ${e.message}, using the answer from ${Math.round(age)} days ago`);
+   }
+  }
   const osm=JSON.parse(await readFile(cache,'utf8'));
   const built=buildStations(osm.elements,{area:area.key});
   // A station drawn in two overlapping areas is kept once (the first area's).
