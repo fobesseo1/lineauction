@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lineOf,walkMinutes,buildStations,nearestStations} from './stations-core.mjs';
+import {lineOf,walkMinutes,buildStations,nearestStations,ownStations} from './stations-core.mjs';
 
 test('lineOf maps commuter routes and drops intercity ones',()=>{
  assert.equal(lineOf({ref:'2'}),'2호선');
@@ -34,4 +34,27 @@ test('buildStations ties stops to stations, merges 환승역 and reads area stat
  const n=nearestStations({lat:37.4970,lon:127.0280},stations);
  assert.equal(n.nearest_station_name,'강남');assert.ok(n.nearest_station_m<100);
  assert.equal(n.second_station_name,'삼성');assert.equal(n.second_station_walk_min,walkMinutes(n.second_station_m));
+});
+
+test('lineOf reads the 광역시 refs OSM uses for 동해선, 부산김해경전철 and 대경선',()=>{
+ assert.equal(lineOf({ref:'동해',name:'동해선 광역전철: 태화강 → 부전'},'26'),'부산 동해선');
+ assert.equal(lineOf({ref:'동해'},'31'),'울산 동해선');
+ assert.equal(lineOf({ref:'BGL'},'26'),'부산 김해경전철');
+ assert.equal(lineOf({ref:'대경'},'27'),'대구 대경선');
+ assert.equal(lineOf({ref:'2',name:'광주 도시철도 2호선 내선순환'},'29'),null);
+});
+
+test('ownStations keeps a complex to its own area, and gives none to a no-station 시군구',()=>{
+ const st=id=>({id,name:id});
+ const stations=[st('부전'),st('양산'),st('남창'),st('태화강'),st('반월당'),st('정평'),st('사곡'),st('반석'),st('강남'),st('부평')];
+ const builtIn=new Map([['부전',['26']],['양산',['26']],['남창',['26','31']],['태화강',['31']],['반월당',['27']],['정평',['27']],['사곡',['27']],['반석',['30','36']],['강남',['capital']],['부평',['capital']]].map(([k,v])=>[k,new Set(v)]));
+ const 대구={code:'27',area:'27',noStationSigungu:['군위군']};
+ const ids=(region,sigungu)=>ownStations(stations,{region,sigungu,builtIn}).map(s=>s.id);
+ assert.deepEqual(ids({code:'26',area:'26'},'해운대구'),['부전','양산','남창']);
+ assert.deepEqual(ids({code:'31',area:'31'},'울주군'),['남창','태화강']);
+ assert.deepEqual(ids(대구,'수성구'),['반월당','정평','사곡']);
+ assert.deepEqual(ids(대구,'군위군'),[]);
+ assert.deepEqual(ids({code:'36',area:'36'},null),['반석']);
+ assert.deepEqual(ids({code:'41',area:'capital'},'성남시 분당구'),['강남','부평']);
+ assert.equal(ownStations(stations,{region:undefined,sigungu:null,builtIn}).length,stations.length);
 });

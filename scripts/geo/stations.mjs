@@ -9,7 +9,7 @@ import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
-import {OVERPASS_URL,overpassQuery,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
+import {OVERPASS_URL,overpassQuery,buildStations,nearestStations,rankStations,walkMinutes,ownStations} from './stations-core.mjs';
 import {DESTINATIONS,DESTINATION_AREA,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
 import {geoAreas,ENABLED_REGIONS} from '../regions.mjs';
 process.loadEnvFile('.env.local');
@@ -94,23 +94,24 @@ try{
   for(let i=0;i<gone.length;i+=200){const {error}=await supa.from('rail_stations').delete().in('id',gone.slice(i,i+200));if(error)throw Error(`DB_${error.code}:${error.message}`);}
  }
  const cols=['nearest_station_name','nearest_station_lines','nearest_station_m','nearest_station_walk_min','second_station_name','second_station_lines','second_station_m','second_station_walk_min'];
- const complexes=await fetchAll('complexes',`id,kapt_code,name,sido,latitude,longitude,${cols.join(',')}`);
+ const complexes=await fetchAll('complexes',`id,kapt_code,name,sido,sigungu,latitude,longitude,${cols.join(',')}`);
  // A complex looks only at the stations of its own 시도's area (2026-11-19 사용자 결정): 세종 has no line of its
  // own, so 세종 complexes get no nearest station (not 대전 반석 11-16 km away), and a commute is made only to a
  // 업무지구 of the complex's own area (no 울산 → 부산 서면). Stations an area's lines reach count as its own
  // (부산 2호선 양산, 울산 남창·서생 on 동해선).
+ const regionOfSido=new Map(ENABLED_REGIONS.map(r=>[r.name,r]));
  const areaOfSido=new Map(ENABLED_REGIONS.map(r=>[r.name,r.area]));
- const stationsOfArea=new Map();
- const ownStations=c=>{
-  const area=areaOfSido.get(c.sido);if(!area)return stations;
-  if(!stationsOfArea.has(area))stationsOfArea.set(area,stations.filter(s=>builtIn.get(s.id)?.has(area)));
-  return stationsOfArea.get(area);
+ const ownCache=new Map();
+ const ownStationsOf=c=>{
+  const region=regionOfSido.get(c.sido),key=`${c.sido}|${c.sigungu}`;
+  if(!ownCache.has(key))ownCache.set(key,ownStations(stations,{region,sigungu:c.sigungu,builtIn}));
+  return ownCache.get(key);
  };
  const now=new Date().toISOString();const changed=[];
  for(const c of complexes){
   // id is GENERATED ALWAYS, so rows are matched on kapt_code (every complex has one today).
   if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
-  const next=nearestStations({lat:c.latitude,lon:c.longitude},ownStations(c));
+  const next=nearestStations({lat:c.latitude,lon:c.longitude},ownStationsOf(c));
   if(cols.every(k=>JSON.stringify(c[k])===JSON.stringify(next[k])))continue;
   // name and sido ride along only because the insert path checks NOT NULL before the conflict.
   changed.push({kapt_code:c.kapt_code,name:c.name,sido:c.sido,...next,stations_computed_at:now});
@@ -122,7 +123,7 @@ try{
  const commutes=new Map();
  for(const c of complexes){
   if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
-  const origins=rankStations({lat:c.latitude,lon:c.longitude},ownStations(c)).map(r=>({id:r.s.id,m:r.m}));
+  const origins=rankStations({lat:c.latitude,lon:c.longitude},ownStationsOf(c)).map(r=>({id:r.s.id,m:r.m}));
   const area=areaOfSido.get(c.sido);
   for(const [d,perStation] of rides){
    if(area&&DESTINATION_AREA[d]!==area)continue;

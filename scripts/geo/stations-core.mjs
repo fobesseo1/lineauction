@@ -104,3 +104,12 @@ export function nearestStations(point,stations){
   second_station_name:b?.name??null,second_station_lines:b?.lines??null,second_station_m:b?.m??null,second_station_walk_min:b?.walk??null,
  };
 }
+
+// The stations a complex may show as nearest and start a commute from: those its own area's lines reach
+// (regions.json area; 부산 2호선 양산 and 울산 남창·서생 on 동해선 count), none for a 시군구 the region lists
+// in noStationSigungu (대구 군위군: the nearest stations are 24-30 km away), all when the 시도 is unknown.
+export function ownStations(stations,{region,sigungu,builtIn}){
+ if(!region)return stations;
+ if((region.noStationSigungu??[]).includes(sigungu))return [];
+ return stations.filter(s=>builtIn.get(s.id)?.has(region.area));
+}
