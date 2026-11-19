@@ -11,7 +11,7 @@ import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {OVERPASS_URL,overpassQuery,buildStations,nearestStations,rankStations,walkMinutes} from './stations-core.mjs';
 import {DESTINATIONS,DESTINATION_AREA,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
-import {geoAreas} from '../regions.mjs';
+import {geoAreas,ENABLED_REGIONS} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/stations';await mkdir(`${root}/raw`,{recursive:true});
@@ -55,7 +55,7 @@ async function write(table,rows,onConflict){
 
 try{
  let refreshed=false;
- const stations=[],routes=[],areaOf=new Map();let unmatchedStops=0;
+ const stations=[],routes=[],areaOf=new Map(),builtIn=new Map();let unmatchedStops=0;
  for(const area of geoAreas()){
   const cache=cacheOf(area);
   const age=await ageDays(cache);
@@ -71,7 +71,11 @@ try{
   const osm=JSON.parse(await readFile(cache,'utf8'));
   const built=buildStations(osm.elements,{area:area.key});
   // A station drawn in two overlapping areas is kept once (the first area's).
-  for(const s of built.stations)if(!areaOf.has(s.id)){areaOf.set(s.id,area.key);stations.push(s);}
+  for(const s of built.stations){
+   if(!areaOf.has(s.id)){areaOf.set(s.id,area.key);stations.push(s);}
+   // Every area whose own lines reach the station (울산's 동해선 reaches 남창·서생, which 부산 names first).
+   if(!builtIn.has(s.id))builtIn.set(s.id,new Set());builtIn.get(s.id).add(area.key);
+  }
   routes.push(...built.routes);unmatchedStops+=built.unmatchedStops;
  }
  // A broken answer must never empty the table: the capital area alone has 600+ stations.
@@ -91,11 +95,22 @@ try{
  }
  const cols=['nearest_station_name','nearest_station_lines','nearest_station_m','nearest_station_walk_min','second_station_name','second_station_lines','second_station_m','second_station_walk_min'];
  const complexes=await fetchAll('complexes',`id,kapt_code,name,sido,latitude,longitude,${cols.join(',')}`);
+ // A complex looks only at the stations of its own 시도's area (2026-11-19 사용자 결정): 세종 has no line of its
+ // own, so 세종 complexes get no nearest station (not 대전 반석 11-16 km away), and a commute is made only to a
+ // 업무지구 of the complex's own area (no 울산 → 부산 서면). Stations an area's lines reach count as its own
+ // (부산 2호선 양산, 울산 남창·서생 on 동해선).
+ const areaOfSido=new Map(ENABLED_REGIONS.map(r=>[r.name,r.area]));
+ const stationsOfArea=new Map();
+ const ownStations=c=>{
+  const area=areaOfSido.get(c.sido);if(!area)return stations;
+  if(!stationsOfArea.has(area))stationsOfArea.set(area,stations.filter(s=>builtIn.get(s.id)?.has(area)));
+  return stationsOfArea.get(area);
+ };
  const now=new Date().toISOString();const changed=[];
  for(const c of complexes){
   // id is GENERATED ALWAYS, so rows are matched on kapt_code (every complex has one today).
   if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
-  const next=nearestStations({lat:c.latitude,lon:c.longitude},stations);
+  const next=nearestStations({lat:c.latitude,lon:c.longitude},ownStations(c));
   if(cols.every(k=>JSON.stringify(c[k])===JSON.stringify(next[k])))continue;
   // name and sido ride along only because the insert path checks NOT NULL before the conflict.
   changed.push({kapt_code:c.kapt_code,name:c.name,sido:c.sido,...next,stations_computed_at:now});
@@ -107,8 +122,10 @@ try{
  const commutes=new Map();
  for(const c of complexes){
   if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
-  const origins=rankStations({lat:c.latitude,lon:c.longitude},stations).map(r=>({id:r.s.id,m:r.m}));
+  const origins=rankStations({lat:c.latitude,lon:c.longitude},ownStations(c)).map(r=>({id:r.s.id,m:r.m}));
+  const area=areaOfSido.get(c.sido);
   for(const [d,perStation] of rides){
+   if(area&&DESTINATION_AREA[d]!==area)continue;
    const r=commuteFor(origins,perStation,walkMinutes);
    if(r)commutes.set(`${c.kapt_code}|${d}`,{kapt_code:c.kapt_code,destination:d,minutes:r.minutes,transfers:r.transfers,from_station:nameOf.get(r.from)});
   }
