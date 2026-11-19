@@ -1,5 +1,6 @@
 // Conservative first rule: exact complex/address identity and <=0.1m², no estimated valuation.
 import {regionCode} from './regions.mjs';
+import {currentSidoName} from '../regions.mjs';
 import {sectionOf,courtSectionText} from '../property-section.mjs';
 import {riskFlags} from '../property-risk.mjs';
 import {landShareM2,courtAssetLand} from './land-share.mjs';
@@ -12,7 +13,7 @@ export function mapCourtProperty(item) {
   const nullable = ['notice_id','latitude','longitude','building_area','pnu','status_code','disposal_code','bid_start_at','auction_round'];
   return { ...Object.fromEntries(nullable.map(k => [k,null])), source:'court', source_property_id:`${item.court}:${item.caseNumber}`,
     auction_condition_id:String(item.itemNumber), title:`${item.court} ${item.caseNumber} · 물건 ${item.itemNumber}`,
-    property_type:item.use,usage_type:item.use,section:sectionOf(item.use,courtSectionText(item)),risk_flags:riskFlags(item.note),asset_type:'부동산',address,sido:region[0]??null,sigungu:region[1]??null,
+    property_type:item.use,usage_type:item.use,section:sectionOf(item.use,courtSectionText(item)),risk_flags:riskFlags(item.note),asset_type:'부동산',address,sido:region[0]?currentSidoName(region[0]):null,sigungu:region[1]??null,
     dong:legalDong, appraisal_price:String(item.appraisalWon), minimum_bid_price:String(item.minimumBidWon),
     failed_bid_count:item.status.match(/유찰\s*(\d+)회/) ? Number(item.status.match(/유찰\s*(\d+)회/)[1]) : item.status==='신건'?0:null,
     auction_sequence:null, bid_end_at:null, sale_date:/^\d{4}-\d{2}-\d{2}$/.test(item.auctionDate??'')?item.auctionDate:null,

@@ -45,6 +45,12 @@ export function inEnabledArea(address,regions=ENABLED_REGIONS){
  }
  return false;
 }
+// The 시도 name a site row should carry: an old name (court registries still write "광주광역시 …") becomes
+// today's name ("전남광주통합특별시"); any other name is returned as it is.
+export function currentSidoName(name,regions=ALL_REGIONS){
+ const r=regions.find(r=>(r.oldNames??[]).includes(name));
+ return r?r.name:name;
+}
 // 시도 code → the 시군구 codes (5 digits) kept, for partial regions only.
 export const partialSigunguCodes=(regions=ENABLED_REGIONS)=>Object.fromEntries(regions.filter(r=>r.partial).map(r=>[r.code,new Set(Object.values(r.sigungu))]));
 // K-APT list rows carry a 10-digit bjdCode: keep a row of a partial 시도 only inside its listed 시군구.
