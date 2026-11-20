@@ -25,6 +25,9 @@ const LINES={
  '36':{city:'세종',refs:{},names:[]},
  '29':{city:'광주',refs:{'1':'1호선'},names:[]},
  '31':{city:'울산',refs:{'동해':'동해선'},names:[[/^동해선/,'동해선']]},
+ // 도 (2026-11-20 경남·경북부터): 도시철도가 없어 역을 잡지 않는다. 김해경전철은 부산 노선 영역, 포항 동해선은 간선이라 뺀다.
+ '48':{city:'경남',refs:{},names:[]},
+ '47':{city:'경북',refs:{},names:[]},
 };
 const linesOfArea=area=>{
  const l=LINES[area];if(!l)throw Error(`NO_LINES:${area}`);
