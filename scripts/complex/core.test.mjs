@@ -56,6 +56,6 @@ test('sigunguName splits K-APT city+district names to the catalog form',()=>{
 
 test('isTestListing skips K-APT test entries only',async()=>{
  const {isTestListing}=await import('./core.mjs');
- for(const n of ['테스트','테스트단지2','test','한국부동산원테스트1'])assert.equal(isTestListing({kaptName:n}),true,n);
- for(const n of ['잠실 센트럴파크','테스타로사','Testa하우스','한국감정원'])assert.equal(isTestListing({kaptName:n}),false,n);
+ for(const n of ['테스트','테스트단지2','test','한국부동산원테스트1','한국감정원'])assert.equal(isTestListing({kaptName:n}),true,n);
+ for(const n of ['잠실 센트럴파크','테스타로사','Testa하우스','한국감정원아파트'])assert.equal(isTestListing({kaptName:n}),false,n);
 });
