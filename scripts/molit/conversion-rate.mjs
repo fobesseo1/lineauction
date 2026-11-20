@@ -3,7 +3,8 @@
 // For each building + 평형 with both 전세 and 월세 in the last 12 months:
 //   rate = 월세 × 12 ÷ (전세 중앙값 − 월세 보증금 중앙값) × 100
 // and the 시군구 rate is the median of those (10+ buildings, else not published).
-// Keys: conversion_rate.apt / .offi / .rh, value {lawd(5 digits): rate %}.
+// Key: conversion_rate.apt, value {lawd(5 digits): rate %}. Apartments only since 2026-11-20: the warehouse no
+// longer holds 오피스텔·빌라 rents, so the old .offi / .rh rows in calc_constants are left as they were.
 import {DatabaseSync} from 'node:sqlite';
 import {createClient} from '@supabase/supabase-js';
 import {median,periodStart,isJeonse} from './summary.mjs';
@@ -27,7 +28,7 @@ if(import.meta.url===`file:///${process.argv[1].replace(/\\/g,'/')}`){
  const since=periodStart(new Date());
  const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
  const rows=[];
- for(const kind of ['apt','offi','rh']){
+ for(const kind of ['apt']){
   const groups=new Map();
   for(const t of wh.prepare(`select lawd,umd,jibun,area,deal,deposit,monthly_rent from trades where kind=? and deal='rent' and deal_date>=? and area>0`).iterate(kind,since)){
    const k=`${t.lawd}|${t.umd}|${t.jibun}|${Math.floor(t.area)}`;
