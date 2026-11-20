@@ -29,6 +29,9 @@ const readJson=async(path,fallback)=>{try{return JSON.parse(await readFile(path,
 const history=async()=>(await readFile(`${root}/runs.jsonl`,'utf8').catch(()=>'')).split('\n').filter(Boolean).map(l=>JSON.parse(l));
 const record=run=>appendFile(`${root}/runs.jsonl`,JSON.stringify(run)+'\n');
 const notify=(title,message)=>sendWindowsNotification({title:`선경매 · ${title}`,message}).catch(e=>console.error('notification failed',e.message));
+// The lock file is created first and written right after, so a start at the same moment (several tasks after a
+// reboot) can read it empty; that crashed the runner (onbid.log). Read as a busy partial lock instead.
+const readLock=async()=>{try{return await readJson(lockPath,null);}catch(e){if(e instanceof SyntaxError)return {partial:true};throw e;}};
 const alive=pid=>{try{process.kill(pid,0);return true;}catch(e){return e.code==='EPERM';}};
 
 // 1. Scheduled starts (daily time, missed-run catch-up, or logon) wait for the job's hour and skip
@@ -50,10 +53,10 @@ if(trigger!=='manual'){
 const lockPath=`${root}/running.lock`;
 let lock;
 for(const started=Date.now();;){
- const state=lockState(await readJson(lockPath,null),alive);
+ const state=lockState(await readLock(),alive);
  if(state==='stale')await unlink(lockPath).catch(()=>{});
  try{lock=await open(lockPath,'wx');break;}catch(e){if(e.code!=='EEXIST')throw e;}
- const holder=await readJson(lockPath,null);
+ const holder=await readLock();
  if(trigger==='manual'){await notify(`${label} 실행 안 함`,`${LABELS[holder?.job]??'다른'} 작업이 이미 실행 중입니다.\n끝난 뒤 다시 시도해 주세요.`);process.exit(0);}
  if(Date.now()-started>8*3600_000){await record({job,trigger,day,status:'failed',reason:'lock-timeout',at:new Date().toISOString()});await notify(`${label} 시작 실패`,'다른 작업이 8시간 넘게 끝나지 않았습니다. 설정 화면을 확인해 주세요.');process.exit(1);}
  await delay(60_000);

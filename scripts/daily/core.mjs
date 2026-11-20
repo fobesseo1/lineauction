@@ -29,6 +29,8 @@ export function scheduledSkip(history, job, day) {
 // A lock is live only while its process exists; a crashed run must not block later days.
 export function lockState(lock, alive) {
   if (!lock) return 'free';
+  // A lock opened but not yet written (another start a moment ago) reads as partial: its owner is alive.
+  if (lock.partial) return 'busy';
   return alive(lock.pid) ? 'busy' : 'stale';
 }
 

@@ -17,6 +17,7 @@ test('failed or skipped runs do not suppress the scheduled run; a finished sched
 test('lock is busy only while its process is alive',()=>{
  assert.equal(lockState(null,()=>true),'free');
  assert.equal(lockState({pid:1},()=>true),'busy');
+ assert.equal(lockState({partial:true},()=>false),'busy');
  assert.equal(lockState({pid:1},()=>false),'stale');
 });
 test('Korean day boundary and summary text',()=>{
