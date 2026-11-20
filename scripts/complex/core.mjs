@@ -54,6 +54,11 @@ export function sigunguName(sigungu,regionNames=[]){
  return s;
 }
 
+// K-APT test entries ('테스트', '테스트단지2', 'test', '한국부동산원테스트1'): no households, no address.
+// 8 were deleted from complexes on 2026-11-20 (backup data/backup/test-complexes-20261120); skipping them
+// here keeps a later list refresh from adding them back.
+export const isTestListing=item=>/테스트|^test\b/i.test(text(item.kaptName)??'');
+
 export function fromList(item,sidoCode,seenAt,regionNames=[]){
  const kapt=text(item.kaptCode);
  if(!kapt||!SIDO[sidoCode])throw Error('INVALID_LIST_ITEM');
