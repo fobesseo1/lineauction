@@ -1,11 +1,26 @@
 // The one place that says which regions the data factory collects (scripts/regions.json).
-// Everything here is derived from the enabled regions only, in file order (서울, 경기, 인천 today).
+// Everything here is derived from the enabled regions only (isEnabled: "enabled" or "enabledFrom"), in file order.
 // Pure: no network, no DB.
 import {readFileSync} from 'node:fs';
 
 export const regionConfig=JSON.parse(readFileSync(new URL('./regions.json',import.meta.url),'utf8'));
 export const ALL_REGIONS=regionConfig.regions;
-export const ENABLED_REGIONS=ALL_REGIONS.filter(r=>r.enabled);
+// A region is on when "enabled": true, or from its "enabledFrom" day (KST, YYYY-MM-DD) on (2026-11-21:
+// 충남·충북 11-22, 전북·강원 11-23, 제주 11-24 were booked ahead so nobody has to turn them on each morning).
+// REGIONS_DAY=YYYY-MM-DD pretends another day (tests, or building dongs.json for regions booked ahead).
+const DAY=/^\d{4}-\d{2}-\d{2}$/;
+export const regionDay=(now=new Date())=>{
+ const d=process.env.REGIONS_DAY??new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(now);
+ if(!DAY.test(d))throw Error(`BAD_REGIONS_DAY:${d}`);
+ return d;
+};
+export function isEnabled(r,day=regionDay()){
+ if(r.enabled===true)return true;
+ if(r.enabledFrom==null)return false;
+ if(!DAY.test(r.enabledFrom))throw Error(`BAD_ENABLED_FROM:${r.code}:${r.enabledFrom}`);
+ return day>=r.enabledFrom;
+}
+export const ENABLED_REGIONS=ALL_REGIONS.filter(r=>isEnabled(r));
 
 export const SIDO_NAMES=ENABLED_REGIONS.map(r=>r.name);
 export const SIDO_CODES=ENABLED_REGIONS.map(r=>r.code);

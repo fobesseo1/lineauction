@@ -28,6 +28,12 @@ const LINES={
  // 도 (2026-11-20 경남·경북부터): 도시철도가 없어 역을 잡지 않는다. 김해경전철은 부산 노선 영역, 포항 동해선은 간선이라 뺀다.
  '48':{city:'경남',refs:{},names:[]},
  '47':{city:'경북',refs:{},names:[]},
+ // 2026-11-21 날짜로 미리 넣은 도(충남·충북 11-22, 전북·강원 11-23, 제주 11-24)도 같다. 춘천 쪽 경춘선 역은 capital 상자(북위 36.9 위) 안이라 잡히지만, 천안·아산 1호선 역은 상자 밖이라 아직 없다.
+ '44':{city:'충남',refs:{},names:[]},
+ '43':{city:'충북',refs:{},names:[]},
+ '52':{city:'전북',refs:{},names:[]},
+ '51':{city:'강원',refs:{},names:[]},
+ '50':{city:'제주',refs:{},names:[]},
 };
 const linesOfArea=area=>{
  const l=LINES[area];if(!l)throw Error(`NO_LINES:${area}`);

@@ -21,7 +21,7 @@ test('assignSchool finds the zone and the nearest school of a shared zone',()=>{
  assert.ok(!polygonContains(square(127,37.5),127.02,37.505));
  const features=[
   {properties:{hakgudo_id:'Z1',hakgudo_nm:'서울가초서울나라초공동통학구역',hakgudo_gb:'1',sd_cd:'11'},geometry:square(127,37.5)},
-  {properties:{hakgudo_id:'Z2',hakgudo_nm:'강원다초통학구역',hakgudo_gb:'0',sd_cd:'51'},geometry:square(127.02,37.5)},
+  {properties:{hakgudo_id:'Z2',hakgudo_nm:'전남다초통학구역',hakgudo_gb:'0',sd_cd:'46'},geometry:square(127.02,37.5)},
  ];
  const schools=[{id:'osm:node/1',name:'서울가초등학교',lat:37.501,lon:127.001},{id:'osm:node/2',name:'나라초등학교',lat:37.509,lon:127.009}];
  const zones=buildZones(features,schools);

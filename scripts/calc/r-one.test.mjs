@@ -5,7 +5,7 @@ import {latest} from './r-one.mjs';
 const row=(region,q,v,item='소득수익률')=>({CLS_FULLNM:region,WRTTIME_IDTFR_ID:q,DTA_VAL:v,ITM_NM:item});
 
 test('latest keeps the capital area and the newest quarter',()=>{
- const r=latest([row('서울','202601',1),row('서울','202602',2),row('제주','202602',9)],'소득수익률');
+ const r=latest([row('서울','202601',1),row('서울','202602',2),row('전남','202602',9)],'소득수익률');
  assert.deepEqual(r,{quarter:'202602',values:{'서울':2}});
 });
 

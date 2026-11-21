@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {standardPnu,scope,decode,rowsOf,identity,toProperty,partitionList,safeOfficialUrl,won,koreanDate} from './core.mjs';
+import {ENABLED_REGIONS} from '../regions.mjs';
 const row={cltrMngNo:'2026-1',pbctCdtnNo:'9007199254740993',lctnSdnm:'서울특별시',dspsMthodCd:'0001',cltrUsgLclsCtgrNm:'부동산',apslEvlAmt:'9007199254740993'};
-test('scope rejects rental, other provinces and non-real estate',()=>{assert.ok(scope(row));for(const patch of [{dspsMthodCd:'0002'},{lctnSdnm:'충청북도'},{cltrUsgLclsCtgrNm:'동산'}])assert.equal(scope({...row,...patch}),false);});
-test('all provinces, bidding methods and private-contract partitions',()=>{const ps=partitionList();assert.equal(ps.length,44);assert.equal(new Set(ps.map(p=>JSON.stringify(p))).size,44);/* 11 시도 × 4 (2026-11-18 광역시 6곳, 11-20 경남·경북 켬) */});
+test('scope rejects rental, other provinces and non-real estate',()=>{assert.ok(scope(row));for(const patch of [{dspsMthodCd:'0002'},{lctnSdnm:'전라남도'},{cltrUsgLclsCtgrNm:'동산'}])assert.equal(scope({...row,...patch}),false);});
+test('all provinces, bidding methods and private-contract partitions',()=>{const ps=partitionList(),n=ENABLED_REGIONS.length*4;assert.ok(n>=44);assert.equal(ps.length,n);assert.equal(new Set(ps.map(p=>JSON.stringify(p))).size,n);/* 켠 시도 × 4 (11-21: 11곳; 11-22부터 날짜로 늘어난다) */});
 test('API large numeric identifiers and prices stay exact',()=>{const e=decode('{"header":{"resultCode":"00"},"body":{"items":{"item":{"pbctCdtnNo":9007199254740993}}}}');assert.equal(rowsOf(e)[0].pbctCdtnNo,'9007199254740993');assert.equal(toProperty(row).appraisal_price,'9007199254740993');assert.equal(identity(row),'2026-1:9007199254740993');});
 test('refusal and invalid XML are failures',()=>{assert.throws(()=>decode('{"OpenAPI_ServiceResponse":{"cmmMsgHeader":{"returnReasonCode":"30"}}}'),/API_30/);assert.throws(()=>decode('<!DOCTYPE a><response/>'),/INVALID_XML/);});
 test('XML single-item list is normalized',()=>{assert.equal(rowsOf(decode('<response><header><resultCode>00</resultCode></header><body><items><item><cltrMngNo>A</cltrMngNo></item></items></body></response>')).length,1);});
