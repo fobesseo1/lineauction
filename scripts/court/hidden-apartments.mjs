@@ -47,7 +47,9 @@ const looksLikeFlat = (asset, use) => {
   const raw = String(asset.raw ?? '').replace(/\s+/g, ' ');
   const area = Number(raw.match(/([\d.]+)㎡/)?.[1]);
   if (!(area >= 40) || !/\d+호/.test(raw) || !/(동|층)/.test(raw)) return false;
-  if (/상가|근린|지하|지\d+층|토지|점포|사무|관\d+층/.test(raw)) return false;
+  // 오피스텔/업무시설 in the building line is the registered use of the unit itself (2026-11-21: 콤비빌딩
+  // 612호 "125.39㎡오피스텔", 사이언스타운주상복합 905호 "업무시설 68.3290㎡" matched apartment complexes).
+  if (/상가|근린|지하|지\d+층|토지|점포|사무|관\d+층|오피스텔|업무시설/.test(raw)) return false;
   if (/(에이|비|씨|디|[A-Za-z])-?\d+호/.test(raw)) return false; // lettered units are officetels/shops
   if (use === '상가,오피스텔,근린시설' && /(^|\s|제)[12]층/.test(raw)) return false; // low floors of mixed buildings
   return true;
