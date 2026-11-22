@@ -78,6 +78,27 @@ export function toRow(apiName,lawd,ym,item){
  };
 }
 
+// MOLIT sometimes keeps a sale reported twice: an earlier filing with no 동 and no 등기일 next to a later
+// one with both, every other field the same (checked 2026-11-22 on rt.molit.go.kr: 6 of 6 pairs were two
+// 신고번호, the empty one the earlier filing, still unregistered 4–16 months on; ~820 pairs since 2023-06).
+// `group` = warehouse rows ({key, raw}) of one month with the same lot, date, area, floor and price.
+// Returns the keys of the empty filings that a filled one stands for (each filled filing covers one).
+const blank=v=>v==null||typeof v==='object'||String(v).trim()==='';
+const LATE_FIELDS=['aptDong','rgstDate'];
+export function staleFilingKeys(group){
+ const items=group.map(r=>({key:r.key,item:JSON.parse(r.raw)}));
+ const rest=it=>JSON.stringify(Object.keys(it).filter(k=>!LATE_FIELDS.includes(k)&&!blank(it[k])).sort().map(k=>[k,String(it[k]).trim()]));
+ const filled=new Map();
+ for(const x of items)if(LATE_FIELDS.every(k=>!blank(x.item[k]))){const s=rest(x.item);filled.set(s,(filled.get(s)??0)+1);}
+ const out=[];
+ for(const x of items){
+  if(!LATE_FIELDS.every(k=>blank(x.item[k])))continue;
+  const s=rest(x.item),n=filled.get(s)??0;
+  if(n>0){out.push(x.key);filled.set(s,n-1);}
+ }
+ return out;
+}
+
 // 연립·다세대 (rh) filings are kept only on the lot of a K-APT complex (apartments only, 2026-11-18):
 // K-APT lists 연립주택 complexes (광주 소촌라인1차 904세대, 부산 대건아파트) whose trades MOLIT files as rh.
 // A lot is "lawd|umd|jibun" in MOLIT's spelling: lawd = 법정동 code's first 5 digits, umd = K-APT dong

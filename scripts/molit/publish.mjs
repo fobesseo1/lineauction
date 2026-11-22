@@ -13,7 +13,7 @@ import {guardDeletes} from '../daily/delete-guard.mjs';
 import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
-import {leafRegions,kaptLots,lotKey} from './core.mjs';
+import {leafRegions,kaptLots,lotKey,staleFilingKeys} from './core.mjs';
 import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked,unlinkedReason,uniqueLinks} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
@@ -88,6 +88,18 @@ function kaptLink(id,pnu,bjd,name){
  const byName=bjd&&kaptByName.get(`${bjd}:${normalizeName(name)}`);if(byName)return {kapt_code:byName,kapt_match:'name'};
  const near=nearKapt(id,bjd,name);if(near)return {kapt_code:near,kapt_match:'near_name'};
  return {kapt_code:null,kapt_match:'not_in_kapt'};
+}
+
+// Sales MOLIT keeps twice (an earlier filing with no 동 and no 등기일 next to the filled one, core.mjs
+// staleFilingKeys): the empty filing is left out of every row and statistic below.
+const staleKeys=new Set();
+{
+ const groups=wh.prepare(`select api,lawd,ym,umd,jibun,deal_date,area,floor,amount from trades
+  where deal='sale' and kind in ('apt','rh') and amount is not null
+  group by api,lawd,ym,umd,jibun,deal_date,area,floor,amount having count(*)>1 and sum(building is null)>0 and sum(building is not null)>0`).all();
+ const rowsOf=wh.prepare(`select key,raw from trades where api=? and lawd=? and ym=? and umd=? and jibun=? and deal_date=? and area=? and floor is ? and amount=?`);
+ for(const g of groups)for(const k of staleFilingKeys(rowsOf.all(g.api,g.lawd,g.ym,g.umd,g.jibun,g.deal_date,g.area,g.floor,g.amount)))staleKeys.add(k);
+ console.log(`sales filed twice (empty earlier filing left out): ${staleKeys.size}`);
 }
 
 // Places: every building with any trade in the warehouse; name/build year from its latest trade.
@@ -189,7 +201,7 @@ if(process.env.SHARED_SPLIT!=='off'){
  for(const [id,kapts] of shared){
   const p=places.get(id);
   if(!known.has(id))newShared.push(id);
-  const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`);
+  const trades=tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`).filter(t=>!staleKeys.has(t.key));
   let plan;
   try{plan=planPlaceSplit(id,[...kapts].map(k=>info.get(k)).filter(Boolean),trades,buildings,{asOne:oneComplex.has(id),override:saleOverrides[id]??null,nameLinks:nameLinks[id]??null});}
   catch(e){
@@ -243,7 +255,7 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(start)){
  const pid=placeId(t.kind,t.lawd,t.umd,t.jibun),areaType=Math.floor(t.area),key=`${pid}|${areaType}`;
  if(retired.has(pid)){frozenIds.add(t.key);continue;}
- if(splitPlaces.has(pid)||frozenPlaces.has(pid))continue;
+ if(splitPlaces.has(pid)||frozenPlaces.has(pid)||staleKeys.has(t.key))continue;
  if(key!==groupKey){flush();groupKey=key;}
  group.push(t);
  if(t.deal==='rent')rents.push({id:t.key,place_id:pid,area:t.area,area_type:areaType,floor:t.floor,deal_date:t.deal_date,deposit:t.deposit,monthly_rent:t.monthly_rent??0,contract_type:t.contract_type||null,cancelled:!!t.cancel_date});
@@ -268,7 +280,7 @@ for(const t of wh.prepare(`select key,kind,lawd,umd,jibun,area,floor,building,de
   from trades where kind in (${KINDS}) and deal_date>=? and umd is not null and jibun is not null and area is not null order by kind,lawd,umd,jibun,cast(area as integer)`).iterate(`${months[0]}-01`)){
  const key=`${placeId(t.kind,t.lawd,t.umd,t.jibun)}|${Math.floor(t.area)}`;
  if(retired.has(key.split('|')[0])){frozenIds.add(t.key);continue;}
- if(splitPlaces.has(key.split('|')[0])||frozenPlaces.has(key.split('|')[0]))continue;
+ if(splitPlaces.has(key.split('|')[0])||frozenPlaces.has(key.split('|')[0])||staleKeys.has(t.key))continue;
  if(key!==hKey){hFlush();hKey=key;}
  hGroup.push(t);
  // Sales list: the same 36 months as the chart.

@@ -69,3 +69,19 @@ test('kaptLots reads the lot of a K-APT complex in MOLIT spelling',()=>{
  ]);
  assert.deepEqual([...lots],[lotKey('26380','다대동','930'),lotKey('41500','부발읍 죽당리','1549'),lotKey('12330','소촌동','290-1')]);
 });
+
+// 2026-11-22: MOLIT keeps some sales twice (rt.molit.go.kr: two 신고번호, the earlier one without 동·등기일).
+import {staleFilingKeys} from './core.mjs';
+test('staleFilingKeys drops the empty earlier filing that a filled one stands for',()=>{
+ const base={aptNm:'경희궁자이(3단지)',umdNm:'평동',jibun:'233',excluUseAr:'59.8547',floor:'2',dealYear:'2026',dealMonth:'3',dealDay:'7',dealAmount:'230,000',estateAgentSggNm:'서울 종로구'};
+ const row=(key,extra)=>({key,raw:JSON.stringify({...base,...extra})});
+ assert.deepEqual(staleFilingKeys([row('filled',{aptDong:'305',rgstDate:'26.06.30'}),row('empty',{aptDong:' ',rgstDate:' '})]),['empty']);
+ // Two different units, both filled: nothing dropped.
+ assert.deepEqual(staleFilingKeys([row('a',{aptDong:'301',rgstDate:'26.06.30'}),row('b',{aptDong:'305',rgstDate:'26.06.01'})]),[]);
+ // An empty filing differing in any other field (another agent) stays.
+ assert.deepEqual(staleFilingKeys([row('filled',{aptDong:'305',rgstDate:'26.06.30'}),row('empty',{aptDong:'',rgstDate:'',estateAgentSggNm:'서울 중구'})]),[]);
+ // Only 동 filled (등기 not yet): not the pattern, nothing dropped.
+ assert.deepEqual(staleFilingKeys([row('half',{aptDong:'305',rgstDate:''}),row('empty',{aptDong:'',rgstDate:''})]),[]);
+ // One filled filing covers one empty one.
+ assert.deepEqual(staleFilingKeys([row('f',{aptDong:'305',rgstDate:'26.06.30'}),row('e1',{}),row('e2',{})]),['e1']);
+});
