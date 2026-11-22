@@ -151,7 +151,7 @@ import {unlinkedReason} from './summary.mjs';
 import {lotKey} from './core.mjs';
 test('unlinkedReason says why a complex has no building',()=>{
  const c={bjd_code:'2638010600',dong:'다대동',jibun_address:'부산광역시 사하구 다대동 930 대건아파트',complex_kind:'연립주택'};
- assert.equal(unlinkedReason(c,new Set()),'연립·다세대, 번지에 빌라 거래 없음');
+ assert.equal(unlinkedReason(c,new Set()),'국토부 연립 분류 아파트, 번지에 거래 없음');
  assert.equal(unlinkedReason({...c,complex_kind:'아파트'},new Set()),'번지에 거래 없음(번지 다르거나 거래 없음)');
  assert.equal(unlinkedReason(c,new Set([lotKey('26380','다대동','930')])),'번지에 거래 있음(이름 달라 연결 안 됨)');
  assert.equal(unlinkedReason({...c,jibun_address:null},new Set()),'지번 주소 해석 안 됨');

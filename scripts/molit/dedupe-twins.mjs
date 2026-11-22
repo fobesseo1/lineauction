@@ -29,10 +29,14 @@ const dir=`data/backup/molit-dedupe-${day}`;
 const summary={warehouseKeys:keys.size,apply};
 for(const [table,{cols,twin}] of Object.entries(TABLES)){
  const rows=[];
- for(let from=0;;from+=1000){
-  const {data,error}=await supa.from(table).select(cols).order('id').range(from,from+999);
+ // Keyset pages (id > last): offset pages time out deep into a million-row table.
+ for(let last=null;;){
+  let q=supa.from(table).select(cols).order('id').limit(1000);
+  if(last!=null)q=q.gt('id',last);
+  const {data,error}=await q;
   if(error)throw Error(`${table}: ${error.message}`);
   rows.push(...data);if(data.length<1000)break;
+  last=data.at(-1).id;
  }
  const live=new Set(rows.filter(r=>keys.has(base(r.id))).map(r=>JSON.stringify(twin(r))));
  const gone=rows.filter(r=>!keys.has(base(r.id)));
