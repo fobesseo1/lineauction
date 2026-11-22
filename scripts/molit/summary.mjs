@@ -1,5 +1,6 @@
 // Pure helpers that turn warehouse trades into market_* summary rows.
 import {SIDO_NAMES} from '../regions.mjs';
+import {kaptLots} from './core.mjs';
 export const placeId=(kind,lawd,umd,jibun)=>`${kind}:${lawd}:${umd}:${jibun}`;
 
 // PNU from a 10-digit 법정동 code and a MOLIT 지번 ("236-8", "산69-1", "1050").
@@ -87,6 +88,16 @@ export function applyManualLinks(places,manual){
 const CAPITAL=new Set(SIDO_NAMES);
 // Rental and company-housing complexes are left out: they have no sales to miss.
 const NO_SALE=new Set(['임대','사택 및 관사 등']);
+// Why no building linked to an unlinked complex, from its K-APT lot and the lots that have trades:
+// a trade on the lot (the name or 동 differs from MOLIT's), a 연립·다세대 complex with no villa (rh)
+// trade on its lot, or no trade on its lot at all (another lot in MOLIT, or no trade in 3 years).
+export function unlinkedReason(c,tradeLots){
+ const lots=[...kaptLots([c])];
+ if(!lots.length)return '지번 주소 해석 안 됨';
+ if(lots.some(l=>tradeLots.has(l)))return '번지에 거래 있음(이름 달라 연결 안 됨)';
+ if(/연립|다세대/.test(c.complex_kind??''))return '연립·다세대, 번지에 빌라 거래 없음';
+ return '번지에 거래 없음(번지 다르거나 거래 없음)';
+}
 export const newUnlinked=(complexes,linked,confirmed)=>complexes.filter(c=>c.section==='apartment'&&CAPITAL.has(c.sido)&&!NO_SALE.has(c.sale_type)&&!linked.has(c.kapt_code)&&!confirmed.has(c.kapt_code));
 
 export function median(values){

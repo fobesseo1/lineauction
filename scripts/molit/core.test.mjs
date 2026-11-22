@@ -26,3 +26,46 @@ test('toRow parses money, dates, cancellations and keeps sale/rent identity',()=
  assert.notEqual(sale.key,toRow('aptSale','11680','202609',{aptNm:'은마',dealAmount:'312,001'}).key);
  assert.equal(cancelDate('26.09.30'),'2026-09-30');
 });
+
+// 2026-11-22: MOLIT filled aptDong into September filings, and the full-item hash gave ~2,000 trades a
+// second row. A reload keeps the earlier key when only a later-filled field changed.
+import {assignKeys,stableOf,kaptLots,lotKey} from './core.mjs';
+test('assignKeys keeps the old key when MOLIT fills in a field later',()=>{
+ const item={aptNm:'북서울자이폴라리스',umdNm:'미아동',jibun:'1374',excluUseAr:'84.96',floor:'20',dealYear:'2026',dealMonth:'9',dealDay:'15',deposit:'57,700',monthlyRent:'0'};
+ const before=toRow('aptRent','11305','202609',item);
+ const old=[{...before,key:`${before.key}#1`}];
+ const after=toRow('aptRent','11305','202609',{...item,aptDong:'201'});
+ assert.notEqual(after.key,before.key);
+ const [r]=assignKeys([after],old);
+ assert.equal(r.key,`${before.key}#1`);
+ assert.equal(r.building,'201');
+});
+test('assignKeys: unchanged filings keep their key, new trades get a new one, twins stay apart',()=>{
+ const a={aptNm:'A',umdNm:'동',jibun:'1',excluUseAr:'59',floor:'3',dealYear:'2026',dealMonth:'9',dealDay:'1',dealAmount:'50,000'};
+ const ra=toRow('aptSale','11110','202609',a);
+ const old=[{...ra,key:`${ra.key}#1`},{...ra,key:`${ra.key}#2`}];   // two identical filings
+ const b={...a,dealDay:'2'};
+ const out=assignKeys([toRow('aptSale','11110','202609',a),toRow('aptSale','11110','202609',{...a,aptDong:'101'}),toRow('aptSale','11110','202609',b)],old);
+ assert.deepEqual(out.slice(0,2).map(r=>r.key).sort(),[`${ra.key}#1`,`${ra.key}#2`].sort());
+ assert.equal(new Set(out.map(r=>r.key)).size,3);
+ assert.ok(out[2].key.endsWith('#1')&&!out[2].key.startsWith(ra.key));
+});
+test('assignKeys never reuses one old key twice, and a cancellation keeps the key',()=>{
+ const a={aptNm:'A',umdNm:'동',jibun:'1',excluUseAr:'59',floor:'3',dealYear:'2026',dealMonth:'9',dealDay:'1',dealAmount:'50,000'};
+ const ra=toRow('aptSale','11110','202609',a);
+ const out=assignKeys([toRow('aptSale','11110','202609',{...a,cdealDay:'26.10.01'}),toRow('aptSale','11110','202609',{...a,aptDong:'1'})],[{...ra,key:`${ra.key}#1`}]);
+ assert.equal(out[0].key,`${ra.key}#1`);
+ assert.equal(out[0].cancel_date,'2026-10-01');
+ assert.notEqual(out[1].key,out[0].key);
+ assert.equal(stableOf(out[0]),stableOf(ra));
+});
+test('kaptLots reads the lot of a K-APT complex in MOLIT spelling',()=>{
+ const lots=kaptLots([
+  {bjd_code:'2638010600',dong:'다대동',jibun_address:'부산광역시 사하구 다대동 930 대건아파트'},
+  {bjd_code:'4150025322',dong:'부발읍 죽당리',jibun_address:'경기도 이천시 부발읍 죽당리 1549 이천미라지움아파트'},
+  {bjd_code:'1233010800',dong:'소촌동',jibun_address:'전남광주통합특별시 광산구 소촌동 290-1 소촌라인1차'},
+  {bjd_code:'1111010100',dong:'청운동',jibun_address:'서울특별시 종로구 청운동 산 단지'},
+  {bjd_code:null,dong:'x',jibun_address:'x 1'},
+ ]);
+ assert.deepEqual([...lots],[lotKey('26380','다대동','930'),lotKey('41500','부발읍 죽당리','1549'),lotKey('12330','소촌동','290-1')]);
+});

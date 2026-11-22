@@ -77,3 +77,50 @@ export function toRow(apiName,lawd,ym,item){
   raw:JSON.stringify(item),
  };
 }
+
+// 연립·다세대 (rh) filings are kept only on the lot of a K-APT complex (apartments only, 2026-11-18):
+// K-APT lists 연립주택 complexes (광주 소촌라인1차 904세대, 부산 대건아파트) whose trades MOLIT files as rh.
+// A lot is "lawd|umd|jibun" in MOLIT's spelling: lawd = 법정동 code's first 5 digits, umd = K-APT dong
+// ("다대동", "부발읍 죽당리"), jibun = the number after it in the K-APT 지번 주소.
+export const lotKey=(lawd,umd,jibun)=>`${lawd}|${String(umd??'').trim()}|${String(jibun??'').trim()}`;
+export function kaptLots(complexes){
+ const out=new Set();
+ for(const c of complexes){
+  if(!/^\d{10}$/.test(c.bjd_code??'')||!c.dong||!c.jibun_address)continue;
+  const words=c.jibun_address.trim().split(/\s+/),last=c.dong.trim().split(/\s+/).at(-1);
+  const at=words.lastIndexOf(last),jibun=at>=0?words[at+1]:null;
+  if(jibun&&/^(산)?\d+(-\d+)?$/.test(jibun))out.add(lotKey(c.bjd_code.slice(0,5),c.dong,jibun));
+ }
+ return out;
+}
+
+// The fields of a filing that name the trade itself. MOLIT fills some fields in later (aptDong 동,
+// rgstDate 등기일, cdealDay 해제일, 중개사 소재지), which changes the full-item hash; on 2026-11-22 the
+// September aptDong backfill gave ~2,000 published trades a second row under a new key.
+export const stableOf=r=>JSON.stringify([r.api,r.umd??null,r.jibun??null,r.name??null,r.area??null,r.floor??null,r.deal_date??null,r.amount??null,r.deposit??null,r.monthly_rent??null]);
+
+// Keys for one reloaded month. `rows` are toRow() results (key = full-item hash, no suffix), in API
+// order; `old` are the month's warehouse rows before the reload ({key, ...columns}). A filing keeps
+// its earlier key when the full item is unchanged (exact key), or else when an earlier row with the
+// same stable fields is still unclaimed (a later-filled field). Only a new trade gets a new key, so
+// the site row of a corrected filing is updated in place instead of duplicated.
+export function assignKeys(rows,old=[]){
+ const seen=new Map();
+ const fresh=rows.map(r=>{const n=(seen.get(r.key)??0)+1;seen.set(r.key,n);return {...r,key:`${r.key}#${n}`};});
+ const oldKeys=new Set(old.map(o=>o.key)),used=new Set(),out=new Array(fresh.length);
+ fresh.forEach((r,i)=>{if(oldKeys.has(r.key)){out[i]=r;used.add(r.key);}});
+ const byStable=new Map();
+ for(const o of old){if(used.has(o.key))continue;const s=stableOf(o);(byStable.get(s)??byStable.set(s,[]).get(s)).push(o.key);}
+ fresh.forEach((r,i)=>{
+  if(out[i])return;
+  const k=byStable.get(stableOf(r))?.shift();
+  if(k){out[i]={...r,key:k};used.add(k);}
+ });
+ fresh.forEach((r,i)=>{
+  if(out[i])return;
+  let key=r.key;
+  if(used.has(key)){const [h,n]=key.split('#');let m=Number(n);do key=`${h}#${++m}`;while(used.has(key)||oldKeys.has(key));}
+  out[i]={...r,key};used.add(key);
+ });
+ return out;
+}

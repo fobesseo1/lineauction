@@ -4,15 +4,17 @@
 // so screens never see an empty table mid-run.
 import {DatabaseSync} from 'node:sqlite';
 import {createHash} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
+import {publicSidoNames} from '../public-regions.mjs';
+import {regionConfig} from '../regions.mjs';
 import {writeJson} from '../onbid/atomic.mjs';
 import {guardDeletes} from '../daily/delete-guard.mjs';
 import {planPlaceSplit,childPlaceId,nrgSalesPlan} from './shared-split.mjs';
 import {sendMessage} from '../alerts/telegram.mjs';
 import {regionCatalog} from '../court/regions.mjs';
-import {leafRegions} from './core.mjs';
-import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked,uniqueLinks} from './summary.mjs';
+import {leafRegions,kaptLots,lotKey} from './core.mjs';
+import {placeId,jibunPnu,areaStats,periodStart,normalizeName,similarName,sharesNamePart,monthlyHistory,saleBasis,validSale,applyManualLinks,newUnlinked,unlinkedReason,uniqueLinks} from './summary.mjs';
 process.loadEnvFile('.env.local');
 
 const dryRun=process.argv.includes('--dry-run');
@@ -37,7 +39,7 @@ const wh=new DatabaseSync('data/molit/warehouse.sqlite',{readOnly:true});
 // also covers complexes whose detail (and so PNU) is not collected yet.
 const bjdByDong=new Map(),kaptByPnu=new Map(),kaptByName=new Map(),complexList=[];
 for(let from=0;;from+=1000){
- const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type,section,sido,dong_count,units_le60,units_le85,units_le135,units_gt135').order('id').range(from,from+999);
+ const {data,error}=await supa.from('complexes').select('kapt_code,bjd_code,dong,pnu,name,latitude,longitude,sale_type,section,sido,dong_count,units_le60,units_le85,units_le135,units_gt135,jibun_address,complex_kind,created_at').order('id').range(from,from+999);
  if(error)throw Error(error.message);
  for(const c of data){
   complexList.push(c);
@@ -140,7 +142,23 @@ for(const c of complexList){
  if(free.length===1)pushTo(primaryClaims,free[0].id,c.kapt_code);
 }
 for(const [id,codes] of primaryClaims)if(codes.length===1)Object.assign(places.get(id),{kapt_code:codes[0],kapt_match:'same_point'});
-// Apartments only: a non-apartment building stays only when hand-linked to a K-APT complex.
+// 연립·다세대 (rh) buildings on a K-APT complex's own lot link to it ('rh_lot', 2026-11-22): K-APT lists
+// 연립주택 complexes (광주 소촌라인1차, 부산 대건아파트) whose trades MOLIT files as rh. The parcel (PNU)
+// decides first, then the K-APT 지번 주소 lot; a lot two complexes claim links to neither.
+{
+ const byLot=new Map();
+ for(const c of complexList)for(const lot of kaptLots([c]))byLot.set(lot,byLot.has(lot)?null:c.kapt_code);
+ let n=0;
+ for(const p of places.values()){
+  if(p.kind!=='rh'||p.kapt_code)continue;
+  const code=(p.pnu&&kaptByPnu.get(p.pnu))||byLot.get(lotKey(p.lawd,p.umd,p.jibun));
+  if(code){Object.assign(p,{kapt_code:code,kapt_match:'rh_lot'});n++;}
+ }
+ console.log(`rh buildings linked by lot: ${n}`);
+}
+// Every lot with any trade (before non-apartment buildings are dropped), for the unlinked-complex note.
+const tradeLots=new Set([...places.values()].map(p=>lotKey(p.lawd,p.umd,p.jibun)));
+// Apartments only: a non-apartment building stays only when linked to a K-APT complex.
 for(const [id,p] of places)if(p.kind!=='apt'&&!p.kapt_code){retired.add(id);places.delete(id);}
 console.log(`apartment only: ${retired.size} offi/rh buildings retired (kept as they are), ${[...places.values()].filter(p=>p.kind!=='apt').length} rh buildings linked to a complex kept`);
 
@@ -360,17 +378,21 @@ async function planTable(table,rows,cols){
  const bySido={changedExisting:countBySido(changedRows.filter(r=>have.has(keyOf(r))).map(keyOf)),added:countBySido(changedRows.filter(r=>!have.has(keyOf(r))).map(keyOf)),removed:countBySido(gone)};
  return {name:table,removed:gone.length,total:have.size,changed,bySido,apply:()=>applyTable(table,rows,cols,have,keyOf,gone)};
 }
+const keptGone=new Map();
 async function applyTable(table,rows,cols,have,keyOf,gone){
  const changed=rows.map(r=>({...r,digest:digestOf(r)})).filter(r=>have.get(keyOf(r))!==r.digest);
  await upsert(table,changed,cols.join(','));
- if(noDelete&&gone.length){console.log(`${table}: --no-delete keeps ${gone.length} rows`);gone=[];}
+ if(noDelete&&gone.length){console.log(`${table}: --no-delete keeps ${gone.length} rows`);keptGone.set(table,gone.map(k=>[k,have.get(k)]));gone=[];}
  for(let i=0;i<gone.length;i+=200){
   const batch=gone.slice(i,i+200).map(k=>k.split('|'));
   const del=cols.length===1?supa.from(table).delete().in(cols[0],batch.map(b=>b[0]))
    :supa.from(table).delete().or(batch.map(b=>`and(${cols.map((c,j)=>`${c}.eq."${b[j]}"`).join(',')})`).join(','));
   const {error}=await del;if(error)throw Error(`${table} delete: ${error.message}`);
  }
- await writeJson(digestCachePath(table),Object.fromEntries(rows.map(r=>[keyOf(r),digestOf(r)])));
+ // Rows --no-delete kept stay in the cache, so the next daily run still sees them as gone and removes
+ // them (2026-11-22: rows kept on Sunday dropped out of the cache and stayed on the site for good).
+ const kept=noDelete?Object.fromEntries(keptGone.get(table)??[]):{};
+ await writeJson(digestCachePath(table),{...kept,...Object.fromEntries(rows.map(r=>[keyOf(r),digestOf(r)]))});
  console.log(`${table}: ${changed.length} written, ${gone.length} removed, ${rows.length-changed.length} unchanged`);
 }
 
@@ -458,6 +480,18 @@ console.log(JSON.stringify({bySido:Object.fromEntries(plans.filter(p=>p.bySido).
 // whether a row with the same trade key (the part before "~", split buildings) is being added in their
 // place (a split reassignment) — for checking deletions before a --full run (2026-11-18).
 const listPath=process.argv.includes('--list-removed')?process.argv[process.argv.indexOf('--list-removed')+1]:null;
+// Every list an operator note summarizes is kept whole in data/molit/notices/<KST day>-<kind>.json, so a
+// name or 시도 in a note can be traced back later.
+async function noticeFile(kind,data){
+ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
+ await mkdir('data/molit/notices',{recursive:true});
+ const path=`data/molit/notices/${day}-${kind}.json`;
+ await writeJson(path,{at:new Date().toISOString(),noDelete,data});
+ return path;
+}
+const rowsOfTable={market_trades:sales,market_rents:rents,market_presale_trades:presale};
+const num=v=>v==null?null:Number(v);
+const tradeTwinKey=r=>JSON.stringify([r.place_id??`${r.lawd}|${r.umd}|${r.jibun}|${r.name}`,r.deal_date,num(r.area),num(r.floor),num(r.amount),num(r.deposit),num(r.monthly_rent)]);
 if(listPath){
  const out={};
  for(const p of plans.filter(p=>p.gone?.length)){
@@ -476,11 +510,16 @@ if(listPath){
    if(error)throw Error(`places: ${error.message}`);
    for(const pl of data)places.set(pl.id,pl);
   }
+  // A removed row whose trade (place, date, area, floor, price) is still among this run's rows under
+  // another id is a duplicate whose key changed; any other was dropped by MOLIT (취소·정정 추정).
+  const current=new Set((rowsOfTable[p.table]??[]).map(tradeTwinKey));
   out[p.table]=rows.map(r=>{const pl=places.get(r.place_id);const twins=addedByBase.get(baseOf(r.id))??[];
    return {id:r.id,deal_date:r.deal_date,area_type:r.area_type,place_id:r.place_id,sido:pl?.sido??null,sigungu:pl?.sigungu??null,dong:pl?.umd??null,jibun:pl?.jibun??null,place:pl?.name??null,
+    reason:current.has(tradeTwinKey(r))?'duplicate':'vanished',
     replacedBy:twins.map(t=>({id:t.id,place_id:t.place_id,deal_date:t.deal_date}))};});
  }
  await writeJson(listPath,out);
+ if(!dryRun)await noticeFile('removed',out);
  const counts=Object.fromEntries(Object.entries(out).map(([t,rs])=>[t,{removed:rs.length,replaced:rs.filter(r=>r.replacedBy.length).length,olderThan3Months:rs.filter(r=>r.deal_date<recheckFrom).length}]));
  console.log(JSON.stringify({listRemoved:listPath,counts}));
  // Weekly full comparison (run.mjs, Sundays, with --no-delete): the rows a sync would remove are only
@@ -491,7 +530,9 @@ if(listPath){
   const byPlace=new Map();for(const r of all){const k=`${r.sido??''} ${r.sigungu??''} ${r.dong??''} ${r.place??r.place_id}`.trim();byPlace.set(k,(byPlace.get(k)??0)+1);}
   const lines=[...byPlace].sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,n])=>`• ${k}: ${n}건`);
   const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
-  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>${noDelete?`실거래 전체 비교: 지울 후보 ${all.length}건 (지우지 않음, 확인 필요)`:`실거래 정리: ${all.length}건 지움`}</b>\n${esc(lines.join('\n'))}${byPlace.size>15?`\n외 ${byPlace.size-15}곳`:''}\n목록: ${esc(listPath)}`);
+  const dup=all.filter(r=>r.reason==='duplicate').length,gone=all.length-dup;
+  const head=noDelete?`실거래 전체 비교: 사라진 줄 ${all.length}건 (오늘 지우지 않음, 다음 평일 정리에서 지움)`:`실거래 정리: ${all.length}건 지움`;
+  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>${head}</b>\n중복(키만 바뀜) ${dup}건 · 국토부에서 사라짐(취소·정정 추정) ${gone}건\n${esc(lines.join('\n'))}${byPlace.size>15?`\n외 ${byPlace.size-15}곳`:''}\n목록: ${esc(listPath)}`);
   if(!r.ok)console.error('telegram failed',r.description);
  }
 }
@@ -504,10 +545,12 @@ for(const p of plans.slice(3))if(p.apply)await p.apply();
 // The daily note on the shared-building split, to the operator chat.
 if(process.env.SHARED_SPLIT!=='off'){
  const commonRows=[...splitPlaces.values()].flatMap(p=>p.rows.filter(r=>r.common));
- const ok=!newShared.length&&!failedSplits.length;
+ // New shared buildings are split by the rules on their own; only a failed split needs a look.
+ const ok=!failedSplits.length;
+ await noticeFile('shared',{commonRows:commonRows.length,newShared,failedSplits});
  const line=[`번지 공유 거래 ${commonRows.length.toLocaleString('ko-KR')}건 단지 공통 반영 (규칙대로 처리됨)`,`새 번지 공유 건물 ${newShared.length}곳${newShared.length?`: ${newShared.slice(0,10).join(', ')}`:''}`,...(failedSplits.length?[`규칙 실패, 이전 값 유지 ${failedSplits.length}곳: ${failedSplits.slice(0,5).join(' / ')}`]:[])];
  console.log(line.join(' | '));
- if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리: ${ok?'정상':'확인 필요'}</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
+ if(process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>번지 공유 분리: ${ok?'확인할 것 없음':'확인 필요'}</b>\n${line.join('\n').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}`);if(!r.ok)console.error('telegram failed',r.description);}
 }
 
 // Complexes newly without a building, to the operator chat, by name. Confirmed ones are in unlinked-confirmed.json.
@@ -515,10 +558,21 @@ if(process.env.SHARED_SPLIT!=='off'){
  const confirmed=new Set(JSON.parse(await readFile(new URL('./unlinked-confirmed.json',import.meta.url),'utf8')).map(c=>c.kapt_code));
  const fresh=newUnlinked(complexList,new Set(linkRows.map(l=>l.kapt_code)),confirmed);
  console.log(`연결 안 된 새 단지 ${fresh.length}곳`);
- if(fresh.length&&process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){
-  const names=fresh.slice(0,30).map(c=>c.name).join(', ').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
-  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>연결 안 된 새 단지 ${fresh.length}곳</b>
-${names}`);
+ // Split by whether the 시도 is open on the site (app.service_sido) and why no building linked.
+ let publicNames=null;try{publicNames=new Set(await publicSidoNames(supa));}catch(e){console.error(e.message);}
+ const list=fresh.map(c=>({kapt_code:c.kapt_code,name:c.name,sido:c.sido,public:publicNames?publicNames.has(c.sido):null,
+  reason:unlinkedReason(c,tradeLots),complex_kind:c.complex_kind??null,jibun_address:c.jibun_address??null}));
+ const file=await noticeFile('unlinked',list);
+ if(list.length&&process.env.TELEGRAM_CHAT_ID&&process.env.TELEGRAM_BOT_TOKEN){
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+  const short=s=>regionConfig.regions.find(r=>r.name===s)?.short??s;
+  const count=(xs,f)=>[...xs.reduce((m,x)=>m.set(f(x),(m.get(f(x))??0)+1),new Map())].sort((a,b)=>b[1]-a[1]).map(([k,n])=>`${k} ${n}`).join(', ');
+  const pub=list.filter(c=>c.public!==false),prep=list.filter(c=>c.public===false);
+  const body=[`공개 지역${publicNames?'':'(공개 여부 확인 못 함)'} ${pub.length}곳${pub.length?` — 이유: ${count(pub,c=>c.reason)}`:''}`,
+   ...pub.slice(0,30).map(c=>`• ${c.name} (${short(c.sido)}, ${c.reason})`),...(pub.length>30?[`외 ${pub.length-30}곳`]:[]),
+   ...(prep.length?[`준비 중 지역 ${prep.length}곳 — ${count(prep,c=>short(c.sido))}`,`이유: ${count(prep,c=>c.reason)}`]:[]),
+   `목록: ${file}`];
+  const r=await sendMessage(process.env.TELEGRAM_CHAT_ID,`<b>연결 안 된 단지 ${list.length}곳</b>\n${esc(body.join('\n'))}`);
   if(!r.ok)console.error('telegram failed',r.description);
  }
 }

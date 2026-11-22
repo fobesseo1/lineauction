@@ -146,3 +146,13 @@ test('saleBasis picks 3 months, then 6, then the 12-month median, then 36 months
  // Day 91 counts: 2026-08-12 is 91 days before 2026-11-11.
  assert.equal(saleBasis([s(1,'2026-08-12'),s(2,'2026-09-01'),s(3,'2026-10-01')],start,end).sale_basis_months,3);
 });
+
+import {unlinkedReason} from './summary.mjs';
+import {lotKey} from './core.mjs';
+test('unlinkedReason says why a complex has no building',()=>{
+ const c={bjd_code:'2638010600',dong:'다대동',jibun_address:'부산광역시 사하구 다대동 930 대건아파트',complex_kind:'연립주택'};
+ assert.equal(unlinkedReason(c,new Set()),'연립·다세대, 번지에 빌라 거래 없음');
+ assert.equal(unlinkedReason({...c,complex_kind:'아파트'},new Set()),'번지에 거래 없음(번지 다르거나 거래 없음)');
+ assert.equal(unlinkedReason(c,new Set([lotKey('26380','다대동','930')])),'번지에 거래 있음(이름 달라 연결 안 됨)');
+ assert.equal(unlinkedReason({...c,jibun_address:null},new Set()),'지번 주소 해석 안 됨');
+});

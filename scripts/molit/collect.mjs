@@ -7,15 +7,17 @@ import {mkdir,readFile,access,appendFile} from 'node:fs/promises';
 import {DatabaseSync} from 'node:sqlite';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
-import {APIS,leafRegions,monthsBack,decode,toRow} from './core.mjs';
+import {createClient} from '@supabase/supabase-js';
+import {APIS,leafRegions,monthsBack,decode,toRow,assignKeys,kaptLots,lotKey} from './core.mjs';
 import {singleRun} from '../single-run.mjs';
 process.loadEnvFile('.env.local');
 
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
 const monthCount=Number(arg('--months','36'));
-// Apartments only since 2026-11-10 (매매·전월세, plus 분양권·입주권 for new complexes). Officetel, villa, commercial
+// Apartments only since 2026-11-10 (매매·전월세, plus 분양권·입주권 for new complexes). Officetel, commercial
 // and land rows already in the warehouse stay as they are; pass --apis to fetch them by hand.
-const apiNames=arg('--apis','aptSale,aptRent,silvSale').split(',');
+// 연립·다세대 (rhSale, rhRent) again from 2026-11-22, kept only on K-APT complex lots (keepRow below).
+const apiNames=arg('--apis','aptSale,aptRent,silvSale,rhSale,rhRent').split(',');
 if(apiNames.some(a=>!APIS[a]))throw Error('UNKNOWN_API');
 
 const root='data/molit';await mkdir(root,{recursive:true});
@@ -45,6 +47,24 @@ const clearMonth=db.prepare('delete from trades where api=? and lawd=? and ym=?'
 const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,land_area,house_type,building_area,total_floor_area,use_type,building_type,zone,share,ownership,raw)
  values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:land_area,:house_type,:building_area,:total_floor_area,:use_type,:building_type,:zone,:share,:ownership,:raw)`);
 const recordLoad=db.prepare('insert or replace into month_loads(api,lawd,ym,total,loaded_at) values(?,?,?,?,?)');
+const monthRows=db.prepare('select key,api,umd,jibun,name,area,floor,deal_date,amount,deposit,monthly_rent from trades where api=? and lawd=? and ym=?');
+
+// rh rows are kept on K-APT complex lots, and on every lot the warehouse already keeps rh rows for
+// (the hand-linked capital buildings, manual-place-links.json), so a reload never drops one.
+let rhLots=null;
+if(apiNames.some(a=>APIS[a].kind==='rh')){
+ const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
+ const complexes=[];
+ for(let from=0;;from+=1000){
+  const {data,error}=await supa.from('complexes').select('bjd_code,dong,jibun_address').order('id').range(from,from+999);
+  if(error)throw Error(`complexes: ${error.message}`);
+  complexes.push(...data);if(data.length<1000)break;
+ }
+ rhLots=kaptLots(complexes);
+ for(const r of db.prepare("select distinct lawd,umd,jibun from trades where kind='rh'").all())rhLots.add(lotKey(r.lawd,r.umd,r.jibun));
+ console.log(`rh lots kept: ${rhLots.size} (K-APT complexes ${complexes.length})`);
+}
+const keepRow=(apiName,r)=>APIS[apiName].kind!=='rh'||rhLots.has(lotKey(r.lawd,r.umd,r.jibun));
 
 async function call(apiName,params){
  if(await exists(`${root}/STOP`))throw Error('STOP_PRESENT');
@@ -80,9 +100,9 @@ async function loadMonth(apiName,lawd,ym){
   if(rows.length>=total||!res.rows.length)break;
  }
  if(rows.length!==total)throw Error(`INCOMPLETE_${rows.length}_OF_${total}`);
- // Identical filings in one month are separate trades: suffix the hash with its occurrence.
- const seen=new Map();
- const mapped=rows.map(item=>{const r=toRow(apiName,lawd,ym,item);const n=(seen.get(r.key)??0)+1;seen.set(r.key,n);return {...r,key:`${r.key}#${n}`};});
+ // Identical filings in one month are separate trades (hash suffixed with its occurrence); a filing
+ // MOLIT later filled in (동, 등기일, 해제일) keeps its earlier key (core.mjs assignKeys).
+ const mapped=assignKeys(rows.map(item=>toRow(apiName,lawd,ym,item)),monthRows.all(apiName,lawd,ym)).filter(r=>keepRow(apiName,r));
  db.exec('begin');
  try{clearMonth.run(apiName,lawd,ym);for(const r of mapped)insert.run(r);recordLoad.run(apiName,lawd,ym,total,new Date().toISOString());db.exec('commit');}
  catch(e){db.exec('rollback');throw e;}
