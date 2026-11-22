@@ -4,14 +4,13 @@
 // Sources are cached in data/schools/raw, one set per OSM area of the enabled regions (scripts/regions.json;
 // the capital area keeps zones.json and tile1..4.json), and refetched when older than 30 days (학구도 changes yearly);
 // the assignment pass is local and writes only changed complexes.
-import {mkdir,readFile,stat} from 'node:fs/promises';
+import {mkdir} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
-import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
 import {allFeatures} from './vworld.mjs';
-import {OVERPASS_URL} from './stations-core.mjs';
+import {fetchOverpass,cachedAnswer} from './overpass.mjs';
 import {ZONE_LAYER,schoolQuery,osmSchools,buildZones,assignSchool} from './schools-core.mjs';
-import {geoAreas} from '../regions.mjs';
+import {geoAreas,sidoByCode} from '../regions.mjs';
 process.loadEnvFile('.env.local');
 
 const root='data/schools';await mkdir(`${root}/raw`,{recursive:true});
@@ -20,19 +19,7 @@ const areas=geoAreas();
 const zonesPath=a=>`${root}/raw/zones${a.tag}.json`,tilePath=t=>`${root}/raw/tile${t.name}.json`;
 const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
 const lonLatBox=bbox=>{const [s,w,n,e]=bbox.split(',');return [w,s,e,n];};
-
-async function overpass(query){
- for(let attempt=0;;attempt++){
-  try{
-   const r=await fetch(OVERPASS_URL,{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
-   const text=await r.text();
-   if(!r.ok)throw Error(`OVERPASS_${r.status}`);
-   return JSON.parse(text);
-  }catch(e){if(attempt>=3)throw e;await sleep(30_000*(attempt+1));}
- }
-}
 async function fetchAll(table,columns){
  const out=[];
  for(let from=0;;from+=1000){const {data,error}=await supa.from(table).select(columns).order('id').range(from,from+999);if(error)throw Error(`${table}: ${error.message}`);out.push(...data);if(data.length<1000)break;}
@@ -58,22 +45,33 @@ const round6=g=>JSON.parse(JSON.stringify(g,(k,v)=>typeof v==='number'?Math.roun
 
 try{
  const refresh=process.argv.includes('--refresh');
- let refreshed=false;
- for(const a of areas)if(refresh||await ageDays(zonesPath(a))>30){
+ // Each source file is refetched on its own when older than 30 days (a new area no longer refetches every
+ // other area's tiles). One that cannot be refetched today is used as it was; an area with a part never
+ // fetched is left out of this run, and its complexes are not touched (2026-11-22, OSM 502).
+ let refreshed=false;const stale=[],skipped=new Set();
+ const note=(a,name,r)=>{if(r.status==='fetched')refreshed=true;if(r.status==='stale')stale.push(`${name}: ${r.error.message}`);if(r.status==='missing'){skipped.add(a.key);console.log(`AREA_SKIPPED ${a.key} (${name}): ${r.error.message}`);}};
+ const zoneData=new Map(),tileData=new Map();
+ for(const a of areas){
   const [x0,y0,x1,y1]=lonLatBox(a.bbox);
-  await writeJson(zonesPath(a),{fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})});
-  refreshed=true;
+  const r=await cachedAnswer(zonesPath(a),30,async()=>({fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})}),{refresh});
+  note(a,`zones${a.tag}`,r);zoneData.set(a.key,r.data);
+  for(const t of a.tiles){
+   const rt=await cachedAnswer(tilePath(t),30,()=>fetchOverpass(schoolQuery(t.bbox),{allowEmpty:true}),{refresh});
+   note(a,`tile${t.name}`,rt);tileData.set(t.name,rt.data);
+   if(rt.status==='fetched')await sleep(5000);
+  }
  }
- for(const a of areas)for(const t of a.tiles)if(refresh||refreshed||await ageDays(tilePath(t))>30){await writeJson(tilePath(t),await overpass(schoolQuery(t.bbox)));refreshed=true;await sleep(5000);}
+ const used=areas.filter(a=>!skipped.has(a.key));
  // Each area keeps only its own 시도's zones, so overlapping boxes (대전·세종) never doubles a zone.
  const features=[];
- for(const a of areas){const sd=new Set(a.sido);features.push(...JSON.parse(await readFile(zonesPath(a),'utf8')).features.filter(f=>sd.has(f.properties.sd_cd)));}
+ for(const a of used){const sd=new Set(a.sido);features.push(...zoneData.get(a.key).features.filter(f=>sd.has(f.properties.sd_cd)));}
  // Schools: a later area skips elements an earlier area already gave (tiles inside one area are kept as they come).
  const elements=[],seen=new Set();
- for(const a of areas){
-  const mine=[];for(const t of a.tiles)mine.push(...JSON.parse(await readFile(tilePath(t),'utf8')).elements);
+ for(const a of used){
+  const mine=[];for(const t of a.tiles)mine.push(...tileData.get(t.name).elements);
   elements.push(...mine.filter(e=>!seen.has(`${e.type}/${e.id}`)));for(const e of mine)seen.add(`${e.type}/${e.id}`);
  }
+ const skippedSido=new Set(areas.filter(a=>skipped.has(a.key)).flatMap(a=>a.sido).map(code=>sidoByCode[code]));
  const zones=buildZones(features,osmSchools(elements));
  // A broken answer must never empty the tables: the capital area has ~2,600 zones.
  if(zones.length<2000)throw Error(`TOO_FEW_ZONES:${zones.length}`);
@@ -92,14 +90,17 @@ try{
  const changed=[];let assigned=0;
  for(const c of complexes){
   // id is GENERATED ALWAYS, so rows are matched on kapt_code (every complex has one today).
-  if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
+  if(c.latitude==null||c.longitude==null||!c.kapt_code||skippedSido.has(c.sido))continue;
   const next=assignSchool({lat:c.latitude,lon:c.longitude},zones)??Object.fromEntries(cols.map(k=>[k,null]));
   if(next.elementary_school)assigned++;
   if(cols.every(k=>JSON.stringify(c[k])===JSON.stringify(next[k])))continue;
   changed.push({kapt_code:c.kapt_code,name:c.name,sido:c.sido,...next,elementary_computed_at:now});
  }
  await write('complexes',changed,'kapt_code');
- console.log(`ZONES ${zones.length}${refreshed?' (refreshed)':''}; complexes assigned ${assigned}, updated ${changed.length}`);
+ for(const s of stale)console.log(`STALE ${s}`);
+ // The last line is the step result in the morning report: an old or missing source shows there, while
+ // the step still passes (a missing area is fetched again tomorrow, an old file at the next refetch).
+ console.log(`ZONES ${zones.length}${refreshed?' (refreshed)':''}; complexes assigned ${assigned}, updated ${changed.length}${stale.length?`; old sources used ${stale.length}`:''}${skipped.size?`; areas left out ${[...skipped].join(',')}`:''}`);
 }catch(e){
  console.error('FAILED',e.message);
  process.exitCode=1;

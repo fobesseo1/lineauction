@@ -9,7 +9,8 @@ import {mkdir,readFile,stat} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
-import {OVERPASS_URL,overpassQuery,buildStations,nearestStations,rankStations,walkMinutes,ownStations} from './stations-core.mjs';
+import {fetchOverpass} from './overpass.mjs';
+import {overpassQuery,buildStations,nearestStations,rankStations,walkMinutes,ownStations} from './stations-core.mjs';
 import {DESTINATIONS,DESTINATION_AREA,buildGraph,fromDestination,commuteFor,stationMinutes} from './commute-core.mjs';
 import {geoAreas,ENABLED_REGIONS} from '../regions.mjs';
 process.loadEnvFile('.env.local');
@@ -21,21 +22,7 @@ const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABAS
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
 
-// The public overpass-api.de is often full (504, "at capacity"); each retry goes to the next server.
-const OVERPASS_URLS=[OVERPASS_URL,'https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
-async function fetchOverpass(query){
- for(let attempt=0;;attempt++){
-  try{
-   // overpass-api.de answers 406 to requests without a User-Agent.
-   const r=await fetch(OVERPASS_URLS[attempt%OVERPASS_URLS.length],{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
-   const text=await r.text();
-   if(!r.ok)throw Error(`OVERPASS_${r.status}`);
-   const json=JSON.parse(text);
-   if(!json.elements?.length)throw Error('OVERPASS_EMPTY');
-   return json;
-  }catch(e){if(attempt>=OVERPASS_URLS.length*2-1)throw e;await sleep(20_000*(attempt+1));}
- }
-}
+// The public overpass-api.de is often full (504, "at capacity"); each retry goes to the next server (overpass.mjs).
 
 async function fetchAll(table,columns){
  const out=[];

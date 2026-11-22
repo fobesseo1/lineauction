@@ -4,12 +4,11 @@
 // Overpass and 상가정보 answers are cached in data/neighborhood/raw (Overpass per OSM area of the enabled regions,
 // scripts/regions.json; the capital area keeps park1..4/mart1..4) and refetched when older than 30 days;
 // the per-complex pass is local and writes only changed complexes.
-import {mkdir,readFile,stat} from 'node:fs/promises';
+import {mkdir} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
-import {writeJson} from '../onbid/atomic.mjs';
 import {singleRun} from '../single-run.mjs';
-import {OVERPASS_URL} from './stations-core.mjs';
-import {geoAreas} from '../regions.mjs';
+import {fetchOverpass,cachedAnswer} from './overpass.mjs';
+import {geoAreas,sidoByCode} from '../regions.mjs';
 import {parkQuery,martQuery,osmParks,osmMarts,gridIndex,neighborhoodFor,MAX_SEARCH,STORE_SIDO,STORE_GROUPS,storeRows,servicesFor,GENERAL_HOSPITAL,CLINIC,ACADEMY,ACADEMY_FAR} from './neighborhood-core.mjs';
 process.loadEnvFile('.env.local');
 
@@ -17,18 +16,6 @@ const root='data/neighborhood';await mkdir(`${root}/raw`,{recursive:true});
 if(!await singleRun(root,'scripts/geo/neighborhood.mjs')){console.log('ALREADY_RUNNING');process.exit(0);}
 const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const ageDays=async p=>{try{return (Date.now()-(await stat(p)).mtimeMs)/86400_000;}catch(e){if(e.code==='ENOENT')return Infinity;throw e;}};
-
-async function overpass(query){
- for(let attempt=0;;attempt++){
-  try{
-   const r=await fetch(OVERPASS_URL,{method:'POST',headers:{'user-agent':'lineestate-data-factory/1.0','content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(200_000)});
-   const text=await r.text();
-   if(!r.ok)throw Error(`OVERPASS_${r.status}`);
-   return JSON.parse(text);
-  }catch(e){if(attempt>=3)throw e;await sleep(30_000*(attempt+1));}
- }
-}
 async function fetchAll(table,columns){
  const out=[];
  for(let from=0;;from+=1000){const {data,error}=await supa.from(table).select(columns).order('id').range(from,from+999);if(error)throw Error(`${table}: ${error.message}`);out.push(...data);if(data.length<1000)break;}
@@ -68,24 +55,30 @@ try{
  const refresh=process.argv.includes('--refresh');
  const sources={park:parkQuery,mart:martQuery};
  const elements={park:[],mart:[]};let refreshed=false;
+ // Each source file is refetched on its own; one that cannot be refetched today is used as it was, and
+ // the complexes of a 시도 with a part never fetched are left alone this run (overpass.mjs, 2026-11-22).
+ const stale=[],skippedSido=new Set();
+ const note=(name,r,sido)=>{if(r.status==='fetched')refreshed=true;if(r.status==='stale')stale.push(`${name}: ${r.error.message}`);
+  if(r.status==='missing'){for(const s of sido)skippedSido.add(sidoByCode[s]);console.log(`LEFT_OUT ${name}: ${r.error.message}`);}};
  // A later area skips elements an earlier area already gave (overlapping boxes such as 대전·세종).
  for(const [kind,query] of Object.entries(sources)){
   const seen=new Set();
   for(const area of geoAreas()){
    const mine=[];
    for(const tile of area.tiles){
-    const path=`${root}/raw/${kind}${tile.name}.json`;
-    if(refresh||await ageDays(path)>30){await writeJson(path,await overpass(query(tile.bbox)));refreshed=true;await sleep(5000);}
-    mine.push(...JSON.parse(await readFile(path,'utf8')).elements);
+    const r=await cachedAnswer(`${root}/raw/${kind}${tile.name}.json`,30,()=>fetchOverpass(query(tile.bbox),{allowEmpty:true}),{refresh});
+    note(`${kind}${tile.name}`,r,area.sido);
+    if(r.status==='fetched')await sleep(5000);
+    mine.push(...(r.data?.elements??[]));
    }
    elements[kind].push(...mine.filter(e=>!seen.has(`${e.type}/${e.id}`)));for(const e of mine)seen.add(`${e.type}/${e.id}`);
   }
  }
  const shops=[];
  for(const sido of STORE_SIDO)for(const group of STORE_GROUPS){
-  const path=`${root}/raw/store-${sido}-${group}.json`;
-  if(refresh||await ageDays(path)>30){await writeJson(path,await stores(sido,group));refreshed=true;}
-  shops.push(...JSON.parse(await readFile(path,'utf8')));
+  const r=await cachedAnswer(`${root}/raw/store-${sido}-${group}.json`,30,()=>stores(sido,group),{refresh});
+  note(`store-${sido}-${group}`,r,[sido]);
+  shops.push(...(r.data??[]));
  }
  // Some 요양병원 are filed under 종합병원; they are not where a family goes for care.
  const hospitals=shops.filter(s=>s.code===GENERAL_HOSPITAL&&!/요양/.test(s.name)),clinics=shops.filter(s=>CLINIC.test(s.code)),academies=shops.filter(s=>ACADEMY.has(s.code));
@@ -102,7 +95,7 @@ try{
  const now=new Date().toISOString();const changed=[];let filled=0;
  for(const c of complexes){
   // id is GENERATED ALWAYS, so rows are matched on kapt_code (every complex has one today).
-  if(c.latitude==null||c.longitude==null||!c.kapt_code)continue;
+  if(c.latitude==null||c.longitude==null||!c.kapt_code||skippedSido.has(c.sido))continue;
   const point={lat:c.latitude,lon:c.longitude};
   const next={...neighborhoodFor(point,nearPark(point.lat,point.lon,MAX_SEARCH),nearMart(point.lat,point.lon,MAX_SEARCH)),
    ...servicesFor(point,hospitals,nearClinic(point.lat,point.lon,ACADEMY_FAR),nearAcademy(point.lat,point.lon,ACADEMY_FAR))};
@@ -111,7 +104,8 @@ try{
   changed.push({kapt_code:c.kapt_code,name:c.name,sido:c.sido,...next,neighborhood_computed_at:now});
  }
  await write('complexes',changed,'kapt_code');
- console.log(`PARKS ${parks.length}, MARTS ${marts.length}, HOSPITALS ${hospitals.length}, CLINICS ${clinics.length}, ACADEMIES ${academies.length}${refreshed?' (refreshed)':''}; complexes ${filled}, updated ${changed.length}`);
+ for(const s of stale)console.log(`STALE ${s}`);
+ console.log(`PARKS ${parks.length}, MARTS ${marts.length}, HOSPITALS ${hospitals.length}, CLINICS ${clinics.length}, ACADEMIES ${academies.length}${refreshed?' (refreshed)':''}; complexes ${filled}, updated ${changed.length}${stale.length?`; old sources used ${stale.length}`:''}${skippedSido.size?`; 시도 left out ${[...skippedSido].join(',')}`:''}`);
 }catch(e){
  console.error('FAILED',e.message);
  process.exitCode=1;
