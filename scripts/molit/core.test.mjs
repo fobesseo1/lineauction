@@ -69,6 +69,13 @@ test('kaptLots reads the lot of a K-APT complex in MOLIT spelling',()=>{
  ]);
  assert.deepEqual([...lots],[lotKey('26380','다대동','930'),lotKey('41500','부발읍 죽당리','1549'),lotKey('12330','소촌동','290-1')]);
 });
+test('kaptLots reads "230-" as 230 and skips a dong repeated in the name (2026-11-23)',()=>{
+ const lots=kaptLots([
+  {bjd_code:'4719012100',dong:'도량동',jibun_address:'경상북도 구미시 도량동 230- 도량아이센스'},
+  {bjd_code:'4420025330',dong:'배방읍 휴대리',jibun_address:'충청남도 아산시 배방읍 휴대리 212 아산 휴대리 한성아파트'},
+ ]);
+ assert.deepEqual([...lots],[lotKey('47190','도량동','230'),lotKey('44200','배방읍 휴대리','212')]);
+});
 
 // 2026-11-22: MOLIT keeps some sales twice (rt.molit.go.kr: two 신고번호, the earlier one without 동·등기일).
 import {staleFilingKeys} from './core.mjs';

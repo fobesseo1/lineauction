@@ -108,8 +108,12 @@ export function kaptLots(complexes){
  const out=new Set();
  for(const c of complexes){
   if(!/^\d{10}$/.test(c.bjd_code??'')||!c.dong||!c.jibun_address)continue;
-  const words=c.jibun_address.trim().split(/\s+/),last=c.dong.trim().split(/\s+/).at(-1);
-  const at=words.lastIndexOf(last),jibun=at>=0?words[at+1]:null;
+  // The first place the whole dong appears: the complex name after the lot may repeat it ("…휴대리 212
+  // 아산 휴대리 한성아파트"). K-APT writes a lot with no 부번 as "230-", which MOLIT files as "230" (2026-11-23).
+  const words=c.jibun_address.trim().split(/\s+/),dong=c.dong.trim().split(/\s+/);
+  let at=words.findIndex((_,i)=>dong.every((d,j)=>words[i+j]===d));
+  at=at>=0?at+dong.length-1:words.indexOf(dong.at(-1));
+  const jibun=at>=0?words[at+1]?.replace(/-$/,''):null;
   if(jibun&&/^(산)?\d+(-\d+)?$/.test(jibun))out.add(lotKey(c.bjd_code.slice(0,5),c.dong,jibun));
  }
  return out;
