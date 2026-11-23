@@ -413,6 +413,27 @@ async function applyTable(table,rows,cols,have,keyOf,gone){
 // --full compares everything (first load, or after changing a window).
 const full=process.argv.includes('--full');
 const RECHECK_MONTHS=3;   // MOLIT reloads at most the last 3 months
+// A 시도 opened (enabledFrom) in the last OPENING_DAYS days whose whole window a table has not loaded yet
+// (data/molit/opening-<table>.json) gets it on a daily run; a --full run counts as loaded.
+const OPENING_DAYS=7;
+const kstDay=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(d);
+const recentlyOpened=(()=>{
+ const today=kstDay(new Date()),since=kstDay(new Date(Date.now()-(OPENING_DAYS-1)*86400000));
+ return regionConfig.regions.filter(r=>r.enabledFrom&&r.enabledFrom>=since&&r.enabledFrom<=today).map(r=>r.code);
+})();
+const openingPath=table=>`data/molit/opening-${table}.json`;
+async function openingFor(table){
+ if(full)return new Set();
+ let done={};try{done=JSON.parse(await readFile(openingPath(table),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ const out=new Set(recentlyOpened.filter(c=>!done[c]));
+ if(out.size)console.log(`${table}: whole window for newly opened 시도 ${[...out].join(',')}`);
+ return out;
+}
+async function markOpened(table){
+ let done={};try{done=JSON.parse(await readFile(openingPath(table),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ for(const c of recentlyOpened)done[c]??=kstDay(new Date());
+ await writeJson(openingPath(table),done);
+}
 const recheckFrom=(()=>{const d=new Date(Date.now()+9*3600000);d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-RECHECK_MONTHS);return d.toISOString().slice(0,10);})();
 // The ids published for the recheck window are kept locally ({id: deal_date}), so a daily run
 // doesn't page hundreds of thousands of ids back out of the DB (those reads held the DB for
@@ -433,7 +454,11 @@ async function planById(table,rows,windowStart){
    if(data.length<1000)break;after=data.at(-1).id;
   }
  }
- const mine=rows.filter(r=>r.deal_date>=from);
+ // Only Sunday runs are --full, so 전북·강원 opened Monday 2026-11-23 got just their recent months (4.7k
+ // of ~49k sales). A newly opened 시도 gets its whole window once; rows already there are skipped by the
+ // insert (ignoreDuplicates).
+ const opening=await openingFor(table);
+ const mine=rows.filter(r=>r.deal_date>=from||(r.deal_date>=windowStart&&opening.has(sidoOfKey(r.place_id??`x:${r.lawd}`))));
  const current=new Set(mine.map(r=>r.id));
  // Trades of split buildings can change place when the assignment changes; ids alone would not show it.
  const placePath=`data/molit/published-split-${table}.json`;
@@ -474,6 +499,7 @@ async function applyById(table,rows,windowStart,added,gone,moved=[],placePath=nu
  else for(let i=0;i<gone.length;i+=300){const {error}=await supa.from(table).delete().in('id',gone.slice(i,i+300));if(error)throw Error(`${table} delete: ${error.message}`);}
  const {error,count}=noDelete?{error:null,count:0}:await supa.from(table).delete({count:'exact'}).lt('deal_date',windowStart);if(error)throw Error(`${table} expire: ${error.message}`);
  await writeJson(idCachePath,Object.fromEntries(rows.filter(r=>r.deal_date>=recheckFrom).map(r=>[r.id,r.deal_date])));
+ await markOpened(table);
  console.log(`${table}: +${added.length} -${noDelete?0:gone.length}${noDelete&&gone.length?` (kept ${gone.length})`:''} expired ${count??0}`);
 }
 const salesStart=`${months[0]}-01`;
