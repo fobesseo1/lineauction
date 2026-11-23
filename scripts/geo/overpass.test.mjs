@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,utimes,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {cachedAnswer,fetchOverpass} from './overpass.mjs';
+import {cachedAnswer,fetchOverpass,deadlineFromArgs} from './overpass.mjs';
 
 const dir=await mkdtemp(join(tmpdir(),'overpass-'));
 const old=async(p,days)=>{const t=new Date(Date.now()-days*86400_000);await utimes(p,t,t);};
@@ -35,6 +35,24 @@ test('fetchOverpass moves to the next server after a failure',async()=>{
   const r=await fetchOverpass('q',{allowEmpty:true,urls:['a','b'],wait:0});
   assert.deepEqual(r,{elements:[]});assert.deepEqual(seen,['a','b']);
  }finally{globalThis.fetch=real;}
+});
+test('cachedAnswer fetches nothing after the deadline (2026-11-23 step limit)',async()=>{
+ const p=join(dir,'late.json');await writeFile(p,'{"elements":[1]}');await old(p,40);
+ let called=false;const r=await cachedAnswer(p,30,async()=>{called=true;return {elements:[2]};},{deadline:Date.now()-1});
+ assert.equal(called,false);assert.equal(r.status,'stale');assert.equal(r.error.message,'TIME_BUDGET');
+ const m=await cachedAnswer(join(dir,'late-none.json'),30,fail,{deadline:Date.now()-1});
+ assert.equal(m.status,'missing');
+ const f=await cachedAnswer(join(dir,'fresh.json'),30,fail,{deadline:Date.now()-1});
+ assert.equal(f.status,'cached');
+});
+test('deadlineFromArgs reads --fetch-minutes',()=>{
+ assert.equal(deadlineFromArgs(['node','x','--fetch-minutes','20'],1000),1000+20*60_000);
+ assert.equal(deadlineFromArgs(['node','x'],1000),Infinity);
+ assert.equal(deadlineFromArgs(['node','x','--fetch-minutes','abc'],1000),Infinity);
+});
+test('fetchOverpass starts no retry past the deadline',async()=>{
+ let calls=0;const real=globalThis.fetch;globalThis.fetch=async()=>{calls++;return new Response('busy',{status:502});};
+ try{await assert.rejects(fetchOverpass('q',{urls:['a','b'],wait:60_000,deadline:Date.now()+1000}),/OVERPASS_502/);assert.equal(calls,1);}finally{globalThis.fetch=real;}
 });
 test('fetchOverpass treats an empty whole-area answer as a failure',async()=>{
  const real=globalThis.fetch;globalThis.fetch=async()=>new Response('{"elements":[]}');

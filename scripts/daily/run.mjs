@@ -233,9 +233,11 @@ try{
   // both passes are local).
   await step('stations','scripts/geo/stations.mjs',[],20*60_000);
   // 배정 초등학교 per complex (통학구역 from vworld, school points from OSM; sources refetched monthly).
-  await step('schools','scripts/geo/schools.mjs',[],30*60_000);
+  // Fetching stops after --fetch-minutes and the step writes what it has; the rest is fetched the next day
+  // from the saved files (2026-11-23: a new province's first fetch ran both steps into their limit).
+  await step('schools','scripts/geo/schools.mjs',['--fetch-minutes','20'],40*60_000);
   // 동네 환경: 공원·대형마트 (OSM) and 종합병원·의원·학원 (상가정보), sources refetched monthly.
-  await step('neighborhood','scripts/geo/neighborhood.mjs',[],30*60_000);
+  await step('neighborhood','scripts/geo/neighborhood.mjs',['--fetch-minutes','25'],45*60_000);
   // 은행별 주담대·전세대출 금리 (은행연합회 비교공시, monthly); only a month not yet stored is fetched.
   await step('loan-rates','scripts/finance/kfb-rates.mjs',[],10*60_000);
   // 주담대·전세대출 상품별 금리 (금감원 금융상품한눈에 API, ~monthly); only changed rows are written.

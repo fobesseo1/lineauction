@@ -8,7 +8,7 @@ import {mkdir} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {singleRun} from '../single-run.mjs';
 import {allFeatures} from './vworld.mjs';
-import {fetchOverpass,cachedAnswer} from './overpass.mjs';
+import {fetchOverpass,cachedAnswer,deadlineFromArgs} from './overpass.mjs';
 import {ZONE_LAYER,schoolQuery,osmSchools,buildZones,assignSchool} from './schools-core.mjs';
 import {geoAreas,sidoByCode} from '../regions.mjs';
 process.loadEnvFile('.env.local');
@@ -44,7 +44,7 @@ async function replace(table,rows,size){
 const round6=g=>JSON.parse(JSON.stringify(g,(k,v)=>typeof v==='number'?Math.round(v*1e6)/1e6:v));
 
 try{
- const refresh=process.argv.includes('--refresh');
+ const refresh=process.argv.includes('--refresh'),deadline=deadlineFromArgs(process.argv);
  // Each source file is refetched on its own when older than 30 days (a new area no longer refetches every
  // other area's tiles). One that cannot be refetched today is used as it was; an area with a part never
  // fetched is left out of this run, and its complexes are not touched (2026-11-22, OSM 502).
@@ -53,10 +53,10 @@ try{
  const zoneData=new Map(),tileData=new Map();
  for(const a of areas){
   const [x0,y0,x1,y1]=lonLatBox(a.bbox);
-  const r=await cachedAnswer(zonesPath(a),30,async()=>({fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})}),{refresh});
+  const r=await cachedAnswer(zonesPath(a),30,async()=>({fetchedAt:new Date().toISOString(),features:await allFeatures(ZONE_LAYER,{geomFilter:`BOX(${x0},${y0},${x1},${y1})`})}),{refresh,deadline});
   note(a,`zones${a.tag}`,r);zoneData.set(a.key,r.data);
   for(const t of a.tiles){
-   const rt=await cachedAnswer(tilePath(t),30,()=>fetchOverpass(schoolQuery(t.bbox),{allowEmpty:true}),{refresh});
+   const rt=await cachedAnswer(tilePath(t),30,()=>fetchOverpass(schoolQuery(t.bbox),{allowEmpty:true,deadline}),{refresh,deadline});
    note(a,`tile${t.name}`,rt);tileData.set(t.name,rt.data);
    if(rt.status==='fetched')await sleep(5000);
   }

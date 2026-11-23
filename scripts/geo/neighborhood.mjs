@@ -7,7 +7,7 @@
 import {mkdir} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {singleRun} from '../single-run.mjs';
-import {fetchOverpass,cachedAnswer} from './overpass.mjs';
+import {fetchOverpass,cachedAnswer,deadlineFromArgs} from './overpass.mjs';
 import {geoAreas,sidoByCode} from '../regions.mjs';
 import {parkQuery,martQuery,osmParks,osmMarts,gridIndex,neighborhoodFor,MAX_SEARCH,STORE_SIDO,STORE_GROUPS,storeRows,servicesFor,GENERAL_HOSPITAL,CLINIC,ACADEMY,ACADEMY_FAR} from './neighborhood-core.mjs';
 process.loadEnvFile('.env.local');
@@ -52,7 +52,7 @@ async function stores(sido,group){
 }
 
 try{
- const refresh=process.argv.includes('--refresh');
+ const refresh=process.argv.includes('--refresh'),deadline=deadlineFromArgs(process.argv);
  const sources={park:parkQuery,mart:martQuery};
  const elements={park:[],mart:[]};let refreshed=false;
  // Each source file is refetched on its own; one that cannot be refetched today is used as it was, and
@@ -66,7 +66,7 @@ try{
   for(const area of geoAreas()){
    const mine=[];
    for(const tile of area.tiles){
-    const r=await cachedAnswer(`${root}/raw/${kind}${tile.name}.json`,30,()=>fetchOverpass(query(tile.bbox),{allowEmpty:true}),{refresh});
+    const r=await cachedAnswer(`${root}/raw/${kind}${tile.name}.json`,30,()=>fetchOverpass(query(tile.bbox),{allowEmpty:true,deadline}),{refresh,deadline});
     note(`${kind}${tile.name}`,r,area.sido);
     if(r.status==='fetched')await sleep(5000);
     mine.push(...(r.data?.elements??[]));
@@ -76,7 +76,7 @@ try{
  }
  const shops=[];
  for(const sido of STORE_SIDO)for(const group of STORE_GROUPS){
-  const r=await cachedAnswer(`${root}/raw/store-${sido}-${group}.json`,30,()=>stores(sido,group),{refresh});
+  const r=await cachedAnswer(`${root}/raw/store-${sido}-${group}.json`,30,()=>stores(sido,group),{refresh,deadline});
   note(`store-${sido}-${group}`,r,[sido]);
   shops.push(...(r.data??[]));
  }
