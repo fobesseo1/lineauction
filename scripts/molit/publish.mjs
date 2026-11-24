@@ -217,6 +217,18 @@ if(process.env.SHARED_SPLIT!=='off'){
   for(const k of plan.alsoLinked)extraLinks.push({place_id:id,kapt_code:k,kapt_match:'shared_lot'});
   for(const c of plan.children){const child=childPlaceId(id,c.kapt_code);places.set(child,{...p,id:child,name:c.name,kapt_code:c.kapt_code,kapt_match:'shared_split'});}
  }
+ // A reviewed shared building (shared-places.json) that is down to one complex today lost a link, most
+ // often one the name rule made from the latest trade name (2026-11-24 평택 동삭동 가-: a 평택지제역자이 sale
+ // renamed the place, 힐스테이트지제역 dropped, its small places and 440 sales were deleted). It keeps
+ // yesterday's rows like a failed split until the link is pinned in manual-place-links.json.
+ const sharedIds=new Set(shared.map(([id])=>id));
+ for(const id of known){
+  const p=places.get(id);
+  if(!p||sharedIds.has(id))continue;
+  failedSplits.push(`${id}: LOST_SHARED_LINK (${[...(linksOf.get(id)??[])].join(',')||'연결 없음'})`);console.log(failedSplits.at(-1));
+  frozenPlaces.add(id);for(const t of tradesAt.all(p.lawd,p.umd,p.jibun,`${months[0]}-01`))frozenIds.add(t.key);places.delete(id);
+  for(let i=extraLinks.length-1;i>=0;i--)if(extraLinks[i].place_id===id)extraLinks.splice(i,1);
+ }
  console.log(`shared buildings ${shared.length}, split ${splitPlaces.size}, small places ${[...splitPlaces.values()].reduce((a,s)=>a+s.children.length,0)}`);
  // For the hand check before a new building goes into shared-places.json: who got how many sales and
  // rents, and how many sales stayed common. Local file only, written in --dry-run too.
