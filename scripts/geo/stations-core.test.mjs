@@ -58,3 +58,16 @@ test('ownStations keeps a complex to its own area, and gives none to a no-statio
  assert.deepEqual(ids({code:'41',area:'capital'},'성남시 분당구'),['강남','부평']);
  assert.equal(ownStations(stations,{region:undefined,sigungu:null,builtIn}).length,stations.length);
 });
+
+test('a province uses only the station areas its stationSigungu lists, and none elsewhere (2026-11-26 "B: 도시철도만")',()=>{
+ const st=id=>({id,name:id});
+ const stations=[st('김해시청'),st('양산'),st('영남대'),st('두정'),st('강남')];
+ const builtIn=new Map([['김해시청',['26']],['양산',['26']],['영남대',['27']],['두정',['capital','44']],['강남',['capital']]].map(([k,v])=>[k,new Set(v)]));
+ const ids=(region,sigungu)=>ownStations(stations,{region,sigungu,builtIn}).map(s=>s.id);
+ const 경남={code:'48',area:'48',stationSigungu:{'김해시':['26'],'양산시':['26']}};
+ assert.deepEqual(ids(경남,'김해시'),['김해시청','양산']);
+ assert.deepEqual(ids(경남,'창원시 성산구'),[]);
+ assert.deepEqual(ids({code:'44',area:'44',stationSigungu:{'아산시':['44']}},'아산시'),['두정']);
+ assert.deepEqual(ids({code:'44',area:'44',stationSigungu:{'아산시':['44']}},'서산시'),[]);
+ assert.deepEqual(ids({code:'43',area:'43',stationSigungu:{}},'청주시 흥덕구'),[]);
+});

@@ -29,7 +29,9 @@ const LINES={
  '48':{city:'경남',refs:{},names:[]},
  '47':{city:'경북',refs:{},names:[]},
  // 2026-11-21 날짜로 미리 넣은 도(충남·충북 11-22, 전북·강원 11-23, 제주 11-24)도 같다. 춘천 쪽 경춘선 역은 capital 상자(북위 36.9 위) 안이라 잡히지만, 천안·아산 1호선 역은 상자 밖이라 아직 없다.
- '44':{city:'충남',refs:{},names:[]},
+ // 2026-11-26 사용자 결정 "B: 도시철도만": 천안·아산은 수도권 1호선이 닿는다. 이름은 수도권과 같은 '1호선'(도시 이름 안 붙임).
+ // 충남의 다른 시군은 regions.json stationSigungu에 없어 역을 쓰지 않는다.
+ '44':{city:null,refs:{'1':'1호선'},names:[]},
  '43':{city:'충북',refs:{},names:[]},
  '52':{city:'전북',refs:{},names:[]},
  '51':{city:'강원',refs:{},names:[]},
@@ -120,5 +122,8 @@ export function nearestStations(point,stations){
 export function ownStations(stations,{region,sigungu,builtIn}){
  if(!region)return stations;
  if((region.noStationSigungu??[]).includes(sigungu))return [];
+ // 도(2026-11-26 사용자 결정 "B: 도시철도만"): 도시철도·광역전철이 닿는 시군만, 적힌 영역의 노선 역을 쓴다(김해 → 부산 김해경전철).
+ // 적히지 않은 시군은 역 없음 — 가장 가까운 역이 수십 km 밖이다.
+ if(region.stationSigungu){const areas=region.stationSigungu[sigungu];return areas?stations.filter(s=>areas.some(a=>builtIn.get(s.id)?.has(a))):[];}
  return stations.filter(s=>builtIn.get(s.id)?.has(region.area));
 }
