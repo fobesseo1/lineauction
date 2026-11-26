@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {leafRegions,monthsBack,decode,toRow,cancelDate} from './core.mjs';
+import {leafRegions,monthsBack,decode,toRow,cancelDate,fillNameLot} from './core.mjs';
 
 test('leafRegions drops cities whose 구 are listed and keeps capital-area codes only',()=>{
  const r=leafRegions({'서울특별시 강남구':'11680','경기도 고양시':'41280','경기도 고양시 덕양구':'41281','경기도 과천시':'41290','전라남도 여수시':'46130'});
@@ -91,4 +91,13 @@ test('staleFilingKeys drops the empty earlier filing that a filled one stands fo
  assert.deepEqual(staleFilingKeys([row('half',{aptDong:'305',rgstDate:''}),row('empty',{aptDong:'',rgstDate:''})]),[]);
  // One filled filing covers one empty one.
  assert.deepEqual(staleFilingKeys([row('f',{aptDong:'305',rgstDate:'26.06.30'}),row('e1',{}),row('e2',{})]),['e1']);
+});
+
+test('fillNameLot gives a lot only to rows MOLIT filed without one, matched by 법정동·읍면동·name', () => {
+  const lots = { '12190|황금동|광양푸르지오더센트럴': { jibun: '가-' } };
+  const row = { lawd: '12190', umd: '황금동', name: '광양푸르지오더센트럴', jibun: null };
+  assert.equal(fillNameLot(row, lots).jibun, '가-');
+  assert.equal(fillNameLot({ ...row, jibun: ' ' }, lots).jibun, '가-');
+  assert.equal(fillNameLot({ ...row, jibun: '1370' }, lots).jibun, '1370');
+  assert.equal(fillNameLot({ ...row, name: '다른단지' }, lots).jibun, null);
 });

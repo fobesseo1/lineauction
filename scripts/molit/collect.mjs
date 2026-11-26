@@ -8,7 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {writeJson} from '../onbid/atomic.mjs';
 import {regionCatalog} from '../court/regions.mjs';
 import {createClient} from '@supabase/supabase-js';
-import {APIS,leafRegions,monthsBack,decode,toRow,assignKeys,kaptLots,lotKey} from './core.mjs';
+import {APIS,leafRegions,monthsBack,decode,toRow,assignKeys,kaptLots,lotKey,fillNameLot} from './core.mjs';
 import {singleRun} from '../single-run.mjs';
 process.loadEnvFile('.env.local');
 
@@ -46,6 +46,13 @@ const loadOf=db.prepare('select total,loaded_at from month_loads where api=? and
 const clearMonth=db.prepare('delete from trades where api=? and lawd=? and ym=?');
 const insert=db.prepare(`insert into trades(key,api,kind,deal,lawd,ym,name,umd,jibun,apt_seq,building,area,floor,build_year,deal_date,amount,deposit,monthly_rent,dealing,cancel_date,contract_type,land_area,house_type,building_area,total_floor_area,use_type,building_type,zone,share,ownership,raw)
  values(:key,:api,:kind,:deal,:lawd,:ym,:name,:umd,:jibun,:apt_seq,:building,:area,:floor,:build_year,:deal_date,:amount,:deposit,:monthly_rent,:dealing,:cancel_date,:contract_type,:land_area,:house_type,:building_area,:total_floor_area,:use_type,:building_type,:zone,:share,:ownership,:raw)`);
+// Lots for complexes MOLIT files without one (name-lots.json): new rows get it below, and rows already in the
+// warehouse are filled here once per run (the key hashes the API item, so it does not change).
+const nameLots=JSON.parse(await readFile('scripts/molit/name-lots.json','utf8'));
+{
+ const fill=db.prepare("update trades set jibun=? where lawd=? and umd=? and name=? and (jibun is null or trim(jibun)='')");
+ for(const [k,v] of Object.entries(nameLots)){if(k.startsWith('_'))continue;const [lawd,umd,name]=k.split('|');const n=fill.run(v.jibun,lawd,umd,name).changes;if(n)console.log(`name lot ${k} → ${v.jibun}: ${n} rows`);}
+}
 const recordLoad=db.prepare('insert or replace into month_loads(api,lawd,ym,total,loaded_at) values(?,?,?,?,?)');
 const monthRows=db.prepare('select key,api,umd,jibun,name,area,floor,deal_date,amount,deposit,monthly_rent from trades where api=? and lawd=? and ym=?');
 
@@ -102,7 +109,7 @@ async function loadMonth(apiName,lawd,ym){
  if(rows.length!==total)throw Error(`INCOMPLETE_${rows.length}_OF_${total}`);
  // Identical filings in one month are separate trades (hash suffixed with its occurrence); a filing
  // MOLIT later filled in (동, 등기일, 해제일) keeps its earlier key (core.mjs assignKeys).
- const mapped=assignKeys(rows.map(item=>toRow(apiName,lawd,ym,item)),monthRows.all(apiName,lawd,ym)).filter(r=>keepRow(apiName,r));
+ const mapped=assignKeys(rows.map(item=>fillNameLot(toRow(apiName,lawd,ym,item),nameLots)),monthRows.all(apiName,lawd,ym)).filter(r=>keepRow(apiName,r));
  db.exec('begin');
  try{clearMonth.run(apiName,lawd,ym);for(const r of mapped)insert.run(r);recordLoad.run(apiName,lawd,ym,total,new Date().toISOString());db.exec('commit');}
  catch(e){db.exec('rollback');throw e;}

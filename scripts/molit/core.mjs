@@ -57,6 +57,15 @@ const ymd=(y,m,d)=>{const [Y,M,D]=[int(y),int(m),int(d)];return Y&&M&&D?`${Y}-${
 // 해제일 comes as "26.09.30" (yy.mm.dd).
 export function cancelDate(v){const s=text(v);const m=s?.match(/^(\d{2})\.(\d{2})\.(\d{2})$/);return m?`20${m[1]}-${m[2]}-${m[3]}`:null;}
 
+// A complex MOLIT files without a lot number (jibun empty) gets the lot scripts/molit/name-lots.json gives it,
+// so it becomes a place that manual-place-links.json can link (광양 황금 푸르지오 더센트럴, 2026-11-26).
+export const nameLotKey=(lawd,umd,name)=>`${lawd}|${String(umd??'').trim()}|${String(name??'').trim()}`;
+export function fillNameLot(row,lots){
+ if(row.jibun!=null&&String(row.jibun).trim()!=='')return row;
+ const lot=lots?.[nameLotKey(row.lawd,row.umd,row.name)]?.jibun;
+ return lot?{...row,jibun:lot}:row;
+}
+
 // One warehouse row per API item. The key hashes the full item so an identical re-filing is
 // one row, while a correction (any changed field) becomes a new row after the month reload.
 export function toRow(apiName,lawd,ym,item){
