@@ -26,10 +26,10 @@ test('only apartment rows are collected, by the small category first',async()=>{
  assert.equal(isApartmentRow({}),false);
 });
 
-test('전남광주: only the old 광주 5개 구 are in scope',()=>{
+test('전남광주: the whole 시도 is in scope since 2026-11-26 (광주 5개 구 + 옛 전남 시·군)',()=>{
  const g={...row,lctnSdnm:'전남광주통합특별시'};
  assert.equal(scope({...g,lctnSggnm:'광산구'}),true);
- assert.equal(scope({...g,lctnSggnm:'목포시'}),false);
- assert.equal(scope({...g,lctnSggnm:null}),false);
+ assert.equal(scope({...g,lctnSggnm:'목포시'}),true);
+ assert.equal(scope({...g,lctnSggnm:null}),true);
  assert.equal(scope({...row,lctnSggnm:null}),true,'a whole region does not need the 시군구');
 });

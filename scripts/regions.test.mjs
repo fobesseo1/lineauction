@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {ALL_REGIONS,ENABLED_REGIONS,isEnabled,regionDay,catalogOf,courtList,geoAreas,inSidoList,sidoPrefixPattern,shortPattern,inEnabledArea,keepBjd,partialSigunguCodes} from './regions.mjs';
+import {ALL_REGIONS,ENABLED_REGIONS,isEnabled,regionDay,catalogOf,courtList,geoAreas,inSidoList,sidoPrefixPattern,shortPattern,inEnabledArea,keepBjd,partialSigunguCodes,currentSidoName} from './regions.mjs';
 import {leafRegions} from './molit/core.mjs';
 import {lineOf} from './geo/stations-core.mjs';
 import {destinationsFor,DESTINATIONS_BY_AREA} from './geo/commute-core.mjs';
@@ -44,16 +44,16 @@ test('capital catalog unchanged: 91 names, 83 leaf 시군구, the first 16 court
  assert.equal(leafRegions(c.codes).length,83);
  const courts=JSON.parse(readFileSync(new URL('./court/courts.json',import.meta.url),'utf8'));
  assert.deepEqual(courtList(CAPITAL),courts.slice(0,16));
- // 11-21 = capital + 41 metro + 45 경남·경북 leaves; courts = the 16 capital ones first, then 9 metro and 12 경남·경북 courts.
- assert.equal(leafRegions(catalogOf(on('2026-11-21')).codes,on('2026-11-21').map(r=>r.name)).length,83+41+45);
+ // 11-21 = capital + 41 metro + 22 전남 (added to 12 on 11-26) + 45 경남·경북 leaves; courts = the 16 capital ones first, then 9 metro + 4 전남 and 12 경남·경북 courts.
+ assert.equal(leafRegions(catalogOf(on('2026-11-21')).codes,on('2026-11-21').map(r=>r.name)).length,83+41+22+45);
  assert.deepEqual(courtList(on('2026-11-21')).slice(0,16),courts.slice(0,16));
- assert.equal(courtList(on('2026-11-21')).length,37);
+ assert.equal(courtList(on('2026-11-21')).length,41);
  // + 충남 16·충북 14 (courts 5+4), + 전북 15·강원 18 (4+5), + 제주 2 (1)
- assert.deepEqual(['2026-11-22','2026-11-23','2026-11-24'].map(d=>[leafRegions(catalogOf(on(d)).codes,on(d).map(r=>r.name)).length,courtList(on(d)).length]),[[199,46],[232,55],[234,56]]);
+ assert.deepEqual(['2026-11-22','2026-11-23','2026-11-24'].map(d=>[leafRegions(catalogOf(on(d)).codes,on(d).map(r=>r.name)).length,courtList(on(d)).length]),[[221,50],[254,59],[256,60]]);
 });
 test('광역시·세종 시군구 codes (행정표준코드)',()=>{
  const n=code=>Object.keys(ALL_REGIONS.find(r=>r.code===code).sigungu).length;
- assert.deepEqual(['26','27','12','30','31','36'].map(n),[16,9,5,5,5,1]);
+ assert.deepEqual(['26','27','12','30','31','36'].map(n),[16,9,27,5,5,1]);
  for(const r of ALL_REGIONS)for(const code of Object.values(r.sigungu))assert.ok(code.startsWith(r.code),`${code} in ${r.name}`);
  const all=ALL_REGIONS.flatMap(r=>Object.values(r.sigungu));
  assert.equal(new Set(all).size,all.length);
@@ -62,7 +62,7 @@ test('광역시·세종 시군구 codes (행정표준코드)',()=>{
 test('세종 has no 시군구: its 시도 name is its one leaf and addresses still match',()=>{
  const sido=ALL_REGIONS.map(r=>r.name);
  const leaves=leafRegions(catalogOf(ALL_REGIONS).codes,sido);
- assert.equal(leaves.length,83+41+45+16+14+15+18+2);
+ assert.equal(leaves.length,83+41+22+45+16+14+15+18+2);
  assert.deepEqual(leaves.find(r=>r.code==='36110'),{name:'세종특별자치시',code:'36110'});
  assert.ok(inSidoList('세종특별자치시',sido));
  assert.ok(sidoPrefixPattern(sido).test('세종특별자치시 나성동 1'));
@@ -93,23 +93,25 @@ test('every enabled or booked region names its courts',()=>{
  for(const r of ALL_REGIONS)assert.ok(r.courts.length>0,r.name);
 });
 
-test('전남광주통합특별시 (2026-07-01) is collected as the old 광주 5개 구 only',()=>{
+test('전남광주통합특별시 (2026-07-01) is collected whole since 2026-11-26: 광주 5개 구 + 옛 전남 22 시·군',()=>{
  const g=ALL_REGIONS.find(r=>r.code==='12');
- assert.equal(g.partial,true);
- assert.deepEqual(Object.values(g.sigungu),['12210','12240','12270','12300','12330']);
- assert.ok(!ALL_REGIONS.some(r=>r.code==='29'),'old 광주 code 29 returns nothing from MOLIT/K-APT since the merger');
- // addresses: new and old 시도 names, 광주 구 only
- for(const a of ['전남광주통합특별시 광산구 수완동 1','광주광역시 북구 운암동 2','전남광주통합특별시 동구','광주광역시 남구'])assert.ok(inEnabledArea(a),a);
- for(const a of ['전남광주통합특별시 목포시 용당동 1','전남광주통합특별시 나주시 빛가람동 1','전라남도 여수시 1','전남광주통합특별시','경기도광주시 1'])assert.ok(!inEnabledArea(a),a);
+ assert.equal(g.partial,undefined);
+ assert.equal(Object.keys(g.sigungu).length,27);
+ assert.equal(g.sigungu['전남광주통합특별시 목포시'],'12110');
+ assert.equal(g.sigungu['전남광주통합특별시 신안군'],'12870');
+ assert.ok(!ALL_REGIONS.some(r=>r.code==='29'||r.code==='46'),'old 광주 29 / 전남 46 codes return nothing from MOLIT/K-APT since the merger');
+ // addresses: new and both old 시도 names
+ for(const a of ['전남광주통합특별시 광산구 수완동 1','광주광역시 북구 운암동 2','전남광주통합특별시 목포시 용당동 1','전남광주통합특별시 나주시 빛가람동 1','전라남도 여수시 1'])assert.ok(inEnabledArea(a),a);
+ assert.equal(currentSidoName('전라남도'),'전남광주통합특별시');
  // 경기도 광주시 is 경기 (a whole region), not 전남광주
  assert.ok(inEnabledArea('경기도 광주시 오포읍 1'));
- // K-APT list bjdCode filter
+ assert.ok(!inEnabledArea('경기도광주시 1'));
+ // K-APT list: no bjdCode filter any more
  assert.ok(keepBjd('12','1233010100'));
- assert.ok(!keepBjd('12','1211010100'),'목포');
- assert.ok(!keepBjd('12',null));
+ assert.ok(keepBjd('12','1211010100'),'목포');
  assert.ok(keepBjd('26','2611010100'),'whole regions are not filtered');
  assert.ok(keepBjd('11',null),'capital rows are never filtered');
- assert.deepEqual(Object.keys(partialSigunguCodes()),['12']);
+ assert.deepEqual(Object.keys(partialSigunguCodes()),[]);
 });
 test('inEnabledArea matches the old capital prefix rule for whole regions',()=>{
  const cap=sidoPrefixPattern(['서울특별시','경기도','인천광역시']);
