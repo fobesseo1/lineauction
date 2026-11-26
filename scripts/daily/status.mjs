@@ -63,7 +63,10 @@ function jobLines(current,last,extra,reruns=[]){
  const steps=stepsFor(current.job,now);
  const done=new Map(current.steps.map(s=>[s.name,s]));
  // Steps may repeat a name (alerts runs once per job), so the first not-yet-done one is running.
- const running=steps.find(([k])=>!done.has(k))?.[0];
+ // A step the runner skipped today (court 숨은 아파트 outside Saturday) is never recorded, so look only
+ // after the last recorded step; otherwise the skipped one shows as running (2026-11-26).
+ const lastDone=steps.reduce((at,[k],i)=>done.has(k)?i:at,-1);
+ const running=steps.find(([k],i)=>i>lastDone&&!done.has(k))?.[0];
  const typical=new Map((last?.steps??[]).map(s=>[s.name,s.seconds]));
  const lastStepEnd=current.steps.reduce((t,s)=>t+(s.seconds??0),0)*1000+Date.parse(current.startedAt);
  const runningFor=(Date.now()-lastStepEnd)/1000;
