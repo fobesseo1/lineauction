@@ -93,6 +93,8 @@ for(const started=Date.now();;){
  await delay(Math.min(60_000,Number(process.env.FACTORY_LEASE_SECONDS??900)*1000/3));
 }
 delete run.waiting;run.claim=claim;lease.start();
+// The progress window must stop showing "대기 중" as soon as the lease is ours, not after the first step ends.
+await writeFile(`${root}/current.json`,JSON.stringify(run,null,2));
 if(['takeover','retry'].includes(claim.reason))await noticeTakeover({job,day,machine,claim}).catch(e=>console.error(e.message));
 
 // 4. This job's state from whichever PC ran it last. Without it (no network, a broken download)
