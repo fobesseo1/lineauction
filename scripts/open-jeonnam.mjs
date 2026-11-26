@@ -27,7 +27,10 @@ export function patch(cfg){
  r.partialNote=`${r.partialNote} 2026-11-26 이후: 전남 시·군 22곳을 더해 시도 전체를 받는다 (scripts/open-jeonnam.mjs).`;
  r.oldNames=[...new Set([...(r.oldNames??[]),'전라남도'])];
  r.courts=[...new Set([...r.courts,...COURTS])];
- // 역은 광주 노선 그대로('29' 노선표), 학교·동네 시설 범위만 전남까지 넓힌다.
+ // 시군을 넓힌 날: publish가 이 시도의 36개월 전체를 한 번 올린다(enabledFrom과 같게). 역은 광주 5개 구만.
+ r.widenedOn=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(new Date());
+ r.stationSigungu=Object.fromEntries(['동구','서구','남구','북구','광산구'].map(k=>[k,['29']]));
+ // 학교·동네 시설 범위만 전남까지 넓힌다.
  cfg.areas['29']={...cfg.areas['29'],...AREA};
  return cfg;
 }

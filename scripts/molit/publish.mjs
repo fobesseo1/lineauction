@@ -431,7 +431,10 @@ const OPENING_DAYS=7;
 const kstDay=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul'}).format(d);
 const recentlyOpened=(()=>{
  const today=kstDay(new Date()),since=kstDay(new Date(Date.now()-(OPENING_DAYS-1)*86400000));
- return regionConfig.regions.filter(r=>r.enabledFrom&&r.enabledFrom>=since&&r.enabledFrom<=today).map(r=>r.code);
+ // widenedOn: a 시도 already on that gained 시군 (전남광주통합특별시 + 옛 전남 22 시·군, 2026-11-26) loads its whole window
+ // the same way; without it 전남 got only the recent 3 months on its first day.
+ const opened=r=>[r.enabledFrom,r.widenedOn].some(d=>d&&d>=since&&d<=today);
+ return regionConfig.regions.filter(opened).map(r=>r.code);
 })();
 const openingPath=table=>`data/molit/opening-${table}.json`;
 async function openingFor(table){
