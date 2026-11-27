@@ -50,7 +50,7 @@ const places=[...wh.prepare("select distinct kind,lawd,umd,jibun from trades whe
 wh.close();
 const allComplexes=await fetchAll('complexes','id,kapt_code,pnu,name,sido,sigungu,road_address,jibun_address');
 const complexes=allComplexes.filter(c=>c.pnu);
-const properties=await fetchAll('properties','id,source,address,dong,pnu',q=>q.in('sido',SIDO_NAMES));
+const properties=await fetchAll('properties','id,source,address,dong,pnu,sido,sigungu,title,is_current,latitude',q=>q.in('sido',SIDO_NAMES));
 const courtPnu=new Map();
 for(const p of properties){
  if(p.source!=='court')continue;
@@ -182,7 +182,36 @@ for(const c of allComplexes){
 }
 await writeJson(pnuCachePath,pnuCache);
 console.log(`complexes without a parcel point: from trade places ${stats.place}, from address search ${stats.search} (searched ${stats.searched}), still missing ${stats.missing}${stats.errors?`, lookups failed ${stats.errors}${searchOff?` (search stopped: ${searchOff})`:''}`:''}`);
-const propertyRows=[];for(const p of properties){const pnu=propertyPnu(p);const c=await point(pnu);if(c||(p.source==='court'&&pnu))propertyRows.push({id:p.id,...(p.source==='court'&&pnu?{pnu}:{}),...(c?{lat:c.lat,lng:c.lng}:{})});}
+// Current properties whose PNU has no parcel point, or that have no PNU (Onbid sends none for some): the lot
+// in the address or title found by address search, else its main lot, since a sub-lot merged after
+// redevelopment is gone from the parcel layer (부산 덕천동 573-3 → 573, 2026-11-27). Cached like the complexes'.
+const lotQueries=p=>{
+ const m=p.dong&&String(p.address||p.title||'').match(new RegExp(`${p.dong}\\s+(\\d+)(?:-(\\d+))?(?![\\d-])`));
+ if(!m)return [];const at=`${p.sido} ${p.sigungu??''} ${p.dong}`.replace(/\s+/g,' ');
+ return [`${at} ${m[1]}${m[2]?`-${m[2]}`:''}`,...(m[2]?[`${at} ${m[1]}`]:[])];
+};
+const propStats={searched:0,found:0,missing:0};
+async function propertyFallback(p){
+ for(const q of lotQueries(p)){
+  const key=`parcel:${q}`;
+  if(!(key in pnuCache)){if(plan||searchOff||stats.searched+propStats.searched>=limit)return null;propStats.searched++;pnuCache[key]=await searchPnu(q,'parcel',p.sido);pnuCache[`${key}@`]=new Date().toISOString();}
+  const pnu=pnuCache[key];if(!pnu)continue;
+  if(!(pnu in await shardOf(pnu))){
+   const {features}=await vworldFeatures('LP_PA_CBND_BUBUN',{attrFilter:`pnu:=:${pnu}`,geometry:'true'},{size:1});
+   const f=features[0];(await shardOf(pnu))[pnu]=f?bboxCenter(f.bbox??boxOf(f.geometry)):null;
+   await writeJson(`${root}/parcels/${pnu.slice(0,10)}.json`,shards.get(pnu.slice(0,10)));await sleep(150);
+  }
+  const pt=await point(pnu);if(pt)return pt;
+ }
+ return null;
+}
+const propertyRows=[];for(const p of properties){
+ const pnu=propertyPnu(p);let c=await point(pnu);
+ if(!c&&p.is_current&&p.latitude==null){try{c=await propertyFallback(p);}catch(e){console.log(`property lookup failed, skipped: ${p.id}: ${e.message}`);}c?propStats.found++:propStats.missing++;}
+ if(c||(p.source==='court'&&pnu))propertyRows.push({id:p.id,...(p.source==='court'&&pnu?{pnu}:{}),...(c?{lat:c.lat,lng:c.lng}:{})});
+}
+await writeJson(pnuCachePath,pnuCache);
+console.log(`current properties without a parcel point: found by address search ${propStats.found} (searched ${propStats.searched}), still missing ${propStats.missing}`);
 await applyGeo('market_places',placeRows);
 await applyGeo('complexes',complexRows);
 await applyGeo('properties',propertyRows);

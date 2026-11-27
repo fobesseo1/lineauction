@@ -15,6 +15,7 @@ test('only official HTTPS document/image links',()=>{assert.ok(safeOfficialUrl('
 test('standardPnu converts the Onbid land-type digit to the national standard',()=>{
  assert.equal(standardPnu('4128110100000380013'),'4128110100100380013');
  assert.equal(standardPnu('4115011000100750003'),'4115011000200750003');
+ assert.equal(standardPnu('2917010700014920000'),'1230010700114920000');
  assert.equal(standardPnu('123'),'123');assert.equal(standardPnu(null),null);
 });
 

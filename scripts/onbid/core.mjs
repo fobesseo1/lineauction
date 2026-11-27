@@ -42,8 +42,12 @@ export function koreanDate(v){
 }
 // Onbid writes the land-type digit of a PNU as 0 = regular, 1 = 산; the national standard (used
 // by vworld, the building register and court-derived PNUs) is 1 = regular, 2 = 산.
+// 광주 became part of 전남광주통합특별시 (시도 12), and vworld's parcels now carry the new 시군구 codes;
+// Onbid still sends the old 광주광역시 ones (29xxx), whose parcels no longer exist (seen 2026-11-27).
+const RENUMBERED={'29110':'12210','29140':'12240','29155':'12270','29170':'12300','29200':'12330'};
 export function standardPnu(pnu){
  if(!/^\d{19}$/.test(pnu??''))return pnu??null;
+ pnu=(RENUMBERED[pnu.slice(0,5)]??pnu.slice(0,5))+pnu.slice(5);
  const t={'0':'1','1':'2'}[pnu[10]];
  return t?pnu.slice(0,10)+t+pnu.slice(11):pnu;
 }
