@@ -14,6 +14,7 @@ import {jibunPnu,placeId} from '../molit/summary.mjs';
 import {courtAddress,sameDong} from '../molit/match.mjs';
 import {vworldFeatures,bboxCenter,boxOf} from './vworld.mjs';
 import {lotAddress,shortAddress} from './fill-pnu.mjs';
+import {complexInAddress,lotOf,buildingName,roadOf,pickPlace} from './property-place.mjs';
 process.loadEnvFile('.env.local');
 
 const plan=process.argv.includes('--plan');
@@ -186,16 +187,27 @@ console.log(`complexes without a parcel point: from trade places ${stats.place},
 // in the address or title found by address search, else its main lot, since a sub-lot merged after
 // redevelopment is gone from the parcel layer (부산 덕천동 573-3 → 573, 2026-11-27). Cached like the complexes'.
 const lotQueries=p=>{
- const m=p.dong&&String(p.address||p.title||'').match(new RegExp(`${p.dong}\\s+(\\d+)(?:-(\\d+))?(?![\\d-])`));
+ const m=p.dong&&String(p.address||detailAddress.get(p.id)||p.title||'').match(new RegExp(`${p.dong}\\s+(\\d+)(?:-(\\d+))?(?![\\d-])`));
  if(!m)return [];const at=`${p.sido} ${p.sigungu??''} ${p.dong}`.replace(/\s+/g,' ');
  return [`${at} ${m[1]}${m[2]?`-${m[2]}`:''}`,...(m[2]?[`${at} ${m[1]}`]:[])];
 };
 const propStats={searched:0,found:0,missing:0};
+// Then the K-APT complex named in the address, an apartment on the same lot or of the same name in
+// vworld's place search (new towns before 환지: "시화지구1868", "…1블럭"), else the road address.
+const complexPoint=new Map(complexRows.map(r=>[r.id,{lat:r.lat,lng:r.lng}]));
+const namedComplexes=allComplexes.filter(c=>complexPoint.has(c.id));
+async function cached(key,lookup){
+ if(!(key in pnuCache)){if(plan||searchOff||stats.searched+propStats.searched>=limit)return null;propStats.searched++;pnuCache[key]=await lookup();pnuCache[`${key}@`]=new Date().toISOString();}
+ return pnuCache[key];
+}
+// Some Onbid list rows have no address ("강원도 춘천시 아파트") and the daily list upsert blanks it again; the
+// detail kept in onbid_observations has it ("…근화동 751").
+const detailAddress=new Map();
+{const ids=properties.filter(p=>p.source==='onbid'&&p.is_current&&p.latitude==null&&!p.address).map(p=>p.id);
+ for(let i=0;i<ids.length;i+=200){const {data,error}=await supa.from('onbid_observations').select('property_id,detail_payload->>zadrNm').in('property_id',ids.slice(i,i+200));if(error)throw Error(`onbid_observations: ${error.message}`);for(const r of data)if(r.zadrNm)detailAddress.set(r.property_id,r.zadrNm);}}
 async function propertyFallback(p){
  for(const q of lotQueries(p)){
-  const key=`parcel:${q}`;
-  if(!(key in pnuCache)){if(plan||searchOff||stats.searched+propStats.searched>=limit)return null;propStats.searched++;pnuCache[key]=await searchPnu(q,'parcel',p.sido);pnuCache[`${key}@`]=new Date().toISOString();}
-  const pnu=pnuCache[key];if(!pnu)continue;
+  const pnu=await cached(`parcel:${q}`,()=>searchPnu(q,'parcel',p.sido));if(!pnu)continue;
   if(!(pnu in await shardOf(pnu))){
    const {features}=await vworldFeatures('LP_PA_CBND_BUBUN',{attrFilter:`pnu:=:${pnu}`,geometry:'true'},{size:1});
    const f=features[0];(await shardOf(pnu))[pnu]=f?bboxCenter(f.bbox??boxOf(f.geometry)):null;
@@ -203,7 +215,14 @@ async function propertyFallback(p){
   }
   const pt=await point(pnu);if(pt)return pt;
  }
- return null;
+ const text=p.address||detailAddress.get(p.id)||p.title||'',sg=p.sigungu??'';
+ const named=complexInAddress(text,p.sido,namedComplexes);if(named)return complexPoint.get(named.id);
+ const lot=lotOf(text,p.dong);
+ if(lot){const pt=await cached(`place-lot:${p.sido} ${sg} ${lot.umd} ${lot.main}`,async()=>pickPlace(await search(`${sg} ${lot.umd} ${lot.main}`,'place'),{sido:p.sido,lot}));if(pt)return pt;}
+ const name=buildingName(text);
+ if(name){const pt=await cached(`place-name:${p.sido} ${sg} ${name}`,async()=>pickPlace(await search(`${sg} ${name}`,'place'),{sido:p.sido,name}));if(pt)return pt;}
+ const road=roadOf(text);
+ return road?await cached(`geocode:${road}`,()=>geocodeRoad(road)):null;
 }
 const propertyRows=[];for(const p of properties){
  const pnu=propertyPnu(p);let c=await point(pnu);
