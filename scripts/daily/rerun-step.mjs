@@ -25,7 +25,7 @@ export const STEPS={
   alerts:['scripts/alerts/send.mjs',[]],indexnow:['scripts/indexnow.mjs',['--near']],
  },
  onbid:{
-  'refresh-current':['scripts/refresh-current.mjs',[]],'fill-pnu':['scripts/geo/fill-pnu.mjs',[]],
+  'onbid-lifecycle':['scripts/onbid/lifecycle-sync.mjs',[]],'refresh-current':['scripts/refresh-current.mjs',[]],'fill-pnu':['scripts/geo/fill-pnu.mjs',[]],
   alerts:['scripts/alerts/send.mjs',[]],indexnow:['scripts/indexnow.mjs',[]],
  },
  court:{
@@ -53,7 +53,8 @@ if(String(process.argv[1]??'').replace(/\\/g,'/').endsWith('scripts/daily/rerun-
  const failed=(run.steps??[]).filter(s=>s.code!==0).map(s=>s.name);
  if(!failed.includes(name))throw Error(`${day} ${job}에서 ${name}은 실패하지 않았습니다 (실패: ${failed.join(', ')||'없음'})`);
 
- const [script,args]=known;
+ // --allow-large-delete passes through to a step stopped by the delete guard (scripts/daily/delete-guard.mjs).
+ const [script,base]=known,args=[...base,...process.argv.filter(a=>a==='--allow-large-delete')];
  const code=dry?0:await new Promise(resolve=>{
   const child=spawn(process.execPath,[script,...args],{stdio:'inherit',windowsHide:true});
   child.on('exit',c=>resolve(c??1));
@@ -65,13 +66,16 @@ if(String(process.argv[1]??'').replace(/\\/g,'/').endsWith('scripts/daily/rerun-
  // Every failed step now has a passing rerun → the day's job is done.
  const reruns=[...await lines('data/daily/reruns.jsonl'),...(dry?[entry]:[])];
  let leaseUpdated=false;
- if(resolvedByRerun({...run,job},reruns)){
+ // A run can be "completed" with a failed step (onbid-lifecycle blocked by the delete guard, 2026-11-27/28);
+ // the rerun is recorded on the lease either way so the daily report stops flagging that step.
+ const allFixed=failed.every(n=>reruns.some(r=>r.job===job&&r.step===n&&r.ok&&r.at>=(run.startedAt??'')));
+ if(allFixed&&(run.status==='completed'||resolvedByRerun({...run,job},reruns))){
   const {data:rows,error}=await db.from('factory_job_leases').select('status,summary').eq('job',job).eq('day',day);
   if(error)throw Error(error.message);
   const lease=rows?.[0];
-  if(lease?.status==='failed'&&!dry){
+  if((lease?.status==='failed'||lease?.status==='completed')&&!dry){
    const summary={...(lease.summary??{}),rerun:reruns.filter(r=>r.job===job&&r.ok&&failed.includes(r.step)&&r.at>=(run.startedAt??'')).map(r=>({step:r.step,at:r.at}))};
-   const {data:u,error:e}=await db.from('factory_job_leases').update({status:'completed',summary}).eq('job',job).eq('day',day).eq('status','failed').select('job');
+   const {data:u,error:e}=await db.from('factory_job_leases').update({status:'completed',summary}).eq('job',job).eq('day',day).eq('status',lease.status).select('job');
    if(e)throw Error(e.message);
    leaseUpdated=!!u?.length;
   }

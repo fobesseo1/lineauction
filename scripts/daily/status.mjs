@@ -6,6 +6,7 @@ import {readFile} from 'node:fs/promises';
 import {setTimeout as delay} from 'node:timers/promises';
 import {koreanDay,kstWeekday} from './core.mjs';
 import {resolvedByRerun} from './watch-core.mjs';
+import {dayProblems} from './step-check.mjs';
 import {hostname} from 'node:os';
 import {loadEnv} from './env.mjs';
 try{loadEnv();}catch{}   // FACTORY_MACHINE and the Supabase keys; the local view works without them
@@ -158,6 +159,10 @@ async function render(){
   const fixed=resolvedByRerun(run,allReruns);
   lines.push(`  ${label.padEnd(6,'　')} ${hour}  ·  최근: ${run?`${fixed?'완료 (실패한 단계는 따로 다시 실행해 완료)':statusKo[run.status]??run.status} ${when(run.finishedAt)}`:'기록 없음'}`);
  }
+ // Steps that went wrong even though the run says 완료 (2026-11-28: onbid-lifecycle blocked two days unnoticed).
+ const allRuns=(await readFile('data/daily/runs.jsonl','utf8').catch(()=>'')).split(/\r?\n/).filter(Boolean).flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});
+ const problems=dayProblems(allRuns,allReruns,day);
+ if(problems.length)lines.push('',`⚠ 오늘 문제 있는 단계 ${problems.length}개 (작업은 완료여도 확인 필요)`,...problems.map(p=>`  ! ${JOB_KO[p.job]??p.job} / ${p.step}: ${p.why}`));
  lines.push('');
  const usage=budget?.serviceDays?.[day]??{list:0,detail:0};
  lines.push(`오늘 API 사용량  온비드 목록 ${n(usage.list)}/1,000 · 온비드 상세 ${n(usage.detail)}/1,000 · 국토부 ${n(molit?.day===day?molit.requests:0)}/${n(molit?.limit??10000)}`);

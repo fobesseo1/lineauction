@@ -67,7 +67,9 @@ export async function dailyNotices({day=koreanDay(),machine,now=new Date()}={}){
  if(jobs.length&&(finished||kstMinutes(now)>=21*60)){
   const lines=jobs.map(j=>{const r=by[j];if(!r)return `• ${LABELS[j]}: 안 함`;
    const took=minutes(r.started_at,r.finished_at);
-   return `• ${LABELS[j]}: <b>${esc(r.machine)}</b> · ${STATUS[r.status]??r.status}${r.summary?.rerun?.length?' (실패한 단계 다시 실행해 완료)':''}${took!=null?` · ${took}분`:''}${r.attempt>1?` · ${r.attempt}번째 시도${r.previous_machine?` (앞: ${esc(r.previous_machine)})`:''}`:''}\n  판 ${esc(r.bundle_version??'—')}`;});
+   // Steps that went wrong even under 완료 (2026-11-28), unless rerun since (summary.rerun).
+   const bad=(r.summary?.steps??[]).filter(s=>(s.code!==0||s.problem)&&!(r.summary?.rerun??[]).some(x=>x.step===s.name));
+   return `• ${LABELS[j]}: <b>${esc(r.machine)}</b> · ${STATUS[r.status]??r.status}${r.summary?.rerun?.length?' (실패한 단계 다시 실행해 완료)':''}${took!=null?` · ${took}분`:''}${r.attempt>1?` · ${r.attempt}번째 시도${r.previous_machine?` (앞: ${esc(r.previous_machine)})`:''}`:''}\n  판 ${esc(r.bundle_version??'—')}${bad.map(s=>`\n  ⚠️ ${esc(s.name)}: ${esc(s.problem??`종료 코드 ${s.code}`)}`).join('')}`;});
   if(await once(`report:${day}`,machine,`<b>📋 ${esc(day)} 데이터 공장</b>\n\n${lines.join('\n')}`))sent.push('report');
  }
  return sent;

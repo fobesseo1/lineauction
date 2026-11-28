@@ -11,6 +11,7 @@ import {sendWindowsNotification} from '../court/windows-notify.mjs';
 import {JOBS,koreanDay,scheduledSkip,lockState,onbidMessage,beforeSchedule,runsOn,kstWeekday} from './core.mjs';
 import {lease as factoryLease,machineName,noticeTakeover,noticeStale,dailyNotices,notifyOperator} from './factory.mjs';
 import {JOB_BUNDLES,download as downloadBundle,upload as uploadBundle} from './bundle.mjs';
+import {stepProblem} from './step-check.mjs';
 
 const root='data/daily';await mkdir(root,{recursive:true});
 const arg=key=>process.argv.find(a=>a.startsWith(`--${key}=`))?.slice(key.length+3);
@@ -323,7 +324,7 @@ ${name}: ${e.message}`).catch(()=>{});}
  lease.stop();
  const versions=run.uploads.filter(u=>u.version).map(u=>`${u.bundle} ${u.version}`).join(', ')||null;
  const took=Math.round((Date.now()-Date.parse(run.startedAt))/60000);
- if(!lease.state.lost)await lease.finish(run.status==='completed'?'completed':'failed',{minutes:took,steps:run.steps.map(s=>({name:s.name,code:s.code,seconds:s.seconds,...(s.stale?{stale:true}:{})})),bundles:run.bundles,uploads:run.uploads,error:run.error??null},versions).catch(e=>console.error('lease finish failed',e.message));
+ if(!lease.state.lost)await lease.finish(run.status==='completed'?'completed':'failed',{minutes:took,steps:run.steps.map(s=>({name:s.name,code:s.code,seconds:s.seconds,...(s.stale?{stale:true}:{}),...(stepProblem(s)?{problem:stepProblem(s)}:{})})),bundles:run.bundles,uploads:run.uploads,error:run.error??null},versions).catch(e=>console.error('lease finish failed',e.message));
  if(!process.env.FACTORY_DAY)await dailyNotices({day,machine}).catch(e=>console.error('daily notices failed',e.message));
  run.finishedAt=new Date().toISOString();
  await record(run);await writeFile(`${root}/last-${job}.json`,JSON.stringify(run,null,2));
